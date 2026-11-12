@@ -113,6 +113,12 @@ export function latLonOf(origin: { lat: number; lon: number }, pos: Vec2): { lat
   return { lat, lon: origin.lon + pos.e / (60 * Math.cos(mid)) };
 }
 
+/** The reverse of `latLonOf`: the local east/north position (NM) of a latitude and longitude, from the same origin. */
+export function positionOfLatLon(origin: { lat: number; lon: number }, lat: number, lon: number): Vec2 {
+  const mid = ((origin.lat + lat) / 2) * (Math.PI / 180);
+  return { e: (lon - origin.lon) * 60 * Math.cos(mid), n: (lat - origin.lat) * 60 };
+}
+
 /** A latitude or longitude in degrees and decimal minutes, e.g. 18°50.0'N. */
 export function formatLatLon(value: number, kind: "lat" | "lon"): string {
   const hemi = kind === "lat" ? (value >= 0 ? "N" : "S") : value >= 0 ? "E" : "W";

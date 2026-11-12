@@ -116,7 +116,11 @@ Other browser tabs on the same computer link by themselves. For several computer
    ship starts at a different position 5 NM from the scenario start, and every own ship is a target
    on the others' radar. A linked exercise runs at 1x.
 
-This has been tested on one machine only. Try it on the classroom network before a class.
+This has been proved with five separate browsers going through the server on one machine
+(`npm run test:link`): monitoring, a linked exercise, pause and run, messages, and finding the
+server again after it has been stopped and started. It has not been tried on separate PCs over a
+classroom network: do that before a class. If the server stops, each display shows "server out of
+reach (trying again)" and links up again by itself when the server is back.
 
 ## 8. Records, replay and assessment
 
@@ -126,8 +130,9 @@ exercise and the score. "Open" shows:
 - the replay: own ship's track in green and the targets' in yellow, with the events and alarms up
   to the time shown. "Play" runs it; the slider moves to any moment. "Replay speed" goes from 0.25x
   (slow motion) through 1x (real time) to 60x. Positions are recorded every 10 seconds and the
-  replay moves the ships smoothly between them. The replay shows tracks, events and alarms; it does
-  not show the trainee's radar picture;
+  replay moves the ships smoothly between them. Below the track plot is the radar
+  picture as the trainee saw it, one picture every 15 seconds, in step with the slider. Pictures
+  are kept in this browser on this computer; a record brought from another computer has none;
 - the result, item by item, and the trainees' own debrief notes and radio log;
 - the assessor's decision: "Competent" or "Not yet competent", the assessor's name and remarks. The
   score is a guide only; the assessor's decision is the prime criterion (STCW Code A-I/12,
@@ -182,16 +187,22 @@ tried on the academy's PCs; try it before relying on it.
 
 - No approval: the simulator has not been approved by DG Shipping or certified by DNV or anyone
   else, and no radar instructor has reviewed it.
-- Many figures are estimates, not measured data: the handling of four of the six ship types, target
+- Many figures are estimates, not measured data: the handling of three of the six ship types, target
   ship figures, the ship's response to the sea, automatic clutter settings, echo shapes, the
   strength of false echoes, scoring tolerances. Radar beamwidths and pulse lengths are those of one
   maker's published specification.
 - Radar and ARPA only: no chart display, no outside view, no echo sounder, no voice radio.
 - Own ship's ahead, sideways and turning motion come from the manoeuvring model. Roll, pitch, heave
   and the yaw a sea gives are added as simple wave motions whose size is an estimate; the sea does
-  not slow the ship or set her. Two ship types are fitted to published figures (SHIP page, HELP);
+  not slow the ship or set her. Three ship types are fitted to published turning figures (SHIP page, HELP);
   the others are estimates.
-- Linked displays have been tested on one computer only.
+- Linked displays have been proved through the server with separate browsers on one computer, not
+  yet on separate PCs.
+- A hardware control panel is supported by keys and by knob-box inputs (SETTINGS, Control panel),
+  but no real panel has been plugged in: only simulated inputs have been tried.
+- Symbols follow IMO SN.1/Circ.243/Rev.2 and alerts follow IMO MSC.302(87) as far as those two
+  documents go. IEC 62288 and IEC 62388, which say more, have not been read. Not done: the AIS turn
+  indicator, AIS true-scale outlines, and a 24-hour alert history.
 - The ARPA tracks 20 targets. It cannot acquire a false echo; a real ARPA can.
 - A target on a programmed track allows for current and leeway and stays on the line; a plain
   target (no catalogue type) is not moved by the current at all.

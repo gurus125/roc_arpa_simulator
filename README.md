@@ -51,11 +51,23 @@ Sound signals (`src/core/signals.ts`): COLREG rule 34 and 35 whistle signals, au
 Learner's manual: `docs/USER-MANUAL.md`. Instructor's operation manual: `docs/INSTRUCTOR-MANUAL.md`.
 Target tracks (`src/core/route.ts`, `src/engine/world.ts`): the instructor can programme a track of up to 20
 waypoints for any target; 100 targets run together (scenario "Traffic: 100 ships on programmed tracks").
-Replay runs from 0.25x (slow motion) to 60x.
-Realism (13 Nov 2026): false echoes (`src/core/falseecho.ts`: power line, bridge, mirror images, indirect echoes),
+Replay runs from 0.25x (slow motion) to 60x and shows the trainee's radar picture, recorded every 15 seconds
+(`src/train/record.ts`, `src/ui/picture-store.ts`; pictures are kept in the browser's IndexedDB).
+Realism (12 Nov 2026): false echoes (`src/core/falseecho.ts`: power line, bridge, mirror images, indirect echoes),
 own ship in a seaway (`src/core/seaway.ts`: roll, pitch, yaw; estimated response), true-motion picture driven by the
 speed input, target tracks that allow for current. Radar beamwidths and pulse settings are from one maker's published
-specification; two own-ship types are fitted to published figures (see `PUBLISHED` in `src/core/shipmodel.ts`).
+specification; three own-ship types are fitted to published turning figures (see `PUBLISHED` in `src/core/shipmodel.ts`).
+Real coastline: the scenario "Approaches to Mumbai (real coastline)" uses `src/engine/real-coasts.ts`, made by
+`scripts/make-coast.mjs` from the geo-maps "earth-coastlines-250m" data set. Coastline data (c) OpenStreetMap
+contributors, Open Database License (ODbL) 1.0, https://www.openstreetmap.org/copyright. About 250 m accuracy; no
+depths, lights or buoys. It is not a chart.
+Symbols follow IMO SN.1/Circ.243/Rev.2 (`src/ui/arpa-view.ts`) and alerts follow IMO MSC.302(87)
+(`src/arpa/alerts.ts`: alarm and warning priorities, acknowledged one at a time). IEC 62288 and IEC 62388 have not
+been read; the priority given to each alert is the project's own judgement.
+Hardware control panel: keys for every radar function, changeable, and knob-box (game controller) inputs
+(`src/ui/panel-map.ts`, `src/ui/panel.ts`; SETTINGS > Control panel). No real panel has been tried.
+`npm run test:link` starts the classroom server and checks an instructor and four student displays in separate
+browsers (needs Playwright). Separate PCs on a network have not been tried.
 `npm run test:screen` checks the built page in a headless browser (needs Playwright).
 Explanatory text is hidden until HELP is pressed. The layout is our own arrangement
 (`src/ui/console-ui.ts`), not a copy of any maker's screen.
@@ -63,7 +75,7 @@ Explanatory text is hidden until HELP is pressed. The layout is our own arrangem
 ## Develop
 
     npm install
-    npm test            # 405 tests
+    npm test            # 426 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

@@ -1,3 +1,5 @@
+import { nextToAcknowledge } from "../arpa/index";
+import { alertRows } from "./alerts-view";
 import { normalizeDeg } from "../core/vec";
 import { logSpeed, measuredHeading, ownCogSog, relativeWind, ringInterval } from "../engine/index";
 import { AppState } from "./app";
@@ -35,7 +37,7 @@ const KEYS: Key[] = [
   { key: "trial", label: "TRIAL", sections: ["Trial manoeuvre"], tab: "arpa" },
   { key: "ais", label: "AIS LIST", sections: ["AIS targets"], tab: "arpa" },
   { key: "arpa", label: "ARPA", sections: ["ARPA operation"], tab: "arpa" },
-  { key: "set", label: "SETTINGS", sections: ["Settings", "Own ship data"], tab: "top" },
+  { key: "set", label: "SETTINGS", sections: ["Settings", "Own ship data", "Control panel"], tab: "top" },
   { key: "comm", label: "VHF/SIGNAL", sections: ["Communications (VHF, typed)", "Sound signals"], tab: "top" },
   { key: "env", label: "WEATHER", sections: ["Environment"], tab: "radar" },
   { key: "scen", label: "SCENARIO", sections: ["Free practice", "Linked own ships", "Study aids"], tab: "radar" },
@@ -72,7 +74,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   const panel = document.createElement("div");
   panel.id = "console";
   panel.innerHTML = `
-    <div id="cTop" class="wide"><span id="cTopSb"></span><button id="ackKey" title="Acknowledge all alarms">ALARM ACK</button><span id="cTopAlarm"></span></div>
+    <div id="cTop" class="wide"><span id="cTopSb"></span><button id="ackKey" title="Acknowledge the alert shown (one at a time: alarms first)">ALARM ACK</button><span id="cTopAlarm"></span></div>
     <div class="ccol">
     <div class="cbox" id="bDisp"><h3>DISPLAY</h3>
       <div class="crow"><span class="cl">RANGE</span><button id="rngDn" class="pm">−</button><span id="rngHold"></span><button id="rngUp" class="pm">+</button><button id="ringsKey" title="Range rings on / off">RINGS</button></div>
@@ -211,7 +213,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   for (const id of ["run", "speed"]) $("cRun").appendChild($(id));
   // Radar ON / STANDBY and alarm acknowledge sit at the top, larger than the other keys.
   $("cTopSb").appendChild($("radarSb"));
-  $("ackKey").addEventListener("click", () => $("arpaAckAll").click());
+  $("ackKey").addEventListener("click", () => $("arpaAckNext").click());
   const help = document.createElement("button");
   help.id = "cHelp";
   help.textContent = "HELP";
@@ -285,9 +287,11 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     put("ringsKey", ringsOn ? `RINGS ${ringInterval(c.rangeNm)}` : "RINGS OFF");
     put("cTx", `<span class="${app.radarStandby ? "wn" : "ok"}">${app.radarStandby ? "STANDBY" : "TX"}</span> <span class="cl">${mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : ""}</span>`);
     put("cAlarm", unacked ? `<span class="flash">ALARM</span>` : "");
-    const pending = app.roc ? [] : [...a.alarms, ...app.ais.alarms].filter((x) => !x.acked);
+    const rows = alertRows(app);
+    const pending = rows.filter((x) => !x.acked);
+    const nextAlert = nextToAcknowledge(rows);
     $("ackKey").classList.toggle("alarm", pending.length > 0);
-    put("cTopAlarm", pending.length > 0 ? `<span class="no">${pending.length > 1 ? `${pending.length} ALARMS: ` : ""}${pending[pending.length - 1]!.text.replace(/</g, "&lt;")}</span>` : `<span class="cl">No alarm</span>`);
+    put("cTopAlarm", nextAlert ? `<span class="${nextAlert.priority === "alarm" ? "no" : "wn"}">${pending.length > 1 ? `${pending.length} ALERTS: ` : ""}${nextAlert.priority.toUpperCase()}: ${nextAlert.text.replace(/</g, "&lt;")}</span>` : `<span class="cl">No alarm</span>`);
     $("radarSb").classList.toggle("stby", app.radarStandby);
     put("cOwn",
       cell("HDG", `${p3(measuredHeading(w))}°`, "big") + cell("STW", `${logSpeed(w).toFixed(1)} kn`, "big") +

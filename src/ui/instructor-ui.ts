@@ -3,9 +3,10 @@ import { IMO_TABLE2, Scenario, TARGET_TYPES, Target, TargetKind, clearTargetRout
 import { MAX_ROUTE_WAYPOINTS } from "../core/route";
 import { EXERCISES } from "../roc/index";
 import {
-  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, PLACEHOLDER_SCORING, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
+  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, PLACEHOLDER_SCORING, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
 } from "../train/index";
 import { AppState, rewind } from "./app";
+import { deletePictures, loadPictures } from "./picture-store";
 import { $, download, esc, inputValue, mmss } from "./dom";
 import { Link, StationStatus } from "./link";
 import { resultHtml } from "./train-ui";
@@ -181,6 +182,8 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div class="btns"><button id="inCsvAll">Export all (CSV)</button></div>
       <div id="inRecView" hidden><h2 style="margin-top:10px" id="inRecTitle"></h2>
         <canvas id="inReplay" style="aspect-ratio:1/1;background:#08100e"></canvas>
+        <p class="small" id="inPicNote"></p>
+        <img id="inPic" alt="The radar picture as the trainee saw it" style="width:100%;aspect-ratio:1/1;background:#000;display:block" hidden>
         <div class="btns"><button id="inPlay">Play</button><input type="range" id="inScrub" min="0" max="100" value="0" style="flex:1"><span class="val" id="inScrubT">00:00</span></div>
         <div class="row two"><label for="inReplaySpeed">Replay speed</label><select id="inReplaySpeed">${REPLAY_SPEEDS.map((v) => `<option value="${v}"${v === 30 ? " selected" : ""}>${v}x${v < 1 ? " (slow motion)" : v === 1 ? " (real time)" : ""}</option>`).join("")}</select></div>
         <div class="log" id="inRecEvents"></div><div id="inRecResult"></div>
@@ -471,6 +474,8 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
 
   // ------------------------------------------------------------ records and replay
   let viewing: SessionRecord | null = null;
+  /** Radar pictures recorded with the record being viewed (loaded when it is opened; may be none). */
+  let pictures: PictureFrame[] = [];
   let playing = false;
   /** Replay time in seconds of the exercise; kept apart from the slider, which moves in whole seconds. */
   let replayT = 0;
@@ -485,6 +490,16 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       replayCanvas.height = size;
     }
     const t = replayT;
+    const pic = pictureAt(pictures, t);
+    const img = $<HTMLImageElement>("inPic");
+    img.hidden = !pic;
+    if (pic && img.dataset["t"] !== String(pic.t)) {
+      img.dataset["t"] = String(pic.t);
+      img.src = pic.url;
+    }
+    $("inPicNote").textContent = pic
+      ? `Radar picture as the trainee saw it, at ${mmss(pic.t)} (one is kept every ${PICTURE_INTERVAL_SEC} seconds):`
+      : "No radar pictures are kept with this record (it was made before pictures were recorded, or on another computer or browser).";
     const c = replayCanvas.getContext("2d");
     if (c) drawReplay(c, size, viewing, t);
     $("inScrubT").textContent = mmss(t);
@@ -500,6 +515,13 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     scrub.max = String(Math.max(1, Math.round(r.simSeconds)));
     scrub.value = "0";
     replayT = 0;
+    pictures = [];
+    delete $<HTMLImageElement>("inPic").dataset["t"];
+    void loadPictures(r.id).then((p) => {
+      if (viewing !== r) return;
+      pictures = p;
+      drawRec();
+    });
     $("inRecResult").innerHTML = r.result ? resultHtml(r.result) : `<p class="small">${r.summary.map(esc).join("<br>")}</p>`;
     $("inRecDebrief").innerHTML = debriefHtml(r);
     ($("asDec") as HTMLSelectElement).value = r.assessor?.decision ?? "";
@@ -529,6 +551,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     if (b.dataset["act"] === "open") openRec(r);
     if (b.dataset["act"] === "del" && confirm("Delete this record?")) {
       st.removeRecord(r.id);
+      void deletePictures(r.id);
       if (viewing === r) {
         viewing = null;
         $("inRecView").hidden = true;

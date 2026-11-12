@@ -13,6 +13,9 @@ Date: 11 Nov 2026. Training and study use only; nothing here is a claim of appro
   ARI is certified to), IEC 62388 (radar tests), IEC 62288 / SN.1/Circ.243 (symbols),
   MSC.302(87) (alert management), any maker's radar operator manual. Statements about these
   below come from general knowledge and must be checked against the documents themselves.
+  (Read since then, see the later sections: the DG Shipping order, STCW B-I/12, DNV-ST-0033,
+  SN.1/Circ.243/Rev.2 and MSC.302(87). Still not read: IEC 62388 and IEC 62288, which are sold,
+  not free.)
 
 ## Research update (web search now on), 11 Nov 2026
 
@@ -50,11 +53,11 @@ New gaps found from DGS 5/2004 and STCW B-I/12 (not in the table below):
 | Item | Source | Now |
 |------|--------|-----|
 | PPC (potential point of collision) and PAD (predicted area of danger) graphics | DGS 5/2004 syllabus; B-I/12 para 30 | BUILT 11 Nov 2026 (PAD is a simplified hexagon) |
-| Manual speed input, and the effect of a wrong manual speed on true motion | B-I/12 para 8.2, 8.3, 32.4 | BUILT: a wrong speed gives wrong true vectors, and (13 Nov 2026) the sea-stabilised true-motion picture moves own ship by the speed input, so fixed objects slide when it is wrong |
-| Unstabilised head-up display (picture smears when the ship yaws) | B-I/12 para 8.1, 12 | Head-up is unstabilised; since 13 Nov 2026 the ship yaws in a seaway, so the head-up picture smears |
+| Manual speed input, and the effect of a wrong manual speed on true motion | B-I/12 para 8.2, 8.3, 32.4 | BUILT: a wrong speed gives wrong true vectors, and (12 Nov 2026) the sea-stabilised true-motion picture moves own ship by the speed input, so fixed objects slide when it is wrong |
+| Unstabilised head-up display (picture smears when the ship yaws) | B-I/12 para 8.1, 12 | Head-up is unstabilised; since 12 Nov 2026 the ship yaws in a seaway, so the head-up picture smears |
 | Target aspect and composition changing the echo | B-I/12 para 5.4, 7 | BUILT 12 Nov 2026: echo strength and shape change with aspect (placeholder curve); composition not modelled |
-| Ship motion in a seaway affecting the picture | B-I/12 para 5.5 | BUILT 13 Nov 2026 (simplified): roll, pitch, heave and yaw from sea state and sea direction; rolling tips the beam and weakens echoes abeam; yaw smears a head-up picture. The size of the motions is an estimate |
-| False echoes from large structures, bridges and power lines; indirect echoes | B-I/12 para 6 | BUILT 13 Nov 2026: single echo of an overhead cable, mirror images in a quay wall or bridge, bridge repeated beyond itself, indirect echo in the shadow sector; scenario "False echoes". Strengths are estimates; the ARPA cannot acquire them |
+| Ship motion in a seaway affecting the picture | B-I/12 para 5.5 | BUILT 12 Nov 2026 (simplified): roll, pitch, heave and yaw from sea state and sea direction; rolling tips the beam and weakens echoes abeam; yaw smears a head-up picture. The size of the motions is an estimate |
+| False echoes from large structures, bridges and power lines; indirect echoes | B-I/12 para 6 | BUILT 12 Nov 2026: single echo of an overhead cable, mirror images in a quay wall or bridge, bridge repeated beyond itself, indirect echo in the shadow sector; scenario "False echoes". Strengths are estimates; the ARPA cannot acquire them |
 | Effects of pulse length and beamwidth on the picture; land shape from topography | B-I/12 para 7 | BUILT 12 Nov 2026: echoes painted from beamwidth and pulse length; land paints inland by height. No terrain model |
 | Centre and heading-marker misalignment as bearing errors | B-I/12 para 9.5 | Heading marker only |
 | Receiver noise saturation with gain too high | B-I/12 para 8.3 | To be checked on screen |
@@ -152,14 +155,14 @@ Weak, in order of how much they matter for a standard simulator:
 
 | # | Gap | Now | What a standard simulator does |
 |---|-----|-----|-------------------------------|
-| 1 | Radar picture | Each echo is a dot of fixed size from a hit list; coast is sampled points with one height | Picture built per bearing and range cell: echo width follows beamwidth, depth follows pulse length, so range and bearing discrimination, target shape with aspect, and land shape with terrain height appear by themselves |
-| 2 | Own ship behaviour | Fixed 2 deg/s turn and 0.1 kn/s speed change, set by sliders | Ship models with rudder and engine orders, turning circle, speed loss in a turn, stopping distance, wind and current effect; several ship types |
-| 3 | Target behaviour | Four target kinds; echo strength does not change with aspect | Many ship types with size, aspect-dependent echo, realistic manoeuvres |
-| 4 | Symbols and alerts | Our own symbols and alarm list | Symbols to IEC 62288 / SN.1/Circ.243; alerts by priority (alarm, warning, caution) with standard acknowledgement |
-| 5 | Regression safety | 245 tests on the maths and engine; none on the screen | Every release checked on the real screen. The last layout change hid controls and no test caught it |
+| 1 | Radar picture | BUILT: echoes are painted as arcs as wide as the beam plus the target and as deep as the pulse plus the target (beamwidths and pulse lengths from one maker's published specification). Echo shapes (beam = length / 7), the aspect curve and land depth are estimates; coast is sampled points with one height | Picture built per bearing and range cell: echo width follows beamwidth, depth follows pulse length, so range and bearing discrimination, target shape with aspect, and land shape with terrain height appear by themselves |
+| 2 | Own ship behaviour | BUILT: six ship types on a manoeuvring model with rudder and engine orders, turning circle, speed loss in a turn, stopping, wind and current. Three types are fitted to published turning figures; the other three are estimates | Ship models with rudder and engine orders, turning circle, speed loss in a turn, stopping distance, wind and current effect; several ship types |
+| 3 | Target behaviour | BUILT: 28 catalogue types with size and aspect-dependent echo, gradual turns and speed changes, programmed tracks. Figures are estimates | Many ship types with size, aspect-dependent echo, realistic manoeuvres |
+| 4 | Symbols and alerts | BUILT 12 Nov 2026 as far as the two IMO documents go: symbols follow SN.1/Circ.243/Rev.2; alerts follow MSC.302(87) (alarm and warning priorities, acknowledged one at a time, 30-second silence, an unacknowledged warning repeated after 5 minutes). IEC 62288 and IEC 62388 have not been read, and the priority given to each alert is the project's own judgement. Not done: AIS turn indicator, AIS true-scale outline, alert history list | Symbols to IEC 62288 / SN.1/Circ.243; alerts by priority (alarm, warning, caution) with standard acknowledgement |
+| 5 | Regression safety | 426 unit tests; 189 checks of the built page at three screen sizes (`npm run test:screen`); 15 checks of five linked displays (`npm run test:link`) | Every release checked on the real screen. The last layout change hid controls and no test caught it |
 | 6 | Exercises and marking | 9 ARPA + 2 radar + ROC exercises, placeholder tolerances, no pass mark | The academy's exercise sheets and marking scheme |
-| 7 | Stations | Link code exists, tested on one machine only | Instructor + 4 student stations proven on the academy network |
-| 8 | Controls | Mouse and keyboard | Usually a radar keyboard/trackball panel (optional by class) |
+| 7 | Stations | Proved 12 Nov 2026 with an instructor and four student displays in separate browsers through the server on one machine (`npm run test:link`), including the server stopping and coming back. Not tried on separate PCs | Instructor + 4 student stations proven on the academy network |
+| 8 | Controls | Mouse and keyboard. Since 12 Nov 2026 every radar function has a key that can be changed, and a knob box that acts as a game controller is read (SETTINGS, Control panel). No real panel has been plugged in | Usually a radar keyboard/trackball panel (optional by class) |
 | 9 | Validation | Headless browser checks only | Run on the academy PCs; signed off by a qualified radar instructor; checked against the DG Shipping guideline |
 
 ## Proposed order of work
@@ -170,7 +173,7 @@ Weak, in order of how much they matter for a standard simulator:
 2. Radar picture rebuilt on range/bearing cells (beamwidth, pulse length, terrain height for land).
 3. Own ship models with rudder and engine orders; wind.
 4. Target types with aspect-dependent echo.
-5. Symbols and alerts to the standards, once those documents are available.
+5. Symbols and alerts to the standards (BUILT 12 Nov 2026 to SN.1/Circ.243/Rev.2 and MSC.302(87); IEC 62288 and IEC 62388 are still unread).
 6. Exercises and marking from the academy's own sheets.
 7. Multi-computer test; instructor sign-off; DG Shipping checklist.
 
@@ -227,9 +230,9 @@ integrated bridge or anchor-handling training are left out.
 | 1.1.14 | GPS, echo sounder, speed log through the water (two-axis ground speed for ships over 50,000 GRT) | Partial: position readout, STW and SOG; no echo sounder, no two-axis speed |
 | 1.1.15 | Relative wind direction and force | Met |
 | 1.1.16 | Sound panel to the rules of the road | Met (own-ship whistle and fog signals) |
-| 2.1.1 | Own ship on a mathematical model with 6 degrees of freedom | Partly: surge, sway and yaw from the manoeuvring model; roll, pitch, heave and wave yaw added 13 Nov 2026 as simple wave motions with estimated size. Not a coupled six-degree model |
+| 2.1.1 | Own ship on a mathematical model with 6 degrees of freedom | Partly: surge, sway and yaw from the manoeuvring model; roll, pitch, heave and wave yaw added 12 Nov 2026 as simple wave motions with estimated size. Not a coupled six-degree model |
 | 2.1.2 | Open-water hydrodynamics with wind, wave, tidal stream and current | Partial: wind, current and tide act on the ship; waves roll, pitch and yaw her but do not slow or set her |
-| 2.1.8 | Exercise areas with correct land, depth, buoys and tidal streams, matching the charts and publications used | MISSING: the areas are invented; there is no real charted area |
+| 2.1.8 | Exercise areas with correct land, depth, buoys and tidal streams, matching the charts and publications used | A small part since 12 Nov 2026: the scenario "Approaches to Mumbai" has the real coastline (OpenStreetMap data, about 250 m accuracy). No depths, lights, buoys, land heights or charted tidal streams, and the other areas are invented. Counted as not met |
 | 2.1.9 | Radar: weather, tidal stream, current, shadow sectors, spurious and false echoes, propagation effects; coastlines, buoys, SART | Met by feature list (clutter, shadow sectors and land shadow, multiple, side-lobe and second-trace echoes, racon, SART). Realism not judged by a radar instructor |
 | 2.1.10 | ARPA: manual and automatic acquisition, past track, exclusion areas, vector/graphic time scale and data, trial manoeuvre | Met |
 | 2.1.11 | ECDIS functions | MISSING (not planned) |
@@ -251,10 +254,10 @@ General requirements for every class (Section 2)
 | 2.1.1.4 | User manual available to the learners | Met: docs/USER-MANUAL.md |
 | 2.1.1.5 | Emulated instruments: realistic grouping, proportions and scales; dimming; alarm sounds like real ones | Partly: day and night palettes, brilliance, alarm and whistle sounds; not assessed |
 | 2.1.1.6 | On a PC: starts easily; other programs, hot keys, closing and window controls disabled; no easy access to configuration files | Procedure written 12 Nov 2026 (INSTRUCTOR-MANUAL.md section 12): browser kiosk mode, with Windows assigned access to block Alt+F4 and Alt+Tab. Not tried on the academy's PCs |
-| 2.1.1.7 | Cloud-based use: remote desktop; instructor and students plan, assign and perform exercises; runs on a personal computer | Partly: runs on any PC in a browser; exercises reach other stations only over the local link, tested on one machine |
-| 2.2.1.2 | Instructor can start, halt, reset and restart; change the environment; communicate with learners and follow their conversations; follow the exercise; plot tracks; inject failures | Mostly met, on one machine: communication is typed, so there is no conversation to follow |
+| 2.1.1.7 | Cloud-based use: remote desktop; instructor and students plan, assign and perform exercises; runs on a personal computer | Partly: runs on any PC in a browser; exercises reach other stations only over the local link, proved with separate browsers through the server on one machine |
+| 2.2.1.2 | Instructor can start, halt, reset and restart; change the environment; communicate with learners and follow their conversations; follow the exercise; plot tracks; inject failures | Mostly met (proved with separate browsers through the server on one machine, not on separate PCs): communication is typed, so there is no conversation to follow |
 | 2.2.1.3 | Operation manual for instructor and assessor | BUILT 12 Nov 2026: docs/INSTRUCTOR-MANUAL.md |
-| 2.2.1.4 | Replay of a full exercise showing the learner's actions, in slow motion and at rapid speed | Mostly met 12 Nov 2026: replay from 0.25x (slow motion) to 60x, ships moved smoothly between the 10-second samples, with the events and alarms. It still shows tracks, not the learner's radar picture |
+| 2.2.1.4 | Replay of a full exercise showing the learner's actions, in slow motion and at rapid speed | Mostly met 12 Nov 2026: replay from 0.25x (slow motion) to 60x, ships moved smoothly between the 10-second samples, with the events and alarms; and, since later the same day, the learner's radar picture recorded every 15 seconds and shown in step with the replay. The picture is a still every 15 seconds, not a continuous recording, and is kept only in the browser that recorded it |
 | 2.2.1.5 | A scoring or grading method can be set up | Met in form; the values are placeholders |
 | 2.2.1.6 | (should) Restart from any point of the replay | Partial: take back 2, 5 or 10 minutes |
 | 2.2.1.7 | Student-led use: automated scoring, result available to the instructor afterwards | Met in form |
@@ -262,7 +265,8 @@ General requirements for every class (Section 2)
 Documents DNV asks for (Table 1-6, 1.8, 1.9, Appendix A)
 - Simulation philosophy (one to two pages): not written.
 - User interface description, including a list of all alarms and operator messages: partly in the
-  learner's manual; no alarm list.
+  learner's manual, which now explains the symbols and the alarm and warning priorities; no full
+  alarm list.
 - Instrument and equipment list: not written.
 - Description of the software: modules with version numbers, and the mathematical and hydrodynamic
   models: not written (README and code comments only).
@@ -270,17 +274,22 @@ Documents DNV asks for (Table 1-6, 1.8, 1.9, Appendix A)
 - Simulation objectives (STCW competence against exercises), operating capabilities including the
   limits and possible errors of real equipment, variety of conditions: partly, in COMPLIANCE-MATRIX.md
   and the manual.
-- Test programmes with acceptance criteria and their justification: not written. The 405 unit tests,
-  182 screen checks and the exercise self-test are evidence, not a test programme in DNV's sense.
+- Test programmes with acceptance criteria and their justification: not written. The 426 unit tests,
+  189 screen checks, 15 link checks and the exercise self-test are evidence, not a test programme in DNV's sense.
 - Change-log: git history only.
 - Appendix A, for each own-ship model: ship particulars, speed data (telegraph table, tactical
   diameter, crash stop), engine, propeller, rudder and autopilot data, all "modelled, documented and
   verified"; plus model test documentation, manoeuvring booklet, wheelhouse poster and pilot card
-  (IMO A.601(15)). NOT MET. Since 13 Nov 2026 two of the six ship types are fitted to published
-  figures (a VLCC to the sample ship in the ABS Guide for Vessel Maneuverability 2017, Appendix 1;
-  a 105 m training ship to the sea-trial turning circle of MV Yukun, Sensors 20 (2020) 3963), with
-  the fit stated in tests/shipmodel.test.ts. The other four are estimates, and none has a
-  manoeuvring booklet, wheelhouse poster or pilot card.
+  (IMO A.601(15)). NOT MET. Since 12 Nov 2026 three of the six ship types are fitted to published
+  turning figures (a VLCC to the sample ship in the ABS Guide for Vessel Maneuverability 2017,
+  Appendix 1; a 105 m training ship to the sea-trial turning circle of MV Yukun, Sensors 20 (2020)
+  3963; a 230 m container ship to the free-running model test of the KCS benchmark hull, Yasukawa
+  et al. 2021 as tabulated by Kim, Tezdogan and Incecik, Ocean Engineering 2021), with the fit
+  stated in tests/shipmodel.test.ts. The stopping distances of the container ship, coaster and
+  tanker are tested to lie inside the typical ranges of IMO MSC/Circ.644 Appendix 3, which is a
+  check against typical ships, not against one real ship. The turning of the tanker and coaster and
+  everything about the bulk carrier remain estimates, and none has a manoeuvring booklet,
+  wheelhouse poster or pilot card.
 
 What to aim for
 - Class C is no longer a radar-and-ARPA-only class. To claim it the product would need ECDIS, an
@@ -301,12 +310,20 @@ operation manual, kiosk-mode procedure (done 12 Nov 2026); (4) own-ship models b
 ship's manoeuvring booklet; (5) the documents and a test programme; (6) freeze a version and keep a
 change-log.
 
-Realism work of 13 Nov 2026 (asked for by the user): target tracks allow for current; true-motion
+Realism work of 12 Nov 2026 (asked for by the user): target tracks allow for current; true-motion
 picture follows the speed input; false echoes; seaway motion; radar set data from a maker's
 published specification (Furuno FAR-21x7 series: beamwidths, pulse lengths, repetition rates); wave
-heights from the WMO sea state code; two ship types fitted to published figures. Still estimates:
-four ship types, target ship figures, response to the sea, automatic clutter, echo shapes (beam =
+heights from the WMO sea state code; three ship types fitted to published turning figures. Still
+estimates: three ship types, target ship figures, response to the sea, automatic clutter, echo shapes (beam =
 length / 7), land depth, strength of false echoes.
+
+Further work of 12 Nov 2026 (asked for by the user): the replay shows the recorded radar picture;
+one scenario on a real coastline (approaches to Mumbai, OpenStreetMap data); the container ship
+fitted to KCS model tests and stopping distances checked against IMO typical ranges; symbols to
+SN.1/Circ.243/Rev.2 and alerts to MSC.302(87); linked displays proved with five separate browsers
+through the server; keys and knob-box inputs for a hardware control panel. Not done: AIS turn
+indicator, AIS true-scale outline, alert history list, any trial on separate PCs or with a real
+panel, and any review by a radar instructor.
 
 Scope decided by the user on 12 Nov 2026: ROC and ARPA only. ECDIS, charts, an outside view and an
 echo sounder are not to be built, so class C and class D are not targets.
@@ -340,8 +357,8 @@ A-II/1.4, 1.5 and 1.8 (emergencies, distress, manoeuvre the ship).
 | C3 p | Current pattern changing in time according to the charts; tidal waters | Partial: one uniform current plus a tidal cycle |
 | C3 q | Depth according to the charts, with tide level | MISSING |
 | Sec.2 A104 | User manual available to the learners | BUILT 12 Nov 2026: docs/USER-MANUAL.md |
-| Sec.2 B102 | Instructor: start, halt, reset, restart; change environment; communicate; follow the exercise; plot tracks; inject failures | Met on one machine (communication typed) |
-| Sec.2 B104 | Replay of a full exercise, also faster and slower than real time | BUILT 12 Nov 2026: 0.25x to 60x; see 2.2.1.4 in the section above |
+| Sec.2 B102 | Instructor: start, halt, reset, restart; change environment; communicate; follow the exercise; plot tracks; inject failures | Met, proved with separate browsers through the server on one machine (communication typed) |
+| Sec.2 B104 | Replay of a full exercise, also faster and slower than real time | BUILT 12 Nov 2026: 0.25x to 60x, with the recorded radar picture; see 2.2.1.4 in the section above |
 | Sec.2 B105 | Scoring or grading method | Met in form; values are placeholders |
 | Sec.2 B106 | Set the exercise to any point of the replay and restart from there | Partial: take back 2, 5 or 10 minutes |
 

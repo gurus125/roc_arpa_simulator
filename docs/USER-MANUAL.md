@@ -16,7 +16,7 @@ control; press it again to hide them.
 | Control | What it does |
 |---|---|
 | RADAR: ON / STANDBY | Switches the transmitter on or to standby. In standby there is no picture. |
-| ALARM ACK | Acknowledges all alarms. It flashes red while an alarm is waiting; the alarm text is beside it. |
+| ALARM ACK | Acknowledges the alert shown beside it, one at a time: alarms first, then the oldest warning. It flashes while an alert is waiting. |
 | Pause / Run, 1x-10x | Stops and starts the exercise clock, and sets how fast it runs. |
 | DAY / NIGHT | Display colours for day or for a dark bridge (also under SETTINGS). |
 
@@ -57,15 +57,35 @@ performance monitor.
 The target keys are along the bottom-left edge of the picture.
 
 1. Press **Acquire**, then click an echo. A broken circle appears.
-2. After about one minute a broken (preliminary) vector appears. After about three minutes the
-   vector is steady and the data is reliable.
+2. After about one minute a faint (preliminary) vector appears. After about three minutes the
+   vector is at full strength and the data is reliable.
 3. Press **Select** and click a target to see its data in the TARGET DATA box: bearing, range,
    CPA, TCPA, course, speed, BCR and BCT.
 4. **Cancel** drops one target; **Cancel all** drops them all. **Auto** acquires targets that
    enter a guard zone.
 
-A target inside both the CPA limit and the TCPA limit is DANGEROUS: its symbol turns red and an
-alarm sounds. Limits are set under **CPA/ALARM**.
+A target inside both the CPA limit and the TCPA limit is DANGEROUS: its symbol turns red and bold
+and an alarm sounds. Limits are set under **CPA/ALARM**.
+
+Symbols (as in IMO circular SN.1/Circ.243/Rev.2):
+
+| Symbol | Meaning |
+|--------|---------|
+| Broken circle | Target being acquired (bold, red and flashing if it was acquired automatically in a guard zone, until acknowledged) |
+| Circle with a dashed vector | Tracked target |
+| Bold red circle, flashing until acknowledged | Dangerous target |
+| Circle with a bold cross, flashing | Lost target |
+| Square shown by its corners | Selected target |
+| Small triangle | AIS target, sleeping; larger with a heading line and dashed vector when activated |
+| Triangle inside a circle | AIS target that is the same ship as a radar track |
+| Own ship's vector with one arrowhead / two arrowheads | Stabilised through the water / over the ground |
+| Large T | A trial manoeuvre is being shown |
+
+Alerts (after IMO resolution MSC.302(87)): an ALARM (a dangerous target) sounds until it is
+acknowledged and stays shown until the danger has gone. A WARNING (lost target, new target, guard
+zone, input failure and the rest) gives one short signal, flashes until acknowledged and is
+announced again every 5 minutes if it is left. Alerts are acknowledged one at a time. Under
+**CPA/ALARM**, "Silence sound 30 s" stops the sound without acknowledging anything.
 
 Other ARPA keys: **PAST POS** (past positions), **GUARD** (guard zones and exclusion areas),
 **TRIAL** (trial manoeuvre with delay), **TGT LIST** (all tracked targets), **AIS LIST**
@@ -79,9 +99,10 @@ true data is wrong while CPA and TCPA stay correct.
 
 Press **SHIP**.
 
-- **Ship**: choose the ship type. Large ships turn and stop slowly. Two types are fitted to
-  published figures (the 350 m VLCC to a classification society's sample ship, the 105 m training
-  ship to a sea-trial turning circle); the others are estimates. Press HELP to see which.
+- **Ship**: choose the ship type. Large ships turn and stop slowly. Three types are fitted to
+  published turning figures (the 230 m container ship to model tests of the KCS benchmark hull, the
+  350 m VLCC to a classification society's sample ship, the 105 m training ship to a sea-trial
+  turning circle); the others are estimates. Press HELP to see which.
 - **In a sea** the ship rolls, pitches and yaws (the SHIP page shows ROLL and PITCH). The sea comes
   from the direction of the wind. Heavy rolling in a beam sea tips the radar beam, so echoes abeam
   fade and come back; yawing smears a head-up picture, which is why north-up or course-up is used
@@ -112,12 +133,21 @@ and relative wind.
   A false echo lies on land, in a shadow sector, or square to a cable, and it moves or vanishes
   when own ship alters course.
 
+## 7b. A hardware control panel
+
+Under **SETTINGS**, "Control panel" lists the key for every radar function (gain, sea, rain,
+brilliance, range, EBL, VRM, alarm acknowledge, acquire at the cursor and others). A panel that
+acts as a keyboard works the radar with these keys; press "Set" to give a function another key.
+A box of knobs that acts as a game controller is found by itself: its first four knobs are gain,
+sea clutter, rain clutter and brilliance. The keys do nothing while you type in a box.
+
 ## 8. Other keys
 
 - **VHF/SIGNAL**: typed VHF messages to the instructor and other stations; whistle signals of the
   collision regulations, and an automatic fog signal.
 - **WEATHER**: sea state, rain, abnormal propagation, interference, wind, current and tide.
-- **SCENARIO**: free-practice scenarios (one has 100 ships at once); show target names (a study aid).
+- **SCENARIO**: free-practice scenarios (one has 100 ships at once; one is on the real coastline
+  of the approaches to Mumbai); show target names (a study aid).
 - **SETTINGS**: day or night display; telemotor 2 (faster rudder); own ship data.
 - **ROC EX**: radar observer exercises (plotting, position fixing, set and drift, clearing range,
   blind pilotage, traffic).
@@ -144,4 +174,5 @@ VRM 1 at regular times, plot them on a plotting sheet, and manoeuvre at 12 minut
 - The radar picture is simplified compared with a real set. Beamwidths and pulse lengths are those
   of one maker's set, taken as typical.
 - False echoes can be seen but the ARPA cannot acquire them; on a real ARPA they can be acquired.
-- Positions are not on a real chart.
+- Positions are not on a real chart. One scenario uses a real coastline (OpenStreetMap data, about
+  250 m accuracy) with no depths, lights or buoys; the others use invented coasts.

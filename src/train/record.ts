@@ -129,6 +129,29 @@ export function frameInterpolated(rec: SessionRecord, t: number): Frame | null {
   };
 }
 
+/** One recorded radar picture: exercise time in seconds and the picture as a JPEG data URL. Kept apart from the record (see ui/picture-store). */
+export interface PictureFrame {
+  t: number;
+  url: string;
+}
+
+/** The radar picture is recorded this often (seconds of exercise time), this many pixels square, at this JPEG quality. */
+export const PICTURE_INTERVAL_SEC = 15;
+export const PICTURE_SIZE_PX = 480;
+export const PICTURE_QUALITY = 0.5;
+/** Most pictures kept for one exercise (three hours at the interval above); beyond it the oldest are dropped. */
+export const MAX_PICTURES = 720;
+
+/** The picture to show at exercise time `t`: the last one recorded at or before it (the first one before any). Null when there are none. */
+export function pictureAt(pictures: PictureFrame[], t: number): PictureFrame | null {
+  let best: PictureFrame | null = null;
+  for (const p of pictures) {
+    if (p.t <= t) best = p;
+    else break;
+  }
+  return best ?? pictures[0] ?? null;
+}
+
 /** Replay speeds offered to the instructor: slow motion, real time and rapid (times real time). */
 export const REPLAY_SPEEDS = [0.25, 0.5, 1, 2, 5, 10, 30, 60] as const;
 

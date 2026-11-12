@@ -225,8 +225,46 @@ describe("own-ship types fitted to published figures", () => {
     within(at90.y / L, 3.21, 0.02);
     within(at180.x / L, 2.98, 0.02);
   });
-  it("every type says where its figures come from; only two claim a published source", () => {
+  it("container ship: turning circle against free-running model tests of the KCS benchmark hull", () => {
+    // Yasukawa and others (2021), as given in Table 7 of Kim, Tezdogan and Incecik, Ocean Engineering 2021:
+    // model Lpp 3.057 m (scale 1:75.24), 35 deg rudder, 14.5 kn full scale. Advance 9.29 m, transfer 4.16 m,
+    // tactical diameter 9.66 m: 3.04, 1.36 and 3.16 lengths. 15.64 s and 30.50 s to 90 and 180 deg on the
+    // model; full-scale times are those times sqrt(75.24) = 8.674: 135.7 s and 264.6 s. Model tests, not sea trials.
+    const type = SHIP_TYPES.find((t) => t.id === "container")!;
+    const L = 230;
+    expect(type.lengthM).toBe(L);
+    const turn = () => ({ rudder: 35, speed: 14.5 });
+    const at90 = run(type, atSpeed(type, 14.5), 0, 6000, turn, (_m, h) => h >= 90);
+    const at180 = run(type, atSpeed(type, 14.5), 0, 6000, turn, (_m, h) => h >= 180);
+    within(at90.y / L, 3.04, 0.03);
+    within(at90.x / L, 1.36, 0.05);
+    within(at180.x / L, 3.16, 0.03);
+    within(at90.t, 135.7, 0.05);
+    within(at180.t, 264.6, 0.05);
+  });
+  it("stopping distances lie inside the ranges IMO gives as typical for the ship type", () => {
+    // IMO MSC/Circ.644, appendix 3: stopping distance in ship lengths S = A ln(1 + B) + C, with typical
+    // coefficients "for illustrative purposes": A 5 to 8 for a cargo ship, 12 to 13 for a products tanker;
+    // B 0.6 to 1.0 for a diesel engine; C 2.3 for a 100 m ship and 1.1 for a 200 m ship at 15 kn.
+    // (The circular's own example, A 16, B 1.5, C 0.8, gives 16 x 0.916 + 0.8 = 15.5.)
+    // Cargo ship, 200 m: 5 x ln 1.6 + 1.1 = 3.45 to 8 x ln 2 + 1.1 = 6.65.
+    // Cargo ship, 100 m: 5 x ln 1.6 + 2.3 = 4.65 to 8 x ln 2 + 2.3 = 7.85.
+    // Products tanker, 200 m: 12 x ln 1.6 + 1.1 = 6.74 to 13 x ln 2 + 1.1 = 10.11.
+    const stop = (id: string): number => {
+      const type = SHIP_TYPES.find((t) => t.id === id)!;
+      const full = type.maxSpeedKn;
+      return run(type, atSpeed(type, full), 0, 9000, () => ({ rudder: 0, speed: -0.45 * full }), (m) => m.u <= 0).dist / type.lengthM;
+    };
+    expect(stop("container")).toBeGreaterThanOrEqual(3.45);
+    expect(stop("container")).toBeLessThanOrEqual(6.65);
+    expect(stop("coaster")).toBeGreaterThanOrEqual(4.65);
+    expect(stop("coaster")).toBeLessThanOrEqual(7.85);
+    expect(stop("tanker")).toBeGreaterThanOrEqual(6.74);
+    expect(stop("tanker")).toBeLessThanOrEqual(10.11);
+  });
+  it("every type says where its figures come from; three are fitted to published turning figures, one is all estimate", () => {
     for (const t of SHIP_TYPES) expect(t.basis.length).toBeGreaterThan(20);
-    expect(SHIP_TYPES.filter((t) => !t.basis.startsWith("Estimate")).map((t) => t.id)).toEqual(["vlcc", "yukun"]);
+    expect(SHIP_TYPES.filter((t) => !t.basis.startsWith("Estimate")).map((t) => t.id)).toEqual(["container", "vlcc", "yukun"]);
+    expect(SHIP_TYPES.filter((t) => t.basis === SHIP_TYPES.find((x) => x.id === "bulk")!.basis).map((t) => t.id)).toEqual(["bulk"]);
   });
 });

@@ -38,6 +38,8 @@ export interface StoreData {
   ownShip: { name: string; callSign: string; imo: string; mmsi: string; draughtM: number | null; hazardous: string; destination: string; eta: string };
   /** Display palette. */
   displayMode: "day" | "night";
+  /** Keys of a hardware control panel chosen by the user, by function (see ui/panel-map.ts). Empty: the default keys. */
+  panelKeys: Record<string, string>;
 }
 
 export interface KeyValue {
@@ -56,6 +58,7 @@ export function emptyStore(): StoreData {
     pairSeconds: {}, maxStudentsPerDisplay: 2, targetHoursPerPair: null,
     ownShip: { name: "TRAINING SHIP", callSign: "TRNG1", imo: "0000000", mmsi: "000000000", draughtM: null, hazardous: "None", destination: "", eta: "" },
     displayMode: "day",
+    panelKeys: {},
   };
 }
 

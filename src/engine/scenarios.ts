@@ -1,6 +1,7 @@
 import { TARGET_TYPES, targetFromType } from "./targets";
 import { fromPolar } from "../core/vec";
 import { Coast, Scenario } from "./types";
+import { MUMBAI_COAST } from "./real-coasts";
 
 /** Open sea. Cargo ship A reproduces the worked example on the phase 1 instructor sheet. */
 export const OPEN_SEA: Scenario = {
@@ -183,4 +184,29 @@ export const FALSE_ECHOES: Scenario = {
   ],
 };
 
-export const SCENARIOS: Scenario[] = [OPEN_SEA, COASTAL, SAR, SECOND_TRACE, HEAVY_TRAFFIC, SHIP_TYPES_TRAFFIC, HUNDRED_SHIPS, FALSE_ECHOES];
+/**
+ * The approaches to Mumbai on a REAL coastline (OpenStreetMap data, about 250 m accuracy; see
+ * real-coasts.ts). Own ship starts at the scenarios' origin, 18 50 N 072 30 E, about 18 NM west of
+ * the harbour entrance. Only the coastline is real: the ships, wind and current are invented, and
+ * there are no depths, lights or buoys. It is not a chart.
+ */
+export const MUMBAI_APPROACH: Scenario = {
+  id: "mumbai-approach",
+  name: "Approaches to Mumbai (real coastline)",
+  description:
+    "Own ship is 18 NM west of Mumbai harbour, steering in. The coastline is real (data © OpenStreetMap contributors, about 250 m accuracy): Mumbai and its harbour to the east, the coast running south past Alibag. The ships, wind and current are invented, and there are no depths, lights or buoys: this is not a chart and not for navigation. Use the 12 and 24 NM ranges to pick up the land, and compare the picture with a chart of the area.",
+  own: { heading: 80, speed: 12 },
+  env: { seaState: 3, wind: { from: 250, speedKn: 14 }, current: { set: 10, drift: 0.8 } },
+  coasts: MUMBAI_COAST,
+  targets: [
+    { id: 1, name: "Outbound container ship", ...typed("container-pp"), pos: { e: 14, n: 2.4 }, course: 262, speed: 14, events: [] },
+    { id: 2, name: "Inbound tanker", ...typed("product-tanker"), pos: { e: -4, n: -6 }, course: 62, speed: 11, events: [] },
+    { id: 3, name: "Bulk carrier at anchor", ...typed("bulk-handy"), pos: { e: 12.5, n: -1.5 }, course: 250, speed: 0, events: [] },
+    { id: 4, name: "Coaster", ...typed("coaster"), pos: { e: 9, n: -12 }, course: 2, speed: 10, events: [] },
+    { id: 5, name: "Fishing boat", ...typed("fishing-boat"), pos: { e: 6, n: 4 }, course: 190, speed: 5, events: [] },
+    { id: 6, name: "Fishing boat 2", ...typed("fishing-boat"), pos: { e: 8, n: -3.5 }, course: 350, speed: 4, events: [] },
+    { id: 7, name: "Trawler", ...typed("trawler"), pos: { e: 3, n: 9 }, course: 140, speed: 6, events: [] },
+  ],
+};
+
+export const SCENARIOS: Scenario[] = [OPEN_SEA, COASTAL, SAR, SECOND_TRACE, HEAVY_TRAFFIC, SHIP_TYPES_TRAFFIC, HUNDRED_SHIPS, FALSE_ECHOES, MUMBAI_APPROACH];

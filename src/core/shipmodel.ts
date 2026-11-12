@@ -78,7 +78,11 @@ export const rudderRate = (units: 1 | 2): number => 70 / HARD_OVER_SECONDS[units
 const BASE = { asternPower: 0.6, driftFactor: 0.3, turnLoss: 4, windDrag: 0.000005, maxRudderDeg: 35, rudderRateDegPerSec: rudderRate(1), basis: ESTIMATE_BASIS };
 
 /**
- * Published figures that two of the ship types are fitted to (see tests/shipmodel.test.ts).
+ * Published figures that three of the ship types are fitted to (see tests/shipmodel.test.ts).
+ * KCS: free-running model test of the KCS benchmark container ship by Yasukawa and others (2021), as
+ * given in Table 7 of Kim, Tezdogan and Incecik, "Free running CFD simulations to investigate ship
+ * manoeuvrability in waves", Ocean Engineering (2021). Model tests, not sea trials.
+ * Stopping: IMO MSC/Circ.644, appendix 3, typical coefficients by ship type (given there for illustration).
  * VLCC: ABS Guide for Vessel Maneuverability (2017), Appendix 1, sample VLCC of 349.8 m at 15 kn:
  * numerical simulation of the 35 degree turning circle (Table 5), 10/10 zig-zag (Table 6) and the
  * predicted track reach (Table 3). These are a classification society's worked example, not sea trials.
@@ -87,15 +91,27 @@ const BASE = { asternPower: 0.6, driftFactor: 0.3, turnLoss: 4, windDrag: 0.0000
  * Lengths are between perpendiculars; ratios are in ship lengths.
  */
 export const PUBLISHED = {
+  /** KCS container ship: free-running model test at scale 1:75.24 (model Lpp 3.057 m), 35 degrees, 14.5 kn full scale; times scaled by the square root of the scale. */
+  kcs: { lengthM: 230, speedKn: 14.5, advanceL: 9.29 / 3.057, transferL: 4.16 / 3.057, tacticalDiameterL: 9.66 / 3.057, secondsTo90: 15.64 * Math.sqrt(75.24), secondsTo180: 30.5 * Math.sqrt(75.24) },
   vlcc: { lengthM: 349.8, speedKn: 15, advanceL: 2.77, tacticalDiameterL: 2.79, steadyDiameterL: 2.73, speedInTurnKn: 5.33, secondsTo90: 173, secondsTo180: 409, initialTurningL: 1.62, trackReachL: [13.7, 18.3] },
   yukun: { lengthM: 105, advanceL: 3.21, tacticalDiameterL: 2.98, rudderRateDegPerSec: 2.8 },
 } as const;
 
 export const SHIP_TYPES: ShipType[] = [
-  { ...BASE, id: "container", name: "Container ship, 230 m", lengthM: 230, beamM: 32.2, draughtM: 11.5, maxSpeedKn: 22, kPrime: 0.9, tPrime: 1.2, speedTimeS: 600, engineTimeS: 40, leeway: 0.035 },
+  {
+    ...BASE, id: "container", name: "Container ship, 230 m (KCS benchmark hull)", lengthM: 230, beamM: 32.2, draughtM: 10.8, maxSpeedKn: 24,
+    kPrime: 0.965, tPrime: 1.038, driftFactor: 0.349, turnLoss: 8.19, speedTimeS: 399, engineTimeS: 40, asternPower: 0.79, leeway: 0.035,
+    basis: "Turning circle fitted to free-running model tests of the KCS benchmark container ship (Yasukawa and others 2021, as given by Kim and others, Ocean Engineering 2021): advance 3.04, transfer 1.36 and tactical diameter 3.16 ship lengths at 14.5 kn. Model tests, not sea trials. Stopping distance set inside the range IMO gives as typical for a cargo ship (MSC/Circ.644). Wind and sea response are estimates.",
+  },
   { ...BASE, id: "bulk", name: "Bulk carrier, loaded, 225 m", lengthM: 225, beamM: 32.3, draughtM: 14.2, maxSpeedKn: 14.5, kPrime: 1.05, tPrime: 2.1, speedTimeS: 1000, engineTimeS: 60, leeway: 0.015 },
-  { ...BASE, id: "tanker", name: "Product tanker, 180 m", lengthM: 180, beamM: 32, draughtM: 11, maxSpeedKn: 15, kPrime: 1.0, tPrime: 1.8, speedTimeS: 800, engineTimeS: 50, leeway: 0.02 },
-  { ...BASE, id: "coaster", name: "Coaster, 90 m", lengthM: 90, beamM: 14, draughtM: 5.5, maxSpeedKn: 13, kPrime: 1.0, tPrime: 1.0, speedTimeS: 300, engineTimeS: 25, leeway: 0.03 },
+  {
+    ...BASE, id: "tanker", name: "Product tanker, 180 m", lengthM: 180, beamM: 32, draughtM: 11, maxSpeedKn: 15, kPrime: 1.0, tPrime: 1.8, speedTimeS: 800, engineTimeS: 50, asternPower: 0.75, leeway: 0.02,
+    basis: "Estimate: turning figures chosen to pass the IMO manoeuvrability criteria, not from any ship's data. Stopping distance set inside the range IMO gives as typical for a products tanker (MSC/Circ.644).",
+  },
+  {
+    ...BASE, id: "coaster", name: "Coaster, 90 m", lengthM: 90, beamM: 14, draughtM: 5.5, maxSpeedKn: 13, kPrime: 1.0, tPrime: 1.0, speedTimeS: 300, engineTimeS: 25, leeway: 0.03,
+    basis: "Estimate: turning figures chosen to pass the IMO manoeuvrability criteria, not from any ship's data. Stopping distance lies inside the range IMO gives as typical for a cargo ship of 100 m (MSC/Circ.644).",
+  },
   {
     ...BASE, id: "vlcc", name: "VLCC, loaded, 350 m (published sample ship)", lengthM: 349.8, beamM: 58.3, draughtM: 19.4, maxSpeedKn: 15,
     kPrime: 1.1, tPrime: 0.971, driftFactor: 0.306, turnLoss: 15.2, speedTimeS: 2326, engineTimeS: 60, asternPower: 0.53, leeway: 0.01,

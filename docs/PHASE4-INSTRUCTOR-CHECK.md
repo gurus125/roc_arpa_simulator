@@ -111,8 +111,9 @@ tell me the real ones, or tell me if the behaviour is wrong.
 11. **Target swap.** Instructor box, "Show truth". When two echoes pass close together and one
     fades, the log says "TARGET SWAP" and the truth table shows the track now follows a
     different ship. The student only sees the vector change.
-12. **CPA/TCPA alarm.** Any target inside both limits turns into a red triangle that flashes until
-    acknowledged; the alarm clears when the target is no longer inside the limits.
+12. **CPA/TCPA alarm.** Any target inside both limits turns into a bold red circle that flashes until
+    acknowledged; the alarm clears when the target is no longer inside the limits. (Changed 12 Nov
+    2026: it was a red triangle. Alerts are now acknowledged one at a time.)
 13. **Trial manoeuvre.** Tick Trial. It starts with own ship's present course and speed and a
     6-minute delay. Enter a trial course and speed. "TRIAL" flashes on the display. With relative
     vectors, each target's vector runs straight for the delay and then bends to the trial
@@ -187,8 +188,9 @@ tell me the real ones, or tell me if the behaviour is wrong.
   textbook. Only a total gyro failure raises EQUIPMENT MALFUNCTION.
 - Track capacity is 20 for manual and automatic targets together (the textbook gives about 10 manual
   and 20 automatic for typical sets).
-- Symbols follow the usual shapes (dashed circle acquiring, circle tracked, red triangle
-  dangerous, diamond lost) but are not checked against IEC 62388.
+- Symbols follow IMO SN.1/Circ.243/Rev.2 since 12 Nov 2026 (broken circle acquiring, circle
+  tracked, bold red circle dangerous, circle with a bold cross lost). They are not checked against
+  IEC 62288 or IEC 62388, which have not been read.
 - Real-browser testing: the page was driven in a headless browser (acquisition, vectors, trial,
   guard zones, 40-track capacity at 10x speed with no errors and normal frame rate), but not yet
   on your screen.

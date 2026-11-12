@@ -232,6 +232,48 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     check(`${tag} track: target taken off the track`, (await text("#inRtMsg")).includes("no track"), await text("#inRtMsg"));
     const speeds = await p.$$eval("#inReplaySpeed option", (os) => os.map((o) => Number(o.value)));
     check(`${tag} replay: slow motion, real time and rapid speeds offered`, speeds.some((v) => v < 1) && speeds.includes(1) && speeds.some((v) => v > 1), speeds.join(","));
+
+    // Scenarios on a real coastline and with false echoes load with their ships.
+    await key("scen");
+    await p.selectOption("#scenario", { label: "Approaches to Mumbai (real coastline)" });
+    await p.waitForTimeout(600);
+    check(`${tag} real coastline scenario loads`, (await p.evaluate(() => window.__simTest.targetCount())) === 7);
+    await p.selectOption("#scenario", { label: "False echoes: power line, bridge and quay" });
+    await p.waitForTimeout(600);
+    check(`${tag} false echoes scenario loads`, (await p.evaluate(() => window.__simTest.targetCount())) === 3);
+
+    // Control panel keys: Q and A work the gain; a key can be given to another function.
+    await p.mouse.move(400, 300);
+    const gain0 = Number(await p.$eval("#gain", (e) => e.value));
+    await p.keyboard.press("KeyQ");
+    check(`${tag} panel key raises the gain`, Number(await p.$eval("#gain", (e) => e.value)) === gain0 + 2);
+    await p.keyboard.press("KeyA");
+    check(`${tag} panel key lowers the gain`, Number(await p.$eval("#gain", (e) => e.value)) === gain0);
+    await key("set");
+    await p.click('#pnKeys button[data-pn="gainUp"]');
+    await p.keyboard.press("KeyP");
+    await p.keyboard.press("KeyP");
+    check(`${tag} panel key can be changed`, Number(await p.$eval("#gain", (e) => e.value)) === gain0 + 2 && (await text("#pnKeys tr:first-child")).includes("P"), await text("#pnKeys tr:first-child"));
+    await p.click("#pnReset");
+    await p.keyboard.press("KeyA");
+
+    // Alerts are acknowledged one at a time; sound can be silenced.
+    check(`${tag} alert keys: acknowledge next and silence`, (await p.locator("#arpaAckNext").count()) === 1 && (await p.locator("#arpaSilence").count()) === 1);
+
+    // Replay shows the radar picture the trainee saw.
+    await key("ex");
+    await p.locator("#paneEx button[data-ex]").first().click();
+    await p.waitForTimeout(400);
+    if (/run/i.test(await text("#run"))) await p.click("#run");
+    await p.selectOption("#speed", "10");
+    await p.waitForTimeout(5000);
+    await p.click("#exFinish");
+    await p.waitForTimeout(500);
+    await key("instr");
+    await p.locator('#inRecs button[data-act="open"]').first().click();
+    await p.waitForTimeout(1000);
+    const pic = await p.$eval("#inPic", (e) => ({ hidden: e.hidden, w: e.naturalWidth }));
+    check(`${tag} replay: the recorded radar picture is shown`, !pic.hidden && pic.w === 480, JSON.stringify(pic));
   }
 
   check(`${tag} no script errors`, errs.length === 0, errs.join("; "));

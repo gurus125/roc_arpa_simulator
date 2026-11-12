@@ -1,6 +1,6 @@
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
-import { BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor } from "../engine/index";
+import { MUMBAI_ORIGIN, BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
 import { ARPA_EXERCISES, PLOT_RULES, ArpaExSession, ArpaExercise, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
 import { initTrainUi } from "./train-ui";
@@ -17,9 +17,13 @@ import { soundWhistle } from "./whistle";
 import { FOG_SIGNAL_INTERVAL_S, SignalId, WHISTLE_SIGNALS, fogSignalFor, whistleFrequencyHz, whistleSignal } from "../core/signals";
 import { formatLatLon, latLonOf } from "../core/nav";
 import { MAX_ROUTE_WAYPOINTS } from "../core/route";
+import { PanelUi, initPanel } from "./panel";
+import { savePictures } from "./picture-store";
+import { MAX_PICTURES, PICTURE_INTERVAL_SEC, PICTURE_QUALITY, PICTURE_SIZE_PX } from "../train/index";
 
 /** Latitude and longitude of the scenarios' zero point. A made-up position: the scenarios are not tied to a real chart. */
-const SCENARIO_ORIGIN = { lat: 18 + 50 / 60, lon: 72 + 30 / 60 };
+/** Latitude and longitude of the scenarios' 0,0: the same point the real Mumbai coastline is laid out from. */
+const SCENARIO_ORIGIN = MUMBAI_ORIGIN;
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -59,12 +63,15 @@ function banner(text: string): void {
 }
 
 function startRecorder(id: string, title: string, kind: "arpa" | "roc"): void {
+  app.pictures = [];
+  app.nextPictureAt = 0;
   app.recorder = new Recorder({ exerciseId: id, title, kind, students: [...session.students], batch: batchName() }, app.world, new Date().toISOString());
 }
 function saveRecord(a: AppState): void {
   if (!a.recorder) return;
   a.recorder.sample(a.world, a.roc ? null : a.arpa);
   if (!store.addRecord(a.recorder.rec)) banner("The record could not be saved: the browser's storage is full or blocked. Download it from the result instead.");
+  void savePictures(a.recorder.rec.id, a.pictures, store.data.records.map((r) => r.id));
   instrUi.refresh();
 }
 
@@ -966,6 +973,7 @@ function updateReadouts(): void {
   consoleUi?.tick(app);
   trainUi.tick(app);
   instrUi.tick(app);
+  panelUi?.tick();
 }
 
 /** Every second: report this display to the instructor's monitor and count display time for the pair. */
@@ -1006,13 +1014,33 @@ function heartbeat(): void {
   }
 }
 
+let panelUi: PanelUi | null = null;
 let last = performance.now();
+/** While an exercise is being recorded, keep a small copy of the radar picture every few seconds for the replay. */
+const pictureCanvas = document.createElement("canvas");
+function takePicture(): void {
+  if (!app.recorder || app.world.time + 1e-9 < app.nextPictureAt) return;
+  app.nextPictureAt = app.world.time + PICTURE_INTERVAL_SEC;
+  try {
+    pictureCanvas.width = PICTURE_SIZE_PX;
+    pictureCanvas.height = PICTURE_SIZE_PX;
+    const c = pictureCanvas.getContext("2d");
+    if (!c) return;
+    c.drawImage(ctx.canvas, 0, 0, ctx.canvas.width, ctx.canvas.height, 0, 0, PICTURE_SIZE_PX, PICTURE_SIZE_PX);
+    app.pictures.push({ t: Math.round(app.world.time), url: pictureCanvas.toDataURL("image/jpeg", PICTURE_QUALITY) });
+    if (app.pictures.length > MAX_PICTURES) app.pictures.shift();
+  } catch {
+    // A picture that cannot be taken is left out; the exercise goes on.
+  }
+}
+
 let readoutClock = 0;
 function frame(now: number): void {
   const dt = (now - last) / 1000;
   last = now;
   advance(app, dt);
   drawPpi(ctx, cssSize, app);
+  takePicture();
   rocUi.frame(app);
   readoutClock += dt;
   if (readoutClock > 0.15) {
@@ -1024,6 +1052,8 @@ function frame(now: number): void {
 
 setup();
 consoleUi = initConsoleUi(setTab, freeLines);
+panelUi = initPanel(store);
+(window as unknown as { __panelAct: unknown }).__panelAct = (id: string, down?: boolean): void => panelUi?.act(id, down);
 setRole("student");
 openLogin();
 setInterval(heartbeat, 1000);

@@ -37,3 +37,23 @@ describe("replay", () => {
     expect(REPLAY_SPEEDS.some((v) => v > 1)).toBe(true);
   });
 });
+
+import { PICTURE_INTERVAL_SEC, PictureFrame, pictureAt } from "../src/train/index";
+
+describe("replay: recorded radar pictures", () => {
+  const pics: PictureFrame[] = [{ t: 0, url: "a" }, { t: 15, url: "b" }, { t: 30, url: "c" }];
+  it("shows the last picture taken at or before the replay time", () => {
+    expect(pictureAt(pics, 0)!.url).toBe("a");
+    expect(pictureAt(pics, 14.9)!.url).toBe("a");
+    expect(pictureAt(pics, 15)!.url).toBe("b");
+    expect(pictureAt(pics, 29)!.url).toBe("b");
+    expect(pictureAt(pics, 500)!.url).toBe("c");
+  });
+  it("before the first picture shows the first; with none shows nothing", () => {
+    expect(pictureAt([{ t: 20, url: "x" }], 5)!.url).toBe("x");
+    expect(pictureAt([], 5)).toBeNull();
+  });
+  it("a picture is kept every 15 seconds of exercise time", () => {
+    expect(PICTURE_INTERVAL_SEC).toBe(15);
+  });
+});

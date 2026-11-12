@@ -1,5 +1,7 @@
 import { Vec2, bearingOf, fromPolar, length, normalizeDeg, sub } from "../core/vec";
 import { bowCrossing } from "../core/bcr";
+import { SILENCE_SEC, alertSound, nextToAcknowledge } from "../arpa/index";
+import { acknowledge, alertRows } from "./alerts-view";
 import { createAlarmSound } from "./alarm-sound";
 import { Track, VECTOR_TIME_RANGE_MIN, ZoneSetting, arpaAvailableOnScale, ARPA_SCALES_NM } from "../arpa/index";
 import { measuredHeading } from "../engine/index";
@@ -216,10 +218,17 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     app.arpa.cancelAll(app.world);
     app.arpaSelected = null;
   });
-  $("arpaAckAll").addEventListener("click", () => {
+  // Alerts are acknowledged one at a time (MSC.302(87) 9.9): alarms first, then the oldest warning.
+  $("arpaAckNext").addEventListener("click", () => {
     const app = api.getApp();
-    app.arpa.ackAll(app.world);
-    for (const x of [...app.ais.alarms]) app.ais.ack(x.key);
+    const next = nextToAcknowledge(alertRows(app));
+    if (next) acknowledge(app, next.key);
+    alarmSig = "";
+  });
+  // All sound can be silenced for a short time with one action (9.10); nothing is acknowledged by it.
+  let silencedUntil = 0;
+  $("arpaSilence").addEventListener("click", () => {
+    silencedUntil = api.getApp().wall + SILENCE_SEC;
   });
   // Switching the trial on starts from the present course and speed with the default delay.
   $("trialOn").addEventListener("change", () => {
@@ -241,9 +250,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
   $("arpaAlarms").addEventListener("pointerdown", (ev) => {
     const key = (ev.target as HTMLElement).closest("button")?.dataset["key"];
     if (!key) return;
-    const app = api.getApp();
-    if (key.startsWith("ais-")) app.ais.ack(key);
-    else app.arpa.ack(app.world, key);
+    acknowledge(api.getApp(), key);
     alarmSig = "";
   });
   $("arpaRows").addEventListener("pointerdown", (ev) => {
@@ -274,10 +281,9 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
       ? a.test.results.map((r) => `<li class="${r.ok ? "" : "un"}"><span>${r.ok ? "PASS" : "FAIL"} ${r.name}: ${r.detail}</span></li>`).join("")
       : "";
     {
-      const un = a.alarms.filter((x) => !x.acked);
-      const aisUn = app.ais.alarms.filter((x) => !x.acked);
-      const danger = un.some((x) => x.kind === "cpa" || x.kind === "lost" || x.kind === "malfunction") || aisUn.some((x) => x.key.startsWith("ais-cpa"));
-      sound.update(sb ? "none" : danger ? "danger" : un.length + aisUn.length > 0 ? "warning" : "none", app.wall);
+      // Alarm: sounds until acknowledged. Warning: a short signal, repeated every 5 minutes while unacknowledged.
+      const snd = alertSound(alertRows(app), w.time, app.wall < silencedUntil);
+      sound.update(sb ? "none" : snd === "alarm" ? "danger" : snd === "warning" ? "warning" : "none", app.wall);
     }
     $("arpaStatus").textContent = sb ? "ARPA is in STANDBY: no targets are tracked or shown." :
       `${a.activeCount()} of ${a.cfg.maxTracks} targets tracked.` +
@@ -301,12 +307,12 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
       ? `Source AIS. ${sv.report.name}, MMSI ${sv.report.mmsi}. ${sv.report.navStatus}. Heading ${pad3(sv.report.heading)}°, COG ${pad3(sv.report.cog)}°, SOG ${sv.report.sog.toFixed(1)} kn. Last report ${Math.round(sv.ageSec)} s ago. Rate of turn: missing.`
       : "";
 
-    const all = [...a.alarms, ...app.ais.alarms];
+    const all = alertRows(app);
     const sig = all.map((x) => `${x.key}${x.acked}${x.text}`).join("|");
     if (sig !== alarmSig) {
       alarmSig = sig;
       $("arpaAlarms").innerHTML = all
-        .map((x) => `<li class="${x.acked ? "" : "un"}"><span>${mmss(x.raisedAt)} ${x.text}</span>${x.acked ? "" : `<button data-key="${x.key}">Ack</button>`}</li>`)
+        .map((x) => `<li class="${x.acked ? "" : "un"}"><span>${mmss(x.raisedAt)} <b class="${x.priority === "alarm" ? "no" : "wn"}">${x.priority.toUpperCase()}</b> ${x.text}${x.acked ? " (acknowledged)" : ""}</span>${x.acked ? "" : `<button data-key="${x.key}">Ack</button>`}</li>`)
         .join("") || '<li><span class="small">No alarms.</span></li>';
     }
 

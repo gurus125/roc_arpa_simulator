@@ -115,6 +115,23 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
     ctx.setLineDash([]);
   };
 
+  /** Arrowheads at the end of own ship's vector: one = stabilised through the water, two = over the ground. */
+  const arrowHeads = (p0: P, p1: P, colour: string, count: number): void => {
+    const len = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+    if (len < 12) return;
+    const ux = (p1.x - p0.x) / len, uy = (p1.y - p0.y) / len;
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
+      const tx = p1.x - ux * i * 6, ty = p1.y - uy * i * 6;
+      ctx.moveTo(tx - ux * 7 - uy * 4, ty - uy * 7 + ux * 4);
+      ctx.lineTo(tx, ty);
+      ctx.lineTo(tx - ux * 7 + uy * 4, ty - uy * 7 - ux * 4);
+    }
+    ctx.stroke();
+  };
+
   // Own ship vector: true vectors only. With a trial on, it shows own ship's future track
   // (present course and speed for the delay, then the trial course and speed).
   if (s.vectorMode === "true") {
@@ -123,11 +140,15 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
       const mid = scr(scale(ownV, d));
       const end = scr(add(scale(ownV, d), scale(trialV, T - d)));
       const m = { x: own.x + mid.x * k, y: own.y - mid.y * k };
-      line(own, m, COL.own, false, 2);
-      line(m, { x: own.x + end.x * k, y: own.y - end.y * k }, COL.trial, false, 2);
+      line(own, m, COL.own, true, 2);
+      const e2 = { x: own.x + end.x * k, y: own.y - end.y * k };
+      line(m, e2, COL.trial, true, 2);
+      arrowHeads(m, e2, COL.trial, a.effectiveStab() === "ground" ? 2 : 1);
     } else {
       const v = scr(scale(ownV, T));
-      line(own, { x: own.x + v.x * k, y: own.y - v.y * k }, COL.own, false, 2);
+      const e2 = { x: own.x + v.x * k, y: own.y - v.y * k };
+      line(own, e2, COL.own, true, 2);
+      arrowHeads(own, e2, COL.own, a.effectiveStab() === "ground" ? 2 : 1);
     }
   }
 
@@ -180,42 +201,58 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
     const p = at(rel);
     const col = v.lost ? COL.lost : v.dangerous ? COL.danger : COL.ais;
     const active = v.state === "activated";
-    const half = active ? 6 : 3.5;
+    // Symbols as in IMO SN.1/Circ.243/Rev.2: an isosceles triangle with the reported position at its centre,
+    // pointing along the heading; smaller when sleeping; bold and red when dangerous, flashing until acknowledged;
+    // a lost target carries a bold cross that does not turn with the triangle, and no vector or heading line.
+    const half = active ? 6 : 3.5; // half the base
+    const h = half * 1.3; // half the height
     const hp = at(add(rel, velocityOf({ course: v.report.heading, speed: 1 })));
     const ang = Math.atan2(hp.x - p.x, -(hp.y - p.y));
-    if (v.dangerous && !flash) continue;
+    const unacked = app.ais.alarms.some((x) => (x.key === `ais-cpa-${v.report.id}` || x.key === `ais-lost-${v.report.id}`) && !x.acked);
+    if ((v.dangerous || v.lost) && unacked && !flash) continue;
     ctx.strokeStyle = col;
     ctx.fillStyle = col;
-    ctx.lineWidth = active ? 1.6 : 1.2;
+    ctx.lineWidth = v.dangerous ? 3 : active ? 1.6 : 1.2;
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(ang);
     ctx.beginPath();
-    ctx.moveTo(0, -half * 1.6);
-    ctx.lineTo(half, half);
-    ctx.lineTo(-half, half);
+    ctx.moveTo(0, -h);
+    ctx.lineTo(half, h);
+    ctx.lineTo(-half, h);
     ctx.closePath();
     ctx.stroke();
-    if (active) {
+    if (active && !v.lost) {
+      // Heading line: solid, thinner than the vector, twice the length of the triangle, from its apex.
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(0, -half * 1.6);
-      ctx.lineTo(0, -half * 4);
-      ctx.stroke();
-    }
-    if (v.lost) {
-      ctx.beginPath();
-      ctx.moveTo(-8, -8);
-      ctx.lineTo(8, 8);
-      ctx.moveTo(8, -8);
-      ctx.lineTo(-8, 8);
+      ctx.moveTo(0, -h);
+      ctx.lineTo(0, -h - 4 * h);
       ctx.stroke();
     }
     ctx.restore();
+    if (v.lost) {
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p.x - 9, p.y - 9);
+      ctx.lineTo(p.x + 9, p.y + 9);
+      ctx.moveTo(p.x + 9, p.y - 9);
+      ctx.lineTo(p.x - 9, p.y + 9);
+      ctx.stroke();
+    }
+    if (v.associatedTrack !== null) {
+      // Associated with a radar track and shown by its AIS symbol: a circle round the triangle.
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, h + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     if (active && !v.lost) {
       const tv = velocityOf({ course: v.report.cog, speed: v.report.sog });
       const vec = s.vectorMode === "true" ? tv : sub(tv, ownGround);
       const e = at(add(rel, scale(vec, T)));
-      ctx.setLineDash([5, 3]);
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([4, 3]);
       ctx.beginPath();
       ctx.moveTo(p.x, p.y);
       ctx.lineTo(e.x, e.y);
@@ -223,7 +260,18 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
       ctx.setLineDash([]);
       ctx.fillText(v.report.name + (v.associatedTrack !== null ? ` = R${v.associatedTrack}` : ""), p.x + 10, p.y - 8);
     }
-    if (app.ais.selected === v.report.id) ctx.strokeRect(p.x - 12, p.y - 12, 24, 24);
+    if (app.ais.selected === v.report.id) {
+      // Selected: a square shown by its corners.
+      ctx.lineWidth = 1.2;
+      const r = 13, c = 4;
+      ctx.beginPath();
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+        ctx.moveTo(p.x + sx * r, p.y + sy * (r - c));
+        ctx.lineTo(p.x + sx * r, p.y + sy * r);
+        ctx.lineTo(p.x + sx * (r - c), p.y + sy * r);
+      }
+      ctx.stroke();
+    }
   }
 
   ctx.font = "11px monospace";
@@ -245,27 +293,29 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
     if (t.state === "lost") {
       if (flash) {
         ctx.strokeStyle = COL.lost;
-        ctx.lineWidth = 1.6;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(p.x, p.y - 8);
-        ctx.lineTo(p.x + 8, p.y);
-        ctx.lineTo(p.x, p.y + 8);
-        ctx.lineTo(p.x - 8, p.y);
-        ctx.closePath();
-        ctx.moveTo(p.x - 5, p.y - 5);
-        ctx.lineTo(p.x + 5, p.y + 5);
-        ctx.moveTo(p.x + 5, p.y - 5);
-        ctx.lineTo(p.x - 5, p.y + 5);
+        ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(p.x - 9, p.y - 9);
+        ctx.lineTo(p.x + 9, p.y + 9);
+        ctx.moveTo(p.x + 9, p.y - 9);
+        ctx.lineTo(p.x - 9, p.y + 9);
         ctx.stroke();
       }
     } else if (t.quality === "acquiring" || !t.est) {
-      ctx.strokeStyle = COL.acquiring;
-      ctx.lineWidth = 1.4;
-      ctx.setLineDash([3, 3]);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      const autoNew = a.alarms.some((x) => x.key === `new-${t.id}` && !x.acked);
+      if (!autoNew || flash) {
+        ctx.strokeStyle = autoNew ? COL.danger : COL.acquiring;
+        ctx.lineWidth = autoNew ? 3 : 1.4;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     } else {
       const trialDanger = trialRows?.get(t.id)?.dangerous ?? false;
       const danger = trialOn ? trialDanger : t.dangerous;
@@ -281,11 +331,17 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
         const d = Math.min(T, delayH);
         const mid = add(rel, scale(t.est.relVel, d));
         const end2 = add(mid, scale(sub(t.est.trueVel, trialV), T - d));
-        line(p, at(mid), colour, t.quality === "prelim");
-        line(at(mid), at(end2), colour, t.quality === "prelim");
+        const va = ctx.globalAlpha;
+        if (t.quality === "prelim") ctx.globalAlpha = va * 0.55;
+        line(p, at(mid), colour, true);
+        line(at(mid), at(end2), colour, true);
+        ctx.globalAlpha = va;
       } else {
         const vec = s.vectorMode === "true" ? t.est.trueVel : t.est.relVel;
-        line(p, at(add(rel, scale(vec, T))), colour, t.quality === "prelim");
+        const va = ctx.globalAlpha;
+        if (t.quality === "prelim") ctx.globalAlpha = va * 0.55;
+        line(p, at(add(rel, scale(vec, T))), colour, true);
+        ctx.globalAlpha = va;
       }
       // Collision-danger graphics: PPC (small circle) or PAD (hexagon) for steady tracks, at own ship's present speed.
       if (s.graphics !== "off" && t.quality === "steady" && !trialOn) {
@@ -316,12 +372,9 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
       // Symbol
       if (danger && (!unacked || flash || trialOn)) {
         ctx.strokeStyle = COL.danger;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(p.x, p.y - 9);
-        ctx.lineTo(p.x + 8, p.y + 6);
-        ctx.lineTo(p.x - 8, p.y + 6);
-        ctx.closePath();
+        ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
         ctx.stroke();
       } else if (a.alarms.some((x) => x.key === `new-${t.id}` && !x.acked) && !flash) {
         // New (intruder) target acquired in a guard zone: the symbol flashes until acknowledged.
@@ -373,6 +426,9 @@ export function drawArpaHud(ctx: Ctx, app: AppState, size: number): void {
     ctx.font = "bold 22px monospace";
     ctx.textAlign = "center";
     if (flash) ctx.fillText("TRIAL", size / 2, 58);
+    // A large T, steady, low on the picture (IMO SN.1/Circ.243: trial manoeuvre shown by a large T on screen).
+    ctx.font = "bold 44px monospace";
+    ctx.fillText("T", size / 2, size - 52);
   }
   const alarm = a.alarms.find((x) => !x.acked);
   if (alarm && flash) {

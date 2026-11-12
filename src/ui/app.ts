@@ -1,6 +1,6 @@
 import { RocSession } from "../roc/index";
 import { ArpaSystem } from "../arpa/index";
-import { ArpaExSession, Recorder } from "../train/index";
+import { ArpaExSession, PictureFrame, Recorder } from "../train/index";
 import { AisSystem } from "../ais/index";
 import { Vec2 } from "../core/vec";
 import {
@@ -78,6 +78,9 @@ export interface AppState {
   arpaEx: ArpaExSession | null;
   /** Records the session for the debrief replay, when an exercise is running. */
   recorder: Recorder | null;
+  /** Radar pictures recorded for the replay while the recorder runs, and the exercise time of the next one. */
+  pictures: PictureFrame[];
+  nextPictureAt: number;
   /** Radar transmitter on standby: no picture, and the ARPA is forced to standby. */
   radarStandby: boolean;
 }
@@ -152,6 +155,8 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     arpaSelected: null,
     arpaEx: null,
     recorder: null,
+    pictures: [],
+    nextPictureAt: 0,
     radarStandby: false,
   };
 }
