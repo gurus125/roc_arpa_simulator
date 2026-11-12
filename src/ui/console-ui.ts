@@ -44,7 +44,7 @@ const KEYS: Key[] = [
   { key: "instr", label: "INSTR", sections: [], tab: "instr" },
 ];
 
-const VECTOR_TIMES = [3, 6, 12, 15, 30];
+const VECTOR_TIMES = [1, 2, 3, 6, 12, 15, 20, 30, 45, 60];
 
 export interface ConsoleUi {
   tick: (app: AppState) => void;
@@ -72,27 +72,26 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   panel.id = "console";
   panel.innerHTML = `
     <div id="cTop" class="wide"><span id="cTopSb"></span><button id="ackKey" title="Acknowledge all alarms">ALARM ACK</button><span id="cTopAlarm"></span></div>
+    <div class="ccol">
     <div class="cbox" id="bDisp"><h3>DISPLAY</h3>
-      <div class="crow"><span class="cl">RANGE</span><button id="rngDn" class="pm">−</button><span id="rngHold"></span><button id="rngUp" class="pm">+</button><button id="ringsKey" title="Range rings on / off">RINGS</button><b id="cRings" class="big"></b></div>
+      <div class="crow"><span class="cl">RANGE</span><button id="rngDn" class="pm">−</button><span id="rngHold"></span><button id="rngUp" class="pm">+</button><button id="ringsKey" title="Range rings on / off">RINGS</button></div>
       <div class="crow"><span class="cl">BAND</span><span id="bandKeys" class="cbtns" style="margin:0"><button data-b="X">X BAND</button><button data-b="S">S BAND</button></span></div>
       <div class="crow"><span class="cl">ORIENT</span><span id="hOrient"></span></div>
       <div class="crow"><span class="cl">MOTION</span><span id="hMotion"></span></div>
       <div class="crow"><span class="cl">STAB</span><span id="hStab"></span></div>
       <div class="crow"><span class="cl">TRAILS</span><span id="hTrails"></span><span id="hTrailMin"></span></div>
+      <div class="crow"><span class="cl">VECTORS</span><span id="hVec"></span><span id="hVecT"><select id="vecTimeSel">${VECTOR_TIMES.map((t) => `<option value="${t}">${t} min</option>`).join("")}</select></span></div>
+      <div class="crow"><span class="cl">DANGER</span><span id="hGfx"></span></div>
     </div>
+    <div class="cbox" id="bTd"><h3>TARGET DATA (ARPA) <span id="cTgtN"></span></h3><div class="cgrid" id="cTd"></div><div class="cgrid" id="cVecInfo"></div></div>
+    </div>
+    <div class="ccol">
     <div class="cbox" id="bOwn"><h3>OWN SHIP <span id="cTx"></span> <span id="cAlarm" class="no"></span></h3><div class="cgrid" id="cOwn"></div></div>
     <div class="cbox" id="bCur"><h3>CURSOR</h3><div class="cgrid" id="cCur"></div></div>
-    <div class="cbox" id="bMeas"><h3>EBL / VRM</h3><div id="cMeas"></div></div>
     <div class="cbox" id="bGain"><h3>GAIN / CLUTTER</h3><div id="cGain"></div></div>
-    <div class="cbox" id="bTgt"><h3>TARGETS <span id="cTgtN"></span></h3><div id="cTgt"></div></div>
-    <div class="cbox" id="bVec"><h3>VECTORS</h3>
-      <div class="cbtns"><span id="vecMode"><button data-v="relative">REL</button><button data-v="true">TRUE</button></span><span id="vecGfx"><button data-g="ppc">PPC</button><button data-g="pad">PAD</button></span><b id="cVecNow" class="big"></b></div>
-      <div class="cbtns" id="vecTime"><button data-d="-1" class="pm">−</button>${VECTOR_TIMES.map((t) => `<button data-t="${t}">${t}</button>`).join("")}<button data-d="1" class="pm">+</button><span class="cl">min</span></div>
-      <div class="cgrid" id="cVecInfo"></div>
+    <div id="cRun"></div>
     </div>
-    <div class="cbox wide" id="bTd"><h3>TARGET DATA (ARPA)</h3><div class="cgrid four" id="cTd"></div></div>
-    <div class="cbox wide" id="bAis"><h3>AIS TARGET DATA</h3><div class="cgrid four" id="cAis"></div></div>
-    <div id="cRun" class="wide"></div><div id="cMenu" class="wide"></div>`;
+    <div id="cMenu" class="wide"></div>`;
   side.insertBefore(panel, side.firstChild);
 
   // Display: the same selects, moved.
@@ -123,6 +122,12 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   $("rngDn").addEventListener("click", () => stepSelect("range", -1));
   $("rngUp").addEventListener("click", () => stepSelect("range", 1));
 
+  // EBL / VRM and the target keys sit over the empty bottom-left corner of the picture, so no panel space is used.
+  const corner = document.createElement("div");
+  corner.id = "ppiCorner";
+  corner.innerHTML = `<div id="cMeas"></div><div id="cTgt"></div>`;
+  $("ppi").parentElement!.appendChild(corner);
+
   // EBL / VRM: tick boxes only, each with its own large readout. Sliders stay out of sight.
   const lines: { line: Line; box: string; label: string }[] = [
     { line: "ebl", box: "eblOn", label: "EBL 1" },
@@ -141,6 +146,14 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   }
 
   for (const id of ["eblBrg", "vrmRng", "ebl2Brg", "vrm2Rng", "arpaVec", "arpaVecT", "arpaGraphics"]) $(id).closest<HTMLElement>(".row")!.style.display = "none";
+  // Vectors and danger graphics sit under Trails, in the same form: the same selects, moved.
+  $("hVec").appendChild($("arpaVec"));
+  $("hGfx").appendChild($("arpaGraphics"));
+  $("vecTimeSel").addEventListener("change", () => {
+    const el = $<HTMLInputElement>("arpaVecT");
+    el.value = $<HTMLSelectElement>("vecTimeSel").value;
+    fire(el);
+  });
   for (const id of ["eblMove", "vrmMove"]) $(id).style.display = "none";
   const more = $("piGrid").closest("details");
   if (more) {
@@ -180,37 +193,12 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   const tgtRow = $("arpaCancelAll").closest<HTMLElement>(".btns")!;
   $("arpaCancelAll").textContent = "Cancel all";
   const autoAcq = $("arpaAuto").closest<HTMLElement>(".check")!;
-  autoAcq.querySelector("label")!.textContent = "Auto acquire";
-  tgtRow.appendChild(autoAcq);
-  $("cTgt").appendChild(tgtRow);
-  $("cTgt").appendChild($("arpaMsg"));
-
-  // Vectors by buttons: nothing to type.
-  const setVecTime = (t: number): void => {
-    const el = $<HTMLInputElement>("arpaVecT");
-    el.value = String(Math.min(60, Math.max(1, t)));
-    fire(el);
-  };
-  $("vecMode").addEventListener("click", (ev) => {
-    const v = (ev.target as HTMLElement).closest("button")?.dataset["v"];
-    if (!v) return;
-    $<HTMLSelectElement>("arpaVec").value = v;
-    fire($("arpaVec"));
-  });
-  $("vecGfx").addEventListener("click", (ev) => {
-    const g = (ev.target as HTMLElement).closest("button")?.dataset["g"];
-    if (!g) return;
-    const el = $<HTMLSelectElement>("arpaGraphics");
-    el.value = el.value === g ? "off" : g; // pressing the lit key switches the graphics off
-    fire($("arpaGraphics"));
-  });
-  $("vecTime").addEventListener("click", (ev) => {
-    const b = (ev.target as HTMLElement).closest("button");
-    if (!b) return;
-    const now = Number($<HTMLInputElement>("arpaVecT").value) || 6;
-    if (b.dataset["t"]) setVecTime(Number(b.dataset["t"]));
-    else if (b.dataset["d"]) setVecTime(now + Number(b.dataset["d"]));
-  });
+  autoAcq.querySelector("label")!.textContent = "Auto";
+  // One strip: the four click actions, cancel all, automatic acquisition.
+  const strip = $("cmAcq").closest<HTMLElement>(".btns")!;
+  strip.append($("arpaCancelAll"), autoAcq);
+  tgtRow.remove();
+  $("bTd").appendChild($("arpaMsg"));
 
   // Run / speed / radar standby stay in view (the same controls, moved).
   for (const id of ["run", "speed"]) $("cRun").appendChild($(id));
@@ -287,7 +275,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     for (const b of $("bandKeys").querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset["b"] === w.radar.band);
     app.ringsOn = ringsOn;
     $("ringsKey").classList.toggle("on", ringsOn);
-    put("cRings", ringsOn ? `${ringInterval(c.rangeNm)} NM` : "OFF");
+    put("ringsKey", ringsOn ? `RINGS ${ringInterval(c.rangeNm)} NM` : "RINGS OFF");
     put("cTx", `<span class="${app.radarStandby ? "wn" : "ok"}">${app.radarStandby ? "STANDBY" : "TX"}</span> <span class="cl">${mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : ""}</span>`);
     put("cAlarm", unacked ? `<span class="flash">ALARM</span>` : "");
     const pending = app.roc ? [] : [...a.alarms, ...app.ais.alarms].filter((x) => !x.acked);
@@ -317,39 +305,35 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     }
 
     put("cTgtN", arpaOn ? `${a.activeCount()} / ${a.cfg.maxTracks}` : app.roc ? "ARPA OFF" : "STANDBY");
-    for (const b of $("vecMode").querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset["v"] === s.vectorMode);
-    for (const b of $("vecTime").querySelectorAll<HTMLElement>("button[data-t]")) b.classList.toggle("on", Number(b.dataset["t"]) === s.vectorMinutes);
-    for (const b of $("vecGfx").querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset["g"] === s.graphics);
-    put("cVecNow", arpaOn ? `${s.vectorMode === "true" ? "T" : "R"} ${s.vectorMinutes} min` : "---");
+    const vsel = $<HTMLSelectElement>("vecTimeSel");
+    if (vsel.value !== String(s.vectorMinutes) && document.activeElement !== vsel) {
+      if (![...vsel.options].some((o) => o.value === String(s.vectorMinutes))) vsel.add(new Option(`${s.vectorMinutes} min`, String(s.vectorMinutes)));
+      vsel.value = String(s.vectorMinutes);
+    }
     put("cVecInfo",
-      cell("STAB", arpaOn ? a.stabLabel().replace(" STAB", "") : "---") + cell("PAST", arpaOn && s.past.mode !== "off" ? `${s.past.mode === "true" ? "T" : "R"} ${s.past.points}x${s.past.intervalMin}m` : "OFF") +
-      cell("CPA LIM", `${s.cpaLimitNm} NM`) + cell("TCPA LIM", `${s.tcpaLimitMin} min`));
+      cell("CPA LIM", `${s.cpaLimitNm} NM`) + cell("TCPA LIM", `${s.tcpaLimitMin} min`) +
+      cell("STAB", arpaOn ? a.stabLabel().replace(" STAB", "") : "---") + cell("PAST", arpaOn && s.past.mode !== "off" ? `${s.past.mode === "true" ? "T" : "R"} ${s.past.points}x${s.past.intervalMin}m` : "OFF"));
 
-    // Selected ARPA target: the values of its row in the target list (computed by the ARPA code).
+    // Selected target. An ARPA track shows the values of its row in the target list (computed by the ARPA code);
+    // with no track selected, a selected AIS target shows what its AIS report carries.
     const tr = document.querySelector<HTMLElement>("#arpaRows tr.sel");
     const td = tr ? [...tr.querySelectorAll("td")].map((x) => x.textContent ?? "") : null;
     const [bcr, bct] = td ? (td[7] ?? "").split("/").map((x) => x.trim()) : ["", ""];
     const dash = "---";
+    const v = td || app.roc ? undefined : app.ais.targets(w, a, { cpaNm: s.cpaLimitNm, tcpaMin: s.tcpaLimitMin }).find((x) => x.report.id === app.ais.selected);
     put("cTd", td
       ? cell("TGT", td[0] ?? dash, "big") + cell("STATE", td[8] ?? dash) +
         cell("BRG", `${td[1]}°`, "big") + cell("RNG", `${td[2]} NM`, "big") +
         cell("CPA", `${td[3]}`, "big") + cell("TCPA", `${td[4]}`, "big") +
         cell("CSE", `${td[5]}`, "big") + cell("SPD", `${td[6]}`, "big") +
         cell("BCR", bcr || dash) + cell("BCT", bct || dash)
-      : `<span class="cl full">Acquire or select a target</span>`);
-
-    // Selected AIS target: everything the AIS report carries, plus CPA/TCPA from it.
-    const v = app.roc ? undefined : app.ais.targets(w, a, { cpaNm: s.cpaLimitNm, tcpaMin: s.tcpaLimitMin }).find((x) => x.report.id === app.ais.selected);
-    put("cAis", v
-      ? cell("NAME", v.report.name, "big span3") + cell("MMSI", v.report.mmsi) +
-        cell("BRG", `${p3(v.bearing)}°`, "big") + cell("RNG", `${v.range.toFixed(2)} NM`, "big") +
-        cell("CPA", v.cpa.opening ? "open" : `${v.cpa.cpa.toFixed(2)} NM`, "big") + cell("TCPA", v.cpa.tcpaMinutes === null ? dash : `${v.cpa.tcpaMinutes.toFixed(1)} min`, "big") +
-        cell("COG", `${p3(v.report.cog)}°`, "big") + cell("SOG", `${v.report.sog.toFixed(1)} kn`, "big") +
-        cell("HDG", `${p3(v.report.heading)}°`) + cell("ROT", "missing") +
-        cell("STATUS", v.report.navStatus, "span3") + cell("AGE", `${Math.round(v.ageSec)} s`) +
-        cell("STATE", v.lost ? "LOST" : v.dangerous ? "DANGER" : v.state === "activated" ? "ACTIVE" : "SLEEP", v.lost || v.dangerous ? "no" : "") +
-        cell("RADAR", v.associatedTrack !== null ? `= TGT ${v.associatedTrack}` : "no track")
-      : `<span class="cl full">Press Select, then click an AIS target (or use AIS LIST)</span>`);
+      : v
+        ? cell("AIS", v.report.name, "big span3") +
+          cell("BRG", `${p3(v.bearing)}°`, "big") + cell("RNG", `${v.range.toFixed(2)} NM`, "big") +
+          cell("CPA", v.cpa.opening ? "open" : v.cpa.cpa.toFixed(2), "big") + cell("TCPA", v.cpa.tcpaMinutes === null ? dash : v.cpa.tcpaMinutes.toFixed(1), "big") +
+          cell("COG", `${p3(v.report.cog)}°`, "big") + cell("SOG", `${v.report.sog.toFixed(1)}`, "big") +
+          cell("STATE", v.lost ? "LOST" : v.dangerous ? "DANGER" : "ACTIVE", v.lost || v.dangerous ? "no" : "") + cell("AGE", `${Math.round(v.ageSec)} s`)
+        : `<span class="cl full">Acquire or select a target</span>`);
   };
 
   return {

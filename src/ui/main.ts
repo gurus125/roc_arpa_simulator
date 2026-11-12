@@ -791,11 +791,8 @@ function updateReadouts(): void {
     const sd = (x: number, unit: string): string => (Math.abs(x) < 0.5 ? "0" : `${x > 0 ? "S" : "P"} ${Math.abs(x).toFixed(0)}${unit}`);
     setText("shipNow", mo ? `HDG ${pad3(measuredHeading(app.world))}   RUDDER ${sd(mo.rudder, "°")}   ROT ${sd(mo.r * 60, "°/min")}   STW ${mo.u.toFixed(1)} kn` : "");
   }
-  if (app.world.own.model?.steering === "hand") {
-    // Hand steering: the autopilot course follows the heading, ready for switching back.
-    setSlider("ordCourse", Math.round(app.world.own.ordered.course) % 360);
-    setText("ordCourseV", String(Math.round(app.world.own.ordered.course) % 360).padStart(3, "0"));
-  }
+  // Hand steering: the autopilot is disengaged, so its course setting is shown as OFF and does not move.
+  if (app.world.own.model?.steering === "hand") setText("ordCourseV", "OFF");
   const w = app.world;
   const t = Math.floor(w.time + 1e-6);
   setText("rTime", `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);

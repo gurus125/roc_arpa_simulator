@@ -91,7 +91,7 @@ describe("AIS reported targets", () => {
 
 describe("radar: range scales, off-centring, racon and SART", () => {
   it("has the eight IMO range scales with sensible rings", () => {
-    expect([...RADAR_RANGES]).toEqual([0.25, 0.5, 0.75, 1.5, 3, 6, 12, 24]);
+    expect([...RADAR_RANGES]).toEqual([0.25, 0.5, 0.75, 1.5, 3, 6, 12, 24, 48, 96]);
     expect(ringInterval(0.25)).toBe(0.05);
     expect(ringInterval(0.75)).toBe(0.25);
   });

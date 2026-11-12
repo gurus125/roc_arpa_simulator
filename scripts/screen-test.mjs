@@ -53,11 +53,13 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   check(`${tag} speed order changes speed`, !own.includes("STW 12.0"), own);
 
   // Hand steering and telegraph.
+  const apBefore = await p.$eval("#ordCourse", (e) => e.value);
   await p.click("#steerHand");
   const hb = await p.locator("#helm").boundingBox();
   await p.mouse.click(hb.x + hb.width * 0.9, hb.y + hb.height / 2);
   await p.waitForTimeout(2500);
   check(`${tag} hand steering: rudder and rate of turn shown`, /RUD S \d+/.test(await text("#cOwn")) && /ROT S \d+/.test(await text("#cOwn")), await text("#cOwn"));
+  check(`${tag} hand steering: autopilot course does not move and shows OFF`, (await p.$eval("#ordCourse", (e) => e.value)) === apBefore && (await text("#ordCourseV")) === "OFF", await text("#ordCourseV"));
   await p.click("#steerAuto");
   await p.click("#telegraph button[data-k=ST]");
   check(`${tag} telegraph STOP sets the engine order`, (await p.$eval("#ordSpeed", (e) => e.value)) === "0");
@@ -86,6 +88,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   check(`${tag} X band key`, (await p.$eval("#band", (e) => e.value)) === "X");
   await p.click("#rngUp");
   check(`${tag} range + works`, (await p.$eval("#range", (e) => e.value)) === "12");
+  check(`${tag} range scales go to 96 NM`, (await p.$$eval("#range option", (o) => o.map((x) => x.value))).includes("96"));
   // EBL follows the cursor and locks on a double click.
   const c = await p.locator("#ppi").boundingBox();
   await p.check("#eblOn");
@@ -107,12 +110,17 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   // Clutter auto, vectors, danger graphics.
   await p.check("#autoSea");
   check(`${tag} auto sea sets the control`, (await p.$eval("#stc", (e) => e.value)) !== "0");
-  await p.click("#vecMode button[data-v=true]");
-  await p.click('#vecTime button[data-t="12"]');
-  await p.waitForTimeout(300); // the panel redraws on the next frame
-  check(`${tag} vector buttons`, (await text("#cVecNow")) === "T 12 min", await text("#cVecNow"));
-  await p.click("#vecGfx button[data-g=pad]");
-  check(`${tag} PAD button`, (await p.$eval("#arpaGraphics", (e) => e.value)) === "pad");
+  await p.selectOption("#arpaVec", "true");
+  await p.selectOption("#vecTimeSel", "12");
+  check(`${tag} vectors under trails`, (await p.$eval("#arpaVecT", (e) => e.value)) === "12" && (await topY("#arpaVec")) > (await topY("#trails")));
+  await p.selectOption("#arpaGraphics", "pad");
+  check(`${tag} PAD graphics`, (await p.$eval("#arpaGraphics", (e) => e.value)) === "pad");
+  // EBL/VRM and the target keys are over the bottom-left corner of the picture.
+  const pb = await p.locator("#ppi").boundingBox();
+  const mb = await p.locator("#cMeas").boundingBox();
+  const tb = await p.locator("#cmAcq").boundingBox();
+  check(`${tag} EBL/VRM and target keys at the bottom left of the picture`, mb.x < pb.x + pb.width * 0.3 && mb.y > pb.y + pb.height * 0.7 && tb.y > pb.y + pb.height * 0.9 && tb.x < pb.x + pb.width * 0.2, JSON.stringify({ mb, tb }));
+  check(`${tag} no AIS data panel, no separate targets or vectors box`, (await p.locator("#bAis, #bVec, #bTgt, #bMeas").count()) === 0);
 
   // Acquire the first target by its true position and read its data.
   const tgt = await p.evaluate(() => window.__simTest?.firstTargetScreen?.() ?? null);
@@ -146,7 +154,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   check(`${tag} manual plotting exercise: ARPA in standby`, /STANDBY|STBY/.test(await text("#cTgtN")), await text("#cTgtN"));
   await p.click("#ringsKey");
   await p.waitForTimeout(200);
-  check(`${tag} rings off`, (await text("#cRings")) === "OFF");
+  check(`${tag} rings off`, (await text("#ringsKey")) === "RINGS OFF");
   await p.click("#ringsKey");
   await p.click("#nightKey");
   check(`${tag} night key`, await p.evaluate(() => document.body.classList.contains("night")));

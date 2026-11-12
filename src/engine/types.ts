@@ -222,4 +222,4 @@ export interface Scenario {
 }
 
 /** IMO MSC.192(79) 5.10.1: 0.25, 0.5, 0.75, 1.5, 3, 6, 12 and 24 NM. */
-export const RADAR_RANGES = [0.25, 0.5, 0.75, 1.5, 3, 6, 12, 24] as const;
+export const RADAR_RANGES = [0.25, 0.5, 0.75, 1.5, 3, 6, 12, 24, 48, 96] as const;

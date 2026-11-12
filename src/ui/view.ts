@@ -347,7 +347,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   ctx.fillText(`${w.radar.band}-BAND   RANGE ${c.rangeNm} NM   RINGS ${app.ringsOn ? `${fmtNm(step)} NM` : "OFF"}`, size - 8, 16);
   ctx.textAlign = "left";
   const cog = ownCogSog(w);
-  ctx.fillText(`HDG ${measuredHeading(w).toFixed(0).padStart(3, "0")}  STW ${logSpeed(w).toFixed(1)}  COG ${cog.course.toFixed(0).padStart(3, "0")}  SOG ${cog.speed.toFixed(1)}`, 8, size - 8);
+  // (Heading and speeds are in the OWN SHIP box; the bottom-left corner carries the EBL/VRM and target keys.)
   ctx.textAlign = "right";
   ctx.fillStyle = "#58a56f";
   ctx.fillText("TRAINING USE ONLY", size - 8, size - 8);

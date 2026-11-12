@@ -138,7 +138,9 @@ export function ringInterval(rangeNm: number): number {
   if (rangeNm <= 3) return 0.5;
   if (rangeNm <= 6) return 1;
   if (rangeNm <= 12) return 2;
-  return 4;
+  if (rangeNm <= 24) return 4;
+  if (rangeNm <= 48) return 8;
+  return 16;
 }
 
 export function newDisplayState(w: World): DisplayState {
