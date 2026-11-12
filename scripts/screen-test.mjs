@@ -160,6 +160,11 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   await p.waitForTimeout(200);
   check(`${tag} rings off`, (await text("#ringsKey")) === "RINGS OFF");
   await p.click("#ringsKey");
+  // Sound signals.
+  await key("comm");
+  await p.click('#whistleKeys button[data-s="starboard"]');
+  check(`${tag} sound signal key`, (await text("#whistleMsg")).includes("starboard"), await text("#whistleMsg"));
+
   // Settings: day / night mode, steering gear and own ship data (with a ship model again, not the exercise ship).
   await key("scen");
   await p.selectOption("#scenario", "1");

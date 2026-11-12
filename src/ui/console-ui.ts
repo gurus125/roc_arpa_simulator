@@ -36,7 +36,7 @@ const KEYS: Key[] = [
   { key: "ais", label: "AIS LIST", sections: ["AIS targets"], tab: "arpa" },
   { key: "arpa", label: "ARPA", sections: ["ARPA operation"], tab: "arpa" },
   { key: "set", label: "SETTINGS", sections: ["Settings", "Own ship data"], tab: "top" },
-  { key: "comm", label: "VHF", sections: ["Communications (VHF, typed)"], tab: "top" },
+  { key: "comm", label: "VHF/SIGNAL", sections: ["Communications (VHF, typed)", "Sound signals"], tab: "top" },
   { key: "env", label: "WEATHER", sections: ["Environment"], tab: "radar" },
   { key: "scen", label: "SCENARIO", sections: ["Free practice", "Linked own ships", "Study aids"], tab: "radar" },
   { key: "roc", label: "ROC EX", sections: [], tab: "roc" },

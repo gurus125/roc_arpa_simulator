@@ -127,8 +127,26 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     const p = px(worldToDisplayNm(w, ds, lh.hit.pos));
     const s = lh.hit.size;
     ctx.globalAlpha = a;
-    ctx.fillStyle = echoColour(KIND_COLOUR[lh.hit.kind]);
-    ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+    const colour = echoColour(KIND_COLOUR[lh.hit.kind]);
+    const h = lh.hit;
+    if (h.arcDeg !== undefined && h.depthNm !== undefined) {
+      // Painted as the radar would: an arc as wide as the beam (plus the target), as deep as the pulse (plus the target).
+      const dx = p.x - own.x;
+      const dy = p.y - own.y;
+      const r = Math.hypot(dx, dy);
+      const depth = Math.max(2, h.depthNm * k);
+      const half = Math.max((h.arcDeg * Math.PI) / 360, 1.2 / Math.max(r, 1));
+      const ang = Math.atan2(dy, dx);
+      const rMid = Math.max(h.outward ? r + depth / 2 : r, depth / 2);
+      ctx.strokeStyle = colour;
+      ctx.lineWidth = depth;
+      ctx.beginPath();
+      ctx.arc(own.x, own.y, rMid, ang - half, ang + half);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = colour;
+      ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
+    }
     if (lh.hit.kind === "target" && lh.hit.targetId !== undefined) named.set(lh.hit.targetId, p);
   }
   ctx.globalAlpha = 1;

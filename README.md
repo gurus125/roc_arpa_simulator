@@ -44,6 +44,11 @@ SETTINGS key: DAY / NIGHT display palettes (`src/ui/palette.ts`; day is dark blu
 night is black and dimmed) and Own ship data (name, call sign, IMO, MMSI, size, type; live position,
 COG, SOG, heading, ROT, UTC; draught, hazardous cargo, destination, ETA). Typed-in values start as
 placeholders and are kept on the computer. The position is counted from a made-up origin.
+Radar picture (`src/engine/echo.ts`): echoes are painted as arcs as wide as the beam plus the target and
+as deep as the pulse plus the target, so range and bearing discrimination, sideways stretch with range,
+aspect, and land depth appear on the picture. Beam = length / 7, aspect curve and land depth are placeholders.
+Sound signals (`src/core/signals.ts`): COLREG rule 34 and 35 whistle signals, automatic fog signal.
+Learner's manual: `docs/USER-MANUAL.md`.
 `npm run test:screen` checks the built page in a headless browser (needs Playwright).
 Explanatory text is hidden until HELP is pressed. The layout is our own arrangement
 (`src/ui/console-ui.ts`), not a copy of any maker's screen.
@@ -51,7 +56,7 @@ Explanatory text is hidden until HELP is pressed. The layout is our own arrangem
 ## Develop
 
     npm install
-    npm test            # 340 tests
+    npm test            # 354 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

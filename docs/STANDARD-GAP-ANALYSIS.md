@@ -52,10 +52,10 @@ New gaps found from DGS 5/2004 and STCW B-I/12 (not in the table below):
 | PPC (potential point of collision) and PAD (predicted area of danger) graphics | DGS 5/2004 syllabus; B-I/12 para 30 | BUILT 11 Nov 2026 (PAD is a simplified hexagon) |
 | Manual speed input, and the effect of a wrong manual speed on true motion | B-I/12 para 8.2, 8.3, 32.4 | BUILT for the ARPA (wrong speed gives wrong true vectors). The true-motion PICTURE still moves at the real speed: not done |
 | Unstabilised head-up display (picture smears when the ship yaws) | B-I/12 para 8.1, 12 | Head-up already was unstabilised (relative bearing scale, no gyro); now labelled so. The ship does not yaw, so no smear |
-| Target aspect and composition changing the echo | B-I/12 para 5.4, 7 | Missing |
+| Target aspect and composition changing the echo | B-I/12 para 5.4, 7 | BUILT 12 Nov 2026: echo strength and shape change with aspect (placeholder curve); composition not modelled |
 | Ship motion in a seaway affecting the picture | B-I/12 para 5.5 | Missing |
 | False echoes from large structures, bridges and power lines; indirect echoes | B-I/12 para 6 | Missing (multiple, side-lobe and second-trace exist) |
-| Effects of pulse length and beamwidth on the picture; land shape from topography | B-I/12 para 7 | Weak (gap 1 below) |
+| Effects of pulse length and beamwidth on the picture; land shape from topography | B-I/12 para 7 | BUILT 12 Nov 2026: echoes painted from beamwidth and pulse length; land paints inland by height. No terrain model |
 | Centre and heading-marker misalignment as bearing errors | B-I/12 para 9.5 | Heading marker only |
 | Receiver noise saturation with gain too high | B-I/12 para 8.3 | To be checked on screen |
 
@@ -114,7 +114,7 @@ A-II/1.4, 1.5 and 1.8 (emergencies, distress, manoeuvre the ship).
 | C1 k | At least one VHF radio | Partial: typed messages, no voice |
 | C1 n | GPS, echo sounder, speed log through the water | Partial: log and COG/SOG; no position readout, no echo sounder |
 | C1 o | Relative wind direction and force indicator | BUILT: relative wind direction and speed readout |
-| C1 p | Sound panel according to the rules of the road | MISSING |
+| C1 p | Sound panel according to the rules of the road | BUILT 12 Nov 2026: whistle signals of rules 34 and 35, automatic fog signal (own ship only; targets make no sound) |
 | C2 b | Own ship on a mathematical model with at least 3 degrees of freedom | BUILT: surge, sway, yaw model (Nomoto steering). Coefficients are placeholders tested against the IMO manoeuvrability criteria, not trial data |
 | C2 c | Own ship hydrodynamics in open water with wind, waves, tidal stream and current | Partial: wind, current and tidal stream; no wave forces |
 | C2 f | At least three types of own ship | BUILT: four types (container ship, bulk carrier, product tanker, coaster) |
@@ -124,7 +124,7 @@ A-II/1.4, 1.5 and 1.8 (emergencies, distress, manoeuvre the ship).
 | C3 c | At least 100 target ships at the same time, each with a route the instructor can programme | NOT PROVEN: never run with 100; targets have timed course/speed changes, not routes |
 | C3 p | Current pattern changing in time according to the charts; tidal waters | Partial: one uniform current plus a tidal cycle |
 | C3 q | Depth according to the charts, with tide level | MISSING |
-| Sec.2 A104 | User manual available to the learners | MISSING (HELP text only) |
+| Sec.2 A104 | User manual available to the learners | BUILT 12 Nov 2026: docs/USER-MANUAL.md |
 | Sec.2 B102 | Instructor: start, halt, reset, restart; change environment; communicate; follow the exercise; plot tracks; inject failures | Met on one machine (communication typed) |
 | Sec.2 B104 | Replay of a full exercise, also faster and slower than real time | To be checked |
 | Sec.2 B105 | Scoring or grading method | Met in form; values are placeholders |

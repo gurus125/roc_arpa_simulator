@@ -1,3 +1,5 @@
+import { targetLengthM } from "./world";
+import { aspectFactor, echoShape } from "./echo";
 import { Vec2, add, fromPolar, length, normalizeDeg, sub } from "../core/vec";
 import {
   THRESHOLD, detectionProbability, effectiveSignal, noiseDensity, rainClutterProbability, rainIntensityAt,
@@ -34,12 +36,22 @@ export interface Hit {
   /** 0 to 1 brightness. */
   strength: number;
   kind: HitKind;
-  /** Approximate size in screen pixels. */
+  /** Approximate size in screen pixels (used for speckle and for hits without a shape). */
   size: number;
   targetId?: number;
+  /** Painted shape: angular width (degrees) and depth in range (NM). See engine/echo.ts. */
+  arcDeg?: number;
+  depthNm?: number;
+  /** True when the paint starts at the hit's range and runs outward (land behind a shoreline); otherwise it is centred on the range. */
+  outward?: boolean;
 }
 
 const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, x));
+
+/** How far inland a shoreline of this height paints, NM. PLACEHOLDER: 0.1 NM for flat land up to 0.5 NM for land of 60 m and more. */
+export function landDepthNm(heightM: number): number {
+  return clamp(0.1 + (0.4 * heightM) / 60, 0.1, 0.5);
+}
 
 function bearingOfVec(v: Vec2): number {
   return normalizeDeg(Math.atan2(v.e, v.n) * (180 / Math.PI));
@@ -100,7 +112,8 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
     if (!inWedge(rel)) return;
     if (rng() >= detectionProbability(e)) return;
     const pos = add(w.own.pos, fromPolar(trueBearing, range));
-    const hit: Hit = { pos, strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind, size };
+    const sh = echoShape(w.radar.band, c, range);
+    const hit: Hit = { pos, strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind, size, arcDeg: sh.arcDeg, depthNm: sh.depthNm };
     if (id !== undefined) hit.targetId = id;
     hits.push(hit);
   };
@@ -119,17 +132,20 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
         const tb2 = bearingOfVec(v);
         const rel2 = relativeBearing(tb2, heading);
         const es = effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel2, pos: t.pos, kind: t.kind });
-        if (inWedge(rel2) && rng() < detectionProbability(es)) hits.push({ pos: add(w.own.pos, fromPolar(tb2, range - ru)), strength: 0.5, kind: "second-trace", size: 4, targetId: t.id });
+        if (inWedge(rel2) && rng() < detectionProbability(es)) hits.push({ pos: add(w.own.pos, fromPolar(tb2, range - ru)), strength: 0.5, kind: "second-trace", size: 4, targetId: t.id, ...echoShape(w.radar.band, c, range - ru, targetLengthM(t), normalizeDeg((t.motion?.heading ?? t.course) - tb2)) });
       }
     }
     if (range > c.rangeNm * 1.0) continue;
     const tb = bearingOfVec(v);
     const rel = relativeBearing(tb, heading);
-    const e = effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel, pos: t.pos, kind: t.kind });
+    // Aspect: the angle between the target's heading and the line of sight. Beam-on returns more and paints wider; end-on returns less and paints deeper.
+    const lenM = targetLengthM(t);
+    const aspect = normalizeDeg((t.motion?.heading ?? t.course) - tb);
+    const e = effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel, pos: t.pos, kind: t.kind }) * (lenM > 0 ? aspectFactor(aspect) : 1);
     // A longer pulse paints a longer echo; echo stretch enlarges it further.
     const size = (3 + 4 * Math.min(1, Math.sqrt(t.rcs))) * (c.echoStretch ? 1.8 : 1) * Math.sqrt(pulseFor(c.rangeNm, c.pulse).microseconds / pulseFor(c.rangeNm).microseconds);
     if (inWedge(rel) && rng() < detectionProbability(e)) {
-      hits.push({ pos: { ...t.pos }, strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind: "target", size, targetId: t.id });
+      hits.push({ pos: { ...t.pos }, strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind: "target", size, targetId: t.id, ...echoShape(w.radar.band, c, range, lenM, aspect) });
     }
     // Transponders answer X-band radar only (3 cm). Their response is painted outward from the echo.
     const answers = t.transponder === "sart" ? w.radar.band === "X" : (t.raconBand ?? "X") === "both" || (t.raconBand ?? "X") === w.radar.band;
@@ -180,7 +196,9 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
     const e = effectiveSignal(w, { rcs: rcsForDetectionRange(shorelineDetectionNm(s.heightM)), height: s.heightM, rangeNm: range, relBearing: rel, pos: s.pos, kind: "coast" });
     if (rng() >= detectionProbability(e)) continue;
     if (lineOfSightBlocked(w, s.pos, s.edge)) continue;
-    hits.push({ pos: { ...s.pos }, strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind: "coast", size: 3 });
+    // Land: the shoreline and the ground rising behind it return, so the paint runs inland from the edge (deeper for higher land).
+    const land = echoShape(w.radar.band, c, range);
+    hits.push({ pos: { ...s.pos }, strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind: "coast", size: 3, arcDeg: land.arcDeg, depthNm: land.depthNm + landDepthNm(s.heightM), outward: true });
   }
 
   // Sea clutter: a patch of speckle round own ship. STC removes it, and small close targets with it.

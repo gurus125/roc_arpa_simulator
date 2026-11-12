@@ -29,7 +29,7 @@ course handouts and the original development plan PDF.
 | 5 | Scenarios: the nine ARPA exercises plus ROC drills as the standard library, scenario editor, JSON schema | **Built.** Exercises written from the usual course sequence, to be matched to the academy sheets. See `docs/PHASE5-8-INSTRUCTOR-CHECK.md` |
 | 6 | Instructor and admin: login and roles, batches, assignment, live monitoring, event injection, two students per display | **Built in the browser** (PIN, local records, `npm run serve` relay for monitoring). No server database or real accounts |
 | 7 | Scoring, replay and reports: configurable scoring, debrief replay with the handout debrief questions, PDF and CSV export | **Built.** Placeholder scoring, replay, CSV, printable report (save as PDF) |
-| 8 | ECDIS on the same engine, then performance testing (20+ targets at 1 Hz), hardening, documentation | **ECDIS removed** (separate course; trial code set aside in `archive/ecdis-trainer/`). Speed test with 25 targets. 340 tests passing. Checked against IMO A.823(19), MSC.192(79) and Model Courses 1.07/1.08: see `docs/COMPLIANCE-MATRIX.md` |
+| 8 | ECDIS on the same engine, then performance testing (20+ targets at 1 Hz), hardening, documentation | **ECDIS removed** (separate course; trial code set aside in `archive/ecdis-trainer/`). Speed test with 25 targets. 354 tests passing. Checked against IMO A.823(19), MSC.192(79) and Model Courses 1.07/1.08: see `docs/COMPLIANCE-MATRIX.md` |
 
 ## Instructor checkpoints
 

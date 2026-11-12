@@ -101,6 +101,9 @@
   #helmScale button.zero { border-color:var(--accent); }
   button.pm1 { width:30px; padding:3px 0; font-weight:700; }
   body:not(.help) .hint { display:none; }
+  #whistleKeys { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; margin-bottom:6px; }
+  #whistleKeys button { padding:6px 4px; font:600 11px ui-monospace, Consolas, monospace; text-align:left; }
+  #whistleKeys button small { display:block; font-weight:400; color:var(--muted); font-size:10px; white-space:normal; }
   .setrow > .small { width:92px; }
   .setrow button { padding:7px 16px; font:700 12px ui-monospace, Consolas, monospace; }
   .setrow button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
@@ -288,6 +291,13 @@
       <h2>Communications (VHF, typed)</h2>
       <div class="log" id="commLog" style="max-height:96px"></div>
       <div class="btns"><input type="text" id="commAs" class="instr-only" placeholder="Speak as (e.g. Ship A, VTS)" style="flex:1 1 40%"><input type="text" id="commText" placeholder="Message to all stations" style="flex:1 1 55%"><button id="commSend">Send</button></div>
+    </section>
+    <section>
+      <h2>Sound signals</h2>
+      <div id="whistleKeys"></div>
+      <div class="check"><input type="checkbox" id="fogAuto"><label for="fogAuto">Automatic fog signal every 2 minutes (restricted visibility)</label></div>
+      <p class="small" id="whistleMsg"></p>
+      <p class="hint">Whistle signals of the collision regulations. Rule 34, vessels in sight of one another: 1 short blast, altering to starboard; 2 short, to port; 3 short, astern propulsion; 5 short, in doubt. Rule 35, restricted visibility: 1 prolonged blast when making way, 2 prolonged when under way but stopped, at intervals of not more than 2 minutes. A short blast is about 1 second, a prolonged blast 4 to 6 seconds. The pitch follows the ship's length. Each signal is written in the exercise record.</p>
     </section>
     <section>
       <h2>Measure</h2>

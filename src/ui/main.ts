@@ -13,6 +13,8 @@ import { initRocUi } from "./roc-ui";
 import { initArpaUi } from "./arpa-ui";
 import { drawPpi, radarGeometry, readoutAt } from "./view";
 import { setDisplayPalette } from "./palette";
+import { soundWhistle } from "./whistle";
+import { FOG_SIGNAL_INTERVAL_S, SignalId, WHISTLE_SIGNALS, fogSignalFor, whistleFrequencyHz, whistleSignal } from "../core/signals";
 import { formatLatLon, latLonOf } from "../core/nav";
 
 /** Latitude and longitude of the scenarios' zero point. A made-up position: the scenarios are not tied to a real chart. */
@@ -564,6 +566,36 @@ function setup(): void {
   });
   applyMode(store.data.displayMode === "night" ? "night" : "day");
 
+  // Whistle signals (COLREG rules 34 and 35). The pitch follows the ship's length.
+  const whistleNow = (id: SignalId, auto = false): void => {
+    const sig = whistleSignal(id);
+    const type = app.world.own.model ? shipTypeById(app.world.own.model.typeId) : null;
+    const heard = soundWhistle(sig, whistleFrequencyHz(type?.lengthM ?? 150));
+    if (!heard && !auto) {
+      setText("whistleMsg", "A signal is still sounding, or this browser cannot play sound.");
+      return;
+    }
+    setText("whistleMsg", `${auto ? "Automatic: " : ""}${sig.label.toLowerCase()} blast${sig.blasts.length > 1 ? "s" : ""}. ${sig.meaning}.`);
+    app.recorder?.note(app.world, `Sound signal${auto ? " (automatic)" : ""}: ${sig.label.toLowerCase()}. ${sig.meaning}.`, false);
+  };
+  $("whistleKeys").innerHTML = WHISTLE_SIGNALS.map((x) => `<button data-s="${x.id}">${x.label}<small>${x.meaning.replace(/ \(Rule \d+\)/, "")}</small></button>`).join("");
+  $("whistleKeys").addEventListener("click", (ev) => {
+    const id = (ev.target as HTMLElement).closest("button")?.dataset["s"];
+    if (id) whistleNow(id as SignalId);
+  });
+  fogTick = (): void => {
+    if (!($("fogAuto") as HTMLInputElement).checked) {
+      nextFog = null;
+      return;
+    }
+    const t = app.world.time;
+    if (nextFog === null || t < nextFog - FOG_SIGNAL_INTERVAL_S) nextFog = t; // just switched on, or a new scenario
+    if (t >= nextFog) {
+      whistleNow(fogSignalFor(app.world.own.speedThroughWater), true);
+      nextFog = t + FOG_SIGNAL_INTERVAL_S;
+    }
+  };
+
   // Steering gear: telemotor 1 always runs; telemotor 2 can be started as well (the rudder then moves faster).
   $("teleKeys").addEventListener("click", (ev) => {
     if ((ev.target as HTMLElement).closest("button")?.dataset["u"] !== "2") return;
@@ -853,8 +885,12 @@ function chkId(id: string): boolean {
   return (document.getElementById(id) as HTMLInputElement).checked;
 }
 
+let nextFog: number | null = null;
+let fogTick: () => void = () => undefined;
+
 function updateReadouts(): void {
   showMeasureState();
+  fogTick();
   {
     const mo = app.world.own.model?.motion;
     const sd = (x: number, unit: string): string => (Math.abs(x) < 0.5 ? "0" : `${x > 0 ? "S" : "P"} ${Math.abs(x).toFixed(0)}${unit}`);
