@@ -25,7 +25,7 @@ interface Key {
 }
 
 const KEYS: Key[] = [
-  { key: "own", label: "SHIP", sections: ["Own ship"], tab: "top" },
+  { key: "own", label: "SHIP", sections: ["Own ship", "Hand steering"], tab: "top" },
   { key: "meas", label: "PI / MAP", sections: ["Measure"], tab: "top" },
   { key: "gain", label: "RADAR", sections: ["Radar controls"], tab: "radar" },
   { key: "acq", label: "TGT LIST", sections: ["Target data"], tab: "arpa" },
@@ -91,8 +91,14 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     <div class="cbox" id="bGain"><h3>GAIN / CLUTTER</h3><div id="cGain"></div></div>
     <div id="cRun"></div>
     </div>
-    <div id="cMenu" class="wide"></div>`;
-  side.insertBefore(panel, side.firstChild);
+    `;
+  const menu = document.createElement("div");
+  menu.id = "cMenu";
+  // The chosen menu's controls scroll in their own area; the menu keys stay at the bottom of the panel.
+  const body = document.createElement("div");
+  body.id = "menuBody";
+  while (side.firstChild) body.appendChild(side.firstChild);
+  side.append(panel, body, menu);
 
   // Display: the same selects, moved.
   $("rngHold").appendChild($("range"));
@@ -244,10 +250,8 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     const key = (ev.target as HTMLElement).closest("button")?.dataset["key"];
     if (!key) return;
     // Pressing the lit key again goes back to the main panel; otherwise the menu's controls are brought into view.
-    const target = Math.min($("cRun").offsetTop - side.offsetTop, side.scrollHeight - side.clientHeight);
-    const again = key === current && target > 0 && side.scrollTop >= target - 4;
     setMenu(key);
-    side.scrollTo({ top: again ? 0 : target });
+    body.scrollTop = 0;
   });
   setMenu("own");
 
@@ -275,7 +279,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     for (const b of $("bandKeys").querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset["b"] === w.radar.band);
     app.ringsOn = ringsOn;
     $("ringsKey").classList.toggle("on", ringsOn);
-    put("ringsKey", ringsOn ? `RINGS ${ringInterval(c.rangeNm)} NM` : "RINGS OFF");
+    put("ringsKey", ringsOn ? `RINGS ${ringInterval(c.rangeNm)}` : "RINGS OFF");
     put("cTx", `<span class="${app.radarStandby ? "wn" : "ok"}">${app.radarStandby ? "STANDBY" : "TX"}</span> <span class="cl">${mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : ""}</span>`);
     put("cAlarm", unacked ? `<span class="flash">ALARM</span>` : "");
     const pending = app.roc ? [] : [...a.alarms, ...app.ais.alarms].filter((x) => !x.acked);
@@ -312,7 +316,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     }
     put("cVecInfo",
       cell("CPA LIM", `${s.cpaLimitNm} NM`) + cell("TCPA LIM", `${s.tcpaLimitMin} min`) +
-      cell("STAB", arpaOn ? a.stabLabel().replace(" STAB", "") : "---") + cell("PAST", arpaOn && s.past.mode !== "off" ? `${s.past.mode === "true" ? "T" : "R"} ${s.past.points}x${s.past.intervalMin}m` : "OFF"));
+      cell("STAB", arpaOn ? a.stabLabel().replace(" STAB", "").replace(/[()]/g, "").replace("REF ", "") : "---") + cell("PAST", arpaOn && s.past.mode !== "off" ? `${s.past.mode === "true" ? "T" : "R"} ${s.past.points}x${s.past.intervalMin}m` : "OFF"));
 
     // Selected target. An ARPA track shows the values of its row in the target list (computed by the ARPA code);
     // with no track selected, a selected AIS target shows what its AIS report carries.

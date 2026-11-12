@@ -25,6 +25,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.click(`#cMenu button[data-key=${k}]`);
     await p.waitForTimeout(500);
   };
+  const topY = async (sel) => (await p.locator(sel).boundingBox()).y;
   const text = (sel) => p.$eval(sel, (e) => e.innerText.replace(/\s+/g, " "));
 
   // Every menu key shows at least one section, none squashed, and its first control can be reached.
@@ -42,9 +43,10 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
 
   // Own ship: course and speed.
   await key("own");
-  for (const [id, f] of [["ordCourse", 0.25], ["ordSpeed", 0.8]]) {
-    const b = await p.locator(`#${id}`).boundingBox();
-    await p.mouse.click(b.x + b.width * f, b.y + b.height / 2);
+  {
+    const b = await p.locator("#ordCourse").boundingBox();
+    await p.mouse.click(b.x + b.width * 0.25, b.y + b.height / 2);
+    await p.click("#telegraph button[data-k=NF]");
   }
   await p.selectOption("#speed", "10");
   await p.waitForTimeout(4000);
@@ -55,13 +57,16 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   // Hand steering and telegraph.
   const apBefore = await p.$eval("#ordCourse", (e) => e.value);
   await p.click("#steerHand");
-  const hb = await p.locator("#helm").boundingBox();
-  await p.mouse.click(hb.x + hb.width * 0.9, hb.y + hb.height / 2);
+  await p.click('#helmScale button[data-v="25"]');
+  await p.click('#helmScale button[data-d="1"]');
+  check(`${tag} hand steering scale: +25 then + gives 26`, (await p.$eval("#helm", (e) => e.value)) === "26" && (await text("#helmV")) === "+26°", await text("#helmV"));
   await p.waitForTimeout(2500);
   check(`${tag} hand steering: rudder and rate of turn shown`, /RUD S \d+/.test(await text("#cOwn")) && /ROT S \d+/.test(await text("#cOwn")), await text("#cOwn"));
   check(`${tag} hand steering: autopilot course does not move and shows OFF`, (await p.$eval("#ordCourse", (e) => e.value)) === apBefore && (await text("#ordCourseV")) === "OFF", await text("#ordCourseV"));
   await p.click("#steerAuto");
   await p.click("#telegraph button[data-k=ST]");
+  check(`${tag} menu keys are at the bottom of the panel`, (await topY("#cMenu")) > (await topY("#menuBody")) && (await topY("#cMenu")) > H - 90);
+  check(`${tag} no engine order slider on screen`, !(await p.locator("#ordSpeed").isVisible()));
   check(`${tag} telegraph STOP sets the engine order`, (await p.$eval("#ordSpeed", (e) => e.value)) === "0");
   check(`${tag} ship types offered`, (await p.$$eval("#shipType option", (o) => o.length)) >= 3);
 
@@ -101,7 +106,6 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   check(`${tag} cursor box`, /NM/.test(await text("#cCur")));
 
   // Top bar: radar on / standby and alarm acknowledge are at the top of the panel.
-  const topY = async (sel) => (await p.locator(sel).boundingBox()).y;
   check(`${tag} radar key and alarm ack at the top`, (await topY("#radarSb")) < (await topY("#bDisp")) && (await topY("#ackKey")) < (await topY("#bDisp")));
   await p.click("#radarSb");
   check(`${tag} radar standby key`, (await text("#radarSb")).includes("STANDBY"));

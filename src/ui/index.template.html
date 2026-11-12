@@ -81,12 +81,19 @@
   body[data-role=student] .instr-only { display:none !important; }
   /* Console layout: picture left, data panel and menu keys right, help text hidden until asked for. */
   body { overflow:hidden; }
-  header { padding:3px 12px; font-size:12px; }
-  main { grid-template-columns:minmax(0, 1fr) 610px; gap:8px; padding:6px 8px; height:calc(100vh - 30px); }
+  header { padding:1px 10px; font-size:11px; line-height:18px; flex-wrap:nowrap; white-space:nowrap; overflow:hidden; }
+  main { grid-template-columns:minmax(0, 1fr) 530px; gap:6px; padding:4px 6px; height:calc(100vh - 22px); }
   #stage { height:100%; justify-content:center; }
-  #wrap { max-width:min(100%, calc(100vh - 44px)); }
+  #wrap { max-width:min(100%, calc(100vh - 30px)); }
   #readout, .tabs { display:none !important; }
-  #side { height:100%; overflow-y:auto; gap:6px; padding-right:2px; }
+  #side { height:100%; overflow:hidden; gap:5px; }
+  #side > #menuBody { flex:1 1 0; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding-right:2px; }
+  #menuBody > * { flex:none; }
+  #helmScale { display:grid; grid-template-columns:repeat(17, 1fr); gap:2px; margin:2px 0 6px; }
+  #helmScale button { padding:6px 0; font:600 10.5px ui-monospace, Consolas, monospace; }
+  #helmScale button.on { background:var(--accent); color:#04210f; border-color:var(--accent); }
+  #helmScale button.zero { border-color:var(--accent); }
+  button.pm1 { width:30px; padding:3px 0; font-weight:700; }
   body:not(.help) .hint { display:none; }
   /* Night: the whole display is dimmed, as on a bridge at night. */
   body.night main { filter:brightness(.5) saturate(.8); }
@@ -106,10 +113,10 @@
   .cgrid .span3 { grid-column:span 3; }
   .ccol { display:flex; flex-direction:column; gap:4px; min-width:0; }
   .ccol > .cbox:last-of-type { flex:1; }
-  #rngHold select { width:100%; min-width:62px; }
+  #rngHold select { width:100%; min-width:70px; }
   #ppiCorner input[type=checkbox] { width:1em !important; height:1em !important; min-width:0; }
   #side > * { flex:none; }
-  #side::after { content:""; flex:none; height:60vh; }
+
   .crow { display:flex; align-items:center; gap:5px; margin:1px 0; }
   .crow .cl { width:56px; flex:none; }
   .crow select { flex:1; min-width:0; padding:2px 4px; font-size:12px; }
@@ -152,7 +159,9 @@
   #ppiCorner #cTgt .check input { width:1em; height:1em; margin:0; }
   #ppiCorner #cTgt label { margin:0; font-size:.92em; color:var(--muted); }
   #bTd p { margin:2px 0 0; }
-  #telegraph button { padding:4px 5px; font:600 10px ui-monospace, Consolas, monospace; }
+  #telegraph { display:grid !important; grid-template-columns:repeat(10, 1fr); gap:2px !important; }
+  #telegraph button { padding:5px 0; font:600 9.5px ui-monospace, Consolas, monospace; white-space:nowrap; }
+  #telegraph button.on { background:var(--accent); color:#04210f; border-color:var(--accent); }
   #cTop { display:flex; gap:8px; align-items:center; }
   #console #cTop button { padding:6px 16px; font:700 14px ui-monospace, Consolas, monospace; letter-spacing:.04em; white-space:nowrap; }
   #console #radarSb { background:#0f3d24; border-color:var(--accent); color:#d9ffe6; min-width:170px; }
@@ -162,8 +171,9 @@
   #cRun { display:flex; gap:5px; align-items:center; }
   #cRun select { padding:3px 9px; font-size:12px; width:auto; }
   #cRun #cHelp { margin-left:auto; }
-  #cMenu { display:grid; grid-template-columns:repeat(9, 1fr); gap:3px; }
-  #console #cMenu button { padding:5px 1px; font:600 10px ui-monospace, Consolas, monospace; }
+  #cMenu { display:grid; grid-template-columns:repeat(9, 1fr); gap:3px; flex:none; padding-top:2px; }
+  #cMenu button.on { background:var(--accent); color:#04210f; border-color:var(--accent); }
+  #cMenu button { padding:6px 1px; font:600 10px ui-monospace, Consolas, monospace; }
   section { padding:7px 10px; }
   section h2 { margin:0 0 5px; font-size:11px; }
   .row { margin:3px 0; }
@@ -203,19 +213,26 @@
     <section>
       <h2>Own ship</h2>
       <div class="row two"><label for="shipType">Ship</label><select id="shipType"></select></div>
-      <div class="btns"><span class="small">Steering</span><button id="steerAuto" class="on">AUTOPILOT</button><button id="steerHand">HAND</button></div>
+      <div class="btns"><span class="small">Steering</span><button id="steerAuto" class="on">AUTOPILOT</button><button id="steerHand">HAND STEERING</button></div>
       <div class="row"><label for="ordCourse">Autopilot course</label><input type="range" id="ordCourse" min="0" max="359" value="0"><span class="val" id="ordCourseV">000</span></div>
-      <div class="row"><label for="helm">Rudder (hand)</label><input type="range" id="helm" min="-35" max="35" step="1" value="0"><span class="val" id="helmV">MID</span></div>
       <div class="btns" id="telegraph"></div>
-      <div class="row"><label for="ordSpeed">Engine order (kn)</label><input type="range" id="ordSpeed" min="-10" max="25" step="0.5" value="12"><span class="val" id="ordSpeedV">12</span></div>
+      <div class="btns"><span class="small">Engine order</span><button id="engDn" class="pm1">−</button><b id="ordSpeedV" style="min-width:60px;text-align:center">12</b><button id="engUp" class="pm1">+</button><span class="small">kn</span></div>
+      <input type="range" id="ordSpeed" min="-10" max="25" step="0.5" value="12" hidden>
       <p id="shipNow" style="font:13px ui-monospace, Consolas, monospace; margin:4px 0"></p>
-      <p class="small" id="shipInfo"></p>
-      <p class="hint">Autopilot: set the course and the ship steers to it with up to 20° of rudder. Hand: the rudder slider is the helm (left of centre is port); the ship keeps turning until you bring the slider back to the centre (it centres itself within 2°). The telegraph keys set the engine order; the ship takes time to gain and lose speed, and runs on a long way with the engine stopped.</p>
+      <p class="small hint" id="shipInfo"></p>
+      <p class="hint">Autopilot: set the course and the ship steers to it with up to 20° of rudder. Hand steering: choose the rudder angle in the Hand steering box; the ship keeps turning until you put the rudder back to 0. The telegraph keys set the engine order; the ship takes time to gain and lose speed, and runs on a long way with the engine stopped.</p>
       <div class="btns">
         <button id="run">Pause</button>
         <select id="speed" style="width:auto"><option value="1">1x</option><option value="2">2x</option><option value="5">5x</option><option value="10">10x</option></select>
         <button id="radarSb">RADAR: ON</button>
       </div>
+    </section>
+    <section>
+      <h2>Hand steering</h2>
+      <div id="helmScale"></div>
+      <div class="btns" style="justify-content:space-between"><span class="small">PORT (−)</span><span>Rudder order <b id="helmV">0°</b> &nbsp; rudder now <b id="helmNow">0°</b></span><span class="small">STARBOARD (+)</span></div>
+      <input type="range" id="helm" min="-35" max="35" step="1" value="0" hidden>
+      <p class="hint">Press HAND STEERING in the Own ship box first. Then press an angle: minus is port, plus is starboard. The − and + keys at the ends change the order by 1°. The rudder takes time to move to the order.</p>
     </section>
     <section>
       <h2>Communications (VHF, typed)</h2>

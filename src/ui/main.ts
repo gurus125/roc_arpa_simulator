@@ -248,14 +248,16 @@ function applyControls(): void {
   const hand = $("steerHand").classList.contains("on");
   if (w.own.model) {
     w.own.model.steering = hand ? "hand" : "auto";
-    if (Math.abs(num("helm")) <= 2) setSlider("helm", 0); // the helm centres itself close to amidships
     w.own.model.rudderOrder = num("helm");
   }
   if (!hand) w.own.ordered.course = num("ordCourse");
   ($("ordCourse") as HTMLInputElement).disabled = hand;
-  ($("helm") as HTMLInputElement).disabled = !hand;
   const helm = num("helm");
-  setText("helmV", helm === 0 ? "MID" : `${helm > 0 ? "S" : "P"} ${Math.abs(helm)}`);
+  setText("helmV", `${helm > 0 ? "+" : ""}${helm}°`);
+  for (const b of $("helmScale").querySelectorAll<HTMLButtonElement>("button")) {
+    b.disabled = !hand;
+    b.classList.toggle("on", hand && b.dataset["v"] !== undefined && Number(b.dataset["v"]) === helm);
+  }
   w.own.ordered.speed = num("ordSpeed");
   if (num("windSpd") > 0) w.env.wind = { from: normalizeDeg(num("windFrom") || 0), speedKn: num("windSpd") };
   else delete w.env.wind;
@@ -551,6 +553,23 @@ function setup(): void {
     setSlider("ordSpeed", Math.round(t.fraction * shipTypeById(sel("shipType")).maxSpeedKn * 2) / 2);
     applyControls();
   });
+  // Hand steering scale: -35 to +35 in steps of 5 (minus is port), with - and + at the ends for 1 degree.
+  $("helmScale").innerHTML = `<button data-d="-1" title="1° more to port">−</button>` +
+    [-35, -30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35].map((v) => `<button data-v="${v}" class="${v === 0 ? "zero" : ""}">${v > 0 ? "+" : ""}${v}</button>`).join("") +
+    `<button data-d="1" title="1° more to starboard">+</button>`;
+  $("helmScale").addEventListener("click", (ev) => {
+    const b = (ev.target as HTMLElement).closest("button");
+    if (!b || b.disabled) return;
+    const v = b.dataset["v"] !== undefined ? Number(b.dataset["v"]) : num("helm") + Number(b.dataset["d"]);
+    setSlider("helm", Math.max(-35, Math.min(35, v)));
+    applyControls();
+  });
+  for (const [id, d] of [["engDn", -1], ["engUp", 1]] as const) {
+    $(id).addEventListener("click", () => {
+      setSlider("ordSpeed", Math.max(-10, Math.min(25, num("ordSpeed") + d)));
+      applyControls();
+    });
+  }
   $("steerAuto").addEventListener("click", () => {
     // Back to the autopilot: it holds the present heading, rudder order cleared.
     setSlider("ordCourse", Math.round(measuredHeading(app.world)) % 360);
@@ -789,6 +808,7 @@ function updateReadouts(): void {
   {
     const mo = app.world.own.model?.motion;
     const sd = (x: number, unit: string): string => (Math.abs(x) < 0.5 ? "0" : `${x > 0 ? "S" : "P"} ${Math.abs(x).toFixed(0)}${unit}`);
+    setText("helmNow", mo ? `${mo.rudder > 0.5 ? "+" : ""}${mo.rudder.toFixed(0)}°` : "---");
     setText("shipNow", mo ? `HDG ${pad3(measuredHeading(app.world))}   RUDDER ${sd(mo.rudder, "°")}   ROT ${sd(mo.r * 60, "°/min")}   STW ${mo.u.toFixed(1)} kn` : "");
   }
   // Hand steering: the autopilot is disengaged, so its course setting is shown as OFF and does not move.

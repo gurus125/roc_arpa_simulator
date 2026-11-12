@@ -48,7 +48,7 @@ export const TELEGRAPH: { key: string; label: string; fraction: number }[] = [
   { key: "FA", label: "FULL AST", fraction: -0.45 },
   { key: "HA", label: "HALF AST", fraction: -0.35 },
   { key: "SA", label: "SLOW AST", fraction: -0.25 },
-  { key: "DA", label: "D.SLOW AST", fraction: -0.15 },
+  { key: "DA", label: "DS AST", fraction: -0.15 },
   { key: "ST", label: "STOP", fraction: 0 },
   { key: "DS", label: "D.SLOW", fraction: 0.25 },
   { key: "SL", label: "SLOW", fraction: 0.4 },
