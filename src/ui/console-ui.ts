@@ -35,6 +35,7 @@ const KEYS: Key[] = [
   { key: "trial", label: "TRIAL", sections: ["Trial manoeuvre"], tab: "arpa" },
   { key: "ais", label: "AIS LIST", sections: ["AIS targets"], tab: "arpa" },
   { key: "arpa", label: "ARPA", sections: ["ARPA operation"], tab: "arpa" },
+  { key: "set", label: "SETTINGS", sections: ["Display mode", "Own ship data"], tab: "top" },
   { key: "comm", label: "VHF", sections: ["Communications (VHF, typed)"], tab: "top" },
   { key: "env", label: "WEATHER", sections: ["Environment"], tab: "radar" },
   { key: "scen", label: "SCENARIO", sections: ["Free practice", "Linked own ships", "Study aids"], tab: "radar" },
@@ -224,9 +225,10 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   const night = document.createElement("button");
   night.id = "nightKey";
   night.textContent = "DAY";
+  night.title = "Display mode: day / night (also under SETTINGS)";
   night.addEventListener("click", () => {
-    const on = document.body.classList.toggle("night");
-    night.textContent = on ? "NIGHT" : "DAY";
+    const now = document.body.dataset["mode"] === "night" ? "night" : "day";
+    document.querySelector<HTMLElement>(`#modeKeys button[data-m="${now === "night" ? "day" : "night"}"]`)?.click();
   });
   $("cRun").insertBefore(night, help);
 
@@ -277,6 +279,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     const rw = relativeWind(w);
     const side1 = (x: number, dead: number, f: (a: number) => string, zero: string): string => (Math.abs(x) < dead ? zero : `${x > 0 ? "S" : "P"} ${f(Math.abs(x))}`);
     for (const b of $("bandKeys").querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset["b"] === w.radar.band);
+    put("nightKey", document.body.dataset["mode"] === "night" ? "NIGHT" : "DAY");
     app.ringsOn = ringsOn;
     $("ringsKey").classList.toggle("on", ringsOn);
     put("ringsKey", ringsOn ? `RINGS ${ringInterval(c.rangeNm)}` : "RINGS OFF");

@@ -1,3 +1,4 @@
+import { G, bgOuter, bgPpi, echoColour } from "./palette";
 import { fromPolar, normalizeDeg } from "../core/vec";
 import { rangeBearing } from "../core/nav";
 import { ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, ownCogSog, screenRotation, measuredRotation, measuredHeading, logSpeed } from "../engine/index";
@@ -54,9 +55,9 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   };
 
   ctx.save();
-  ctx.fillStyle = "#010604";
+  ctx.fillStyle = bgOuter();
   ctx.fillRect(0, 0, size, size);
-  ctx.fillStyle = "#021109";
+  ctx.fillStyle = bgPpi();
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
   ctx.fill();
@@ -68,9 +69,9 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
 
   // Range rings
   const step = ringInterval(c.rangeNm);
-  ctx.strokeStyle = "#1f6b3a";
+  ctx.strokeStyle = G("#1f6b3a");
   ctx.lineWidth = 1;
-  ctx.fillStyle = "#4fa56d";
+  ctx.fillStyle = G("#4fa56d");
   ctx.font = "11px monospace";
   // Rings are centred on own ship, so they follow it when the picture is off-centred or in true motion.
   for (let r = step; app.ringsOn && r <= c.rangeNm * 2 + 1e-9; r += step) {
@@ -82,7 +83,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
 
   // Blind (shadow) sectors, as a study aid
   if (app.showShadow) {
-    ctx.fillStyle = "rgba(255,90,90,0.16)";
+    ctx.fillStyle = G("rgba(255,90,90,0.16)");
     for (const s of w.radar.shadowSectors) {
       const a0 = (w.own.heading - orient + s.from - 90) * (Math.PI / 180);
       let width = normalizeDeg(s.to - s.from);
@@ -97,7 +98,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
 
   // Trails
   if (app.trailMode !== "off") {
-    ctx.fillStyle = "#c8ffd4";
+    ctx.fillStyle = G("#c8ffd4");
     const ctr = centreRef(w, ds);
     for (const t of w.targets) {
       const dots = app.trails.recent(t.id, w.time, app.trailMinutes);
@@ -126,14 +127,14 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     const p = px(worldToDisplayNm(w, ds, lh.hit.pos));
     const s = lh.hit.size;
     ctx.globalAlpha = a;
-    ctx.fillStyle = KIND_COLOUR[lh.hit.kind];
+    ctx.fillStyle = echoColour(KIND_COLOUR[lh.hit.kind]);
     ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
     if (lh.hit.kind === "target" && lh.hit.targetId !== undefined) named.set(lh.hit.targetId, p);
   }
   ctx.globalAlpha = 1;
 
   if (app.showNames) {
-    ctx.fillStyle = "#e8ffee";
+    ctx.fillStyle = G("#e8ffee");
     ctx.font = "11px sans-serif";
     for (const t of w.targets) {
       const p = named.get(t.id);
@@ -145,7 +146,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   // A heading marker error (instructor fault) paints the line off the ship's head.
   const hd = dirOf(w.own.heading - orient + (w.sensors.headingMarkerErrorDeg ?? 0));
   // Nav marks (radar map symbols), fixed to the ground.
-  ctx.strokeStyle = "#ff9cf0";
+  ctx.strokeStyle = G("#ff9cf0");
   ctx.lineWidth = 1.4;
   for (const m of app.navMarks) {
     const s2 = px(worldToDisplayNm(w, ds, m));
@@ -162,14 +163,14 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     const perf = Math.max(0, Math.min(1, w.radar.performance ?? 1));
     const full = 0.45 * R; // plume length with the set as new
     const base = (w.own.heading - orient + 180 - 90) * (Math.PI / 180);
-    ctx.strokeStyle = "#c8ff9d";
+    ctx.strokeStyle = G("#c8ff9d");
     ctx.lineWidth = 2;
     for (let r = 0.08 * R; r <= 0.08 * R + full * perf; r += 6) {
       ctx.beginPath();
       ctx.arc(own.x, own.y, r, base - 0.26, base + 0.26);
       ctx.stroke();
     }
-    ctx.strokeStyle = "rgba(200,255,157,0.45)";
+    ctx.strokeStyle = G("rgba(200,255,157,0.45)");
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 3]);
     ctx.beginPath();
@@ -178,7 +179,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.setLineDash([]);
   }
   if (!app.hlOff) {
-    ctx.strokeStyle = "#e0ffe8";
+    ctx.strokeStyle = G("#e0ffe8");
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.moveTo(own.x, own.y);
@@ -187,7 +188,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   }
 
   // EBL and VRM
-  ctx.strokeStyle = "#ffd24a";
+  ctx.strokeStyle = G("#ffd24a");
   ctx.lineWidth = 1;
   ctx.setLineDash([6, 4]);
   if (app.ebl.on) {
@@ -207,7 +208,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.arc(own.x, own.y, app.vrm.range * vrmK * k, 0, Math.PI * 2);
     ctx.stroke();
   }
-  ctx.strokeStyle = "#ffa64a";
+  ctx.strokeStyle = G("#ffa64a");
   ctx.setLineDash([2, 4]);
   if (app.ebl2.on) {
     const d = dirOf(app.ebl2.bearing - orientM);
@@ -222,7 +223,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.stroke();
   }
   // Radar map: navigation lines fixed to the ground (they need a ground-stabilised picture to stay on the land).
-  ctx.strokeStyle = "#ff9cf0";
+  ctx.strokeStyle = G("#ff9cf0");
   ctx.setLineDash([]);
   for (const ln of app.navLines) {
     ctx.beginPath();
@@ -235,10 +236,10 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.stroke();
   }
   // Parallel index lines: fixed to own ship, parallel to a chosen bearing, at a chosen distance off.
-  ctx.strokeStyle = "#7ad1ff";
+  ctx.strokeStyle = G("#7ad1ff");
   ctx.setLineDash([10, 4, 2, 4]);
   ctx.font = "10px monospace";
-  ctx.fillStyle = "#7ad1ff";
+  ctx.fillStyle = G("#7ad1ff");
   app.pi.forEach((p, i) => {
     if (!p.on) return;
     const d = dirOf(p.bearing - orientM);
@@ -256,8 +257,8 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   drawArpa(ctx, app, px, ownNm, k, size);
 
   // Own ship
-  ctx.strokeStyle = "#e0ffe8";
-  ctx.fillStyle = "#e0ffe8";
+  ctx.strokeStyle = G("#e0ffe8");
+  ctx.fillStyle = G("#e0ffe8");
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(own.x, own.y, 4, 0, Math.PI * 2);
@@ -272,7 +273,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   // Cursor
   if (app.cursor) {
     const p = px(app.cursor);
-    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.strokeStyle = G("rgba(255,255,255,0.7)");
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(p.x - 8, p.y);
@@ -286,7 +287,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   const sweepScreen = w.own.heading - orient + app.sweep;
   const toCanvasRad = (screenDeg: number): number => ((screenDeg - 90) * Math.PI) / 180;
   for (let i = 0; i < 16; i++) {
-    ctx.fillStyle = `rgba(110,255,150,${0.13 * (1 - i / 16)})`;
+    ctx.fillStyle = G(`rgba(110,255,150,${0.13 * (1 - i / 16)})`);
     ctx.beginPath();
     ctx.moveTo(own.x, own.y);
     ctx.arc(own.x, own.y, R * 2, toCanvasRad(sweepScreen - (i + 1) * 2), toCanvasRad(sweepScreen - i * 2));
@@ -294,7 +295,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.fill();
   }
   const sd = dirOf(sweepScreen);
-  ctx.strokeStyle = "rgba(140,255,170,0.8)";
+  ctx.strokeStyle = G("rgba(140,255,170,0.8)");
   ctx.lineWidth = 1.4;
   ctx.beginPath();
   ctx.moveTo(own.x, own.y);
@@ -303,8 +304,8 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   ctx.restore();
 
   // Bearing scale (outside the clip)
-  ctx.strokeStyle = "#2f8f4e";
-  ctx.fillStyle = "#6dcf88";
+  ctx.strokeStyle = G("#2f8f4e");
+  ctx.fillStyle = G("#6dcf88");
   ctx.lineWidth = 1;
   ctx.font = "11px monospace";
   ctx.textAlign = "center";
@@ -326,7 +327,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     }
   }
   const hm = dirOf(w.own.heading - orient);
-  ctx.fillStyle = "#e0ffe8";
+  ctx.fillStyle = G("#e0ffe8");
   ctx.beginPath();
   ctx.moveTo(cx + hm.dx * (R + 1), cy + hm.dy * (R + 1));
   ctx.lineTo(cx + hm.dx * (R + 11) - hm.dy * 5, cy + hm.dy * (R + 11) + hm.dx * 5);
@@ -339,7 +340,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   // HUD
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#8fd9a6";
+  ctx.fillStyle = G("#8fd9a6");
   ctx.font = "12px monospace";
   const orientLabel = ds.orientation === "north-up" ? "N-UP" : ds.orientation === "head-up" ? "H-UP" : "C-UP";
   ctx.fillText(`${ds.motion === "relative" ? "RM" : "TM"}  ${orientLabel}  ${ds.stabilisation === "sea" ? "SEA" : "GND"}`, 8, 16);
@@ -349,7 +350,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   const cog = ownCogSog(w);
   // (Heading and speeds are in the OWN SHIP box; the bottom-left corner carries the EBL/VRM and target keys.)
   ctx.textAlign = "right";
-  ctx.fillStyle = "#58a56f";
+  ctx.fillStyle = G("#58a56f");
   ctx.fillText("TRAINING USE ONLY", size - 8, size - 8);
   ctx.restore();
 }

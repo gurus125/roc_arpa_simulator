@@ -20,6 +20,9 @@ export interface ShipType {
   id: string;
   name: string;
   lengthM: number;
+  /** Beam and loaded draught, metres (for the ship particulars only; placeholders). */
+  beamM: number;
+  draughtM: number;
   /** Speed at full sea speed ahead, knots. */
   maxSpeedKn: number;
   /** Nomoto gain and time constant, non-dimensional. */
@@ -60,10 +63,10 @@ export const TELEGRAPH: { key: string; label: string; fraction: number }[] = [
 const BASE = { asternPower: 0.6, driftFactor: 0.3, turnLoss: 4, windDrag: 0.000005, maxRudderDeg: 35, rudderRateDegPerSec: 2.3 };
 
 export const SHIP_TYPES: ShipType[] = [
-  { ...BASE, id: "container", name: "Container ship, 230 m", lengthM: 230, maxSpeedKn: 22, kPrime: 0.9, tPrime: 1.2, speedTimeS: 600, engineTimeS: 40, leeway: 0.035 },
-  { ...BASE, id: "bulk", name: "Bulk carrier, loaded, 225 m", lengthM: 225, maxSpeedKn: 14.5, kPrime: 1.05, tPrime: 2.1, speedTimeS: 1000, engineTimeS: 60, leeway: 0.015 },
-  { ...BASE, id: "tanker", name: "Product tanker, 180 m", lengthM: 180, maxSpeedKn: 15, kPrime: 1.0, tPrime: 1.8, speedTimeS: 800, engineTimeS: 50, leeway: 0.02 },
-  { ...BASE, id: "coaster", name: "Coaster, 90 m", lengthM: 90, maxSpeedKn: 13, kPrime: 1.0, tPrime: 1.0, speedTimeS: 300, engineTimeS: 25, leeway: 0.03 },
+  { ...BASE, id: "container", name: "Container ship, 230 m", lengthM: 230, beamM: 32.2, draughtM: 11.5, maxSpeedKn: 22, kPrime: 0.9, tPrime: 1.2, speedTimeS: 600, engineTimeS: 40, leeway: 0.035 },
+  { ...BASE, id: "bulk", name: "Bulk carrier, loaded, 225 m", lengthM: 225, beamM: 32.3, draughtM: 14.2, maxSpeedKn: 14.5, kPrime: 1.05, tPrime: 2.1, speedTimeS: 1000, engineTimeS: 60, leeway: 0.015 },
+  { ...BASE, id: "tanker", name: "Product tanker, 180 m", lengthM: 180, beamM: 32, draughtM: 11, maxSpeedKn: 15, kPrime: 1.0, tPrime: 1.8, speedTimeS: 800, engineTimeS: 50, leeway: 0.02 },
+  { ...BASE, id: "coaster", name: "Coaster, 90 m", lengthM: 90, beamM: 14, draughtM: 5.5, maxSpeedKn: 13, kPrime: 1.0, tPrime: 1.0, speedTimeS: 300, engineTimeS: 25, leeway: 0.03 },
 ];
 
 export function shipTypeById(id: string): ShipType {

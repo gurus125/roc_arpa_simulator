@@ -52,6 +52,8 @@ export interface AppState {
   ais: AisSystem;
   trailMode: TrailMode;
   trailMinutes: number;
+  /** Real time (ms since 1970) when the scenario was started: the simulated UTC is this plus the simulated time. */
+  startUtcMs: number;
   /** Fixed range rings shown. */
   ringsOn: boolean;
   showShadow: boolean;
@@ -133,6 +135,7 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     trailMode: "off",
     trailMinutes: 6,
     ringsOn: true,
+    startUtcMs: Date.now(),
     showShadow: false,
     showNames: false,
     cursor: null,

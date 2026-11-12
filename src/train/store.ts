@@ -34,6 +34,10 @@ export interface StoreData {
   /** Students allowed at one display, and the hours each pair should get. Placeholders from the plan's open question. */
   maxStudentsPerDisplay: number;
   targetHoursPerPair: number | null;
+  /** Own ship particulars and voyage data typed in by the user (as on an AIS). Starting values are placeholders, not a real ship. */
+  ownShip: { name: string; callSign: string; imo: string; mmsi: string; draughtM: number | null; hazardous: string; destination: string; eta: string };
+  /** Display palette. */
+  displayMode: "day" | "night";
 }
 
 export interface KeyValue {
@@ -50,6 +54,8 @@ export function emptyStore(): StoreData {
     version: 1, pin: DEFAULT_PIN, batches: [], records: [], scenarios: [], maps: {}, mapMarks: {},
     scoring: JSON.parse(JSON.stringify(PLACEHOLDER_SCORING)) as ScoringConfig,
     pairSeconds: {}, maxStudentsPerDisplay: 2, targetHoursPerPair: null,
+    ownShip: { name: "TRAINING SHIP", callSign: "TRNG1", imo: "0000000", mmsi: "000000000", draughtM: null, hazardous: "None", destination: "", eta: "" },
+    displayMode: "day",
   };
 }
 

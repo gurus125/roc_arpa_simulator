@@ -100,3 +100,28 @@ export function angleOfCut(b1: number, b2: number): number {
   if (d > 180) d = 360 - d;
   return d > 90 ? 180 - d : d;
 }
+
+/**
+ * Latitude and longitude of a position given in the local east/north frame (NM) from an origin.
+ * One nautical mile north is one minute of latitude; one nautical mile east is one minute of
+ * longitude divided by the cosine of the latitude (plane sailing with the mid-latitude, good for
+ * the tens of miles of an exercise area).
+ */
+export function latLonOf(origin: { lat: number; lon: number }, pos: Vec2): { lat: number; lon: number } {
+  const lat = origin.lat + pos.n / 60;
+  const mid = ((origin.lat + lat) / 2) * (Math.PI / 180);
+  return { lat, lon: origin.lon + pos.e / (60 * Math.cos(mid)) };
+}
+
+/** A latitude or longitude in degrees and decimal minutes, e.g. 18°50.0'N. */
+export function formatLatLon(value: number, kind: "lat" | "lon"): string {
+  const hemi = kind === "lat" ? (value >= 0 ? "N" : "S") : value >= 0 ? "E" : "W";
+  const a = Math.abs(value);
+  let deg = Math.floor(a);
+  let min = Math.round((a - deg) * 600) / 10;
+  if (min >= 60) {
+    min = 0;
+    deg += 1;
+  }
+  return `${String(deg).padStart(kind === "lat" ? 2 : 3, "0")}°${min.toFixed(1).padStart(4, "0")}'${hemi}`;
+}

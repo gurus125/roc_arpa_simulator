@@ -1,3 +1,4 @@
+import { G } from "./palette";
 import { Vec2, add, length, normalizeDeg, scale, sub, velocityOf } from "../core/vec";
 import { ZoneSetting, arpaAvailableOnScale } from "../arpa/index";
 import { collisionPoints, dangerAreas } from "../core/pad";
@@ -7,7 +8,7 @@ import { AppState } from "./app";
 type Ctx = CanvasRenderingContext2D;
 type P = { x: number; y: number };
 
-const COL = {
+const COL_BASE = {
   track: "#7fe0ff",
   acquiring: "#7fe0ff",
   danger: "#ff5a4a",
@@ -18,6 +19,8 @@ const COL = {
   excl: "rgba(170,170,170,0.55)",
   ais: "#b6f27a",
 };
+/** The base colours in the palette in use (day or night). */
+const COL = new Proxy(COL_BASE, { get: (t, k) => G(t[k as keyof typeof COL_BASE]) });
 
 /**
  * ARPA overlay on the PPI: zones, target symbols, vectors, trial manoeuvre and alarm banner.
@@ -91,7 +94,7 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
     ctx.setLineDash([]);
   };
   for (const z of s.guardZones) zone(z, COL.guard, null);
-  for (const z of s.exclusionZones) zone(z, COL.excl, "rgba(140,140,140,0.10)");
+  for (const z of s.exclusionZones) zone(z, COL.excl, G("rgba(140,140,140,0.10)"));
 
   const T = s.vectorMinutes / 60;
   const trialOn = s.trial.on;
@@ -331,7 +334,7 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
       }
     }
     if (sel) {
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = G("#ffffff");
       ctx.lineWidth = 1.2;
       const r = 12;
       const c = 4;

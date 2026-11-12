@@ -40,6 +40,10 @@ Self-test (`src/train/robot.ts`): Instructor page > "Self-test of the exercises"
 Three robots (careful, wrong, idle) work all 21 ARPA, radar and plotting exercises and the marking is
 compared with what should happen. It checks that the exercises run and are marked properly, not that
 the answer key is good seamanship. ROC exercises are not included.
+SETTINGS key: DAY / NIGHT display palettes (`src/ui/palette.ts`; day is dark blue with yellow echoes,
+night is black and dimmed) and Own ship data (name, call sign, IMO, MMSI, size, type; live position,
+COG, SOG, heading, ROT, UTC; draught, hazardous cargo, destination, ETA). Typed-in values start as
+placeholders and are kept on the computer. The position is counted from a made-up origin.
 `npm run test:screen` checks the built page in a headless browser (needs Playwright).
 Explanatory text is hidden until HELP is pressed. The layout is our own arrangement
 (`src/ui/console-ui.ts`), not a copy of any maker's screen.
@@ -47,7 +51,7 @@ Explanatory text is hidden until HELP is pressed. The layout is our own arrangem
 ## Develop
 
     npm install
-    npm test            # 334 tests
+    npm test            # 339 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

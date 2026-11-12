@@ -12,6 +12,11 @@ import { AppState, advance, createApp, resetCourseUp, resetTrueMotion, setDispla
 import { initRocUi } from "./roc-ui";
 import { initArpaUi } from "./arpa-ui";
 import { drawPpi, radarGeometry, readoutAt } from "./view";
+import { setDisplayPalette } from "./palette";
+import { formatLatLon, latLonOf } from "../core/nav";
+
+/** Latitude and longitude of the scenarios' zero point. A made-up position: the scenarios are not tied to a real chart. */
+const SCENARIO_ORIGIN = { lat: 18 + 50 / 60, lon: 72 + 30 / 60 };
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -543,6 +548,39 @@ function setup(): void {
   $("tmReset").addEventListener("click", () => {
     resetTrueMotion(app);
   });
+  // Display mode (day / night palette), kept on this computer.
+  const applyMode = (mode: "day" | "night"): void => {
+    document.body.dataset["mode"] = mode;
+    setDisplayPalette(mode);
+    for (const b of document.querySelectorAll<HTMLElement>("#modeKeys button")) b.classList.toggle("on", b.dataset["m"] === mode);
+    if (store.data.displayMode !== mode) {
+      store.data.displayMode = mode;
+      store.save();
+    }
+  };
+  $("modeKeys").addEventListener("click", (ev) => {
+    const mKey = (ev.target as HTMLElement).closest("button")?.dataset["m"];
+    if (mKey === "day" || mKey === "night") applyMode(mKey);
+  });
+  applyMode(store.data.displayMode === "night" ? "night" : "day");
+
+  // Own ship data typed in by the user (fixed particulars and voyage data), kept on this computer.
+  const os = store.data.ownShip;
+  const osFields: [string, keyof typeof os][] = [["osName", "name"], ["osCall", "callSign"], ["osImo", "imo"], ["osMmsi", "mmsi"], ["osHaz", "hazardous"], ["osDest", "destination"], ["osEta", "eta"]];
+  for (const [id, k] of osFields) {
+    const el = $(id) as HTMLInputElement | HTMLSelectElement;
+    el.value = String(os[k] ?? "");
+    el.addEventListener("change", () => {
+      (os[k] as string) = el.value.trim();
+      store.save();
+    });
+  }
+  $("osDraught").addEventListener("change", () => {
+    const v = Number(($("osDraught") as HTMLInputElement).value);
+    os.draughtM = Number.isFinite(v) && v > 0 ? v : null;
+    store.save();
+  });
+
   // Own ship: ship types, steering mode, telegraph.
   $("shipType").innerHTML = SHIP_TYPES.map((t) => `<option value="${t.id}">${t.name}</option>`).join("") + `<option value="simple">Exercise ship (${PLOT_RULES.turnDegPerMin}°/min, ${PLOT_RULES.speedKnPerMin} kn/min)</option>`;
   $("telegraph").innerHTML = TELEGRAPH.map((t) => `<button data-k="${t.key}">${t.label}</button>`).join("");
@@ -813,6 +851,24 @@ function updateReadouts(): void {
   }
   // Hand steering: the autopilot is disengaged, so its course setting is shown as OFF and does not move.
   if (app.world.own.model?.steering === "hand") setText("ordCourseV", "OFF");
+  {
+    // Own ship data: live values, and the particulars of the ship type in use.
+    const w0 = app.world;
+    const type = w0.own.model ? shipTypeById(w0.own.model.typeId) : null;
+    setText("osSize", type ? `${type.lengthM} m x ${type.beamM} m` : "---");
+    setText("osType", type ? type.name.split(",")[0]! : "Exercise ship");
+    const dr = $("osDraught") as HTMLInputElement;
+    if (document.activeElement !== dr) dr.value = String(store.data.ownShip.draughtM ?? type?.draughtM ?? "");
+    const ll = latLonOf(SCENARIO_ORIGIN, w0.own.pos);
+    setText("osPos", `${formatLatLon(ll.lat, "lat")}  ${formatLatLon(ll.lon, "lon")}`);
+    const cg = ownCogSog(w0);
+    setText("osCog", `${cg.course.toFixed(1).padStart(5, "0")}°`);
+    setText("osSog", `${cg.speed.toFixed(1)} kn`);
+    setText("osHdg", `${measuredHeading(w0).toFixed(1).padStart(5, "0")}°`);
+    const rot = (w0.own.model?.motion.r ?? 0) * 60;
+    setText("osRot", w0.own.model ? (Math.abs(rot) < 0.5 ? "0°/min" : `${Math.abs(rot).toFixed(0)}°/min to ${rot > 0 ? "starboard" : "port"}`) : "---");
+    setText("osUtc", new Date(app.startUtcMs + w0.time * 1000).toISOString().slice(0, 19).replace("T", " "));
+  }
   const w = app.world;
   const t = Math.floor(w.time + 1e-6);
   setText("rTime", `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
