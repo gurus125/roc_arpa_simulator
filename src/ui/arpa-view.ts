@@ -1,0 +1,382 @@
+import { Vec2, add, length, normalizeDeg, scale, sub, velocityOf } from "../core/vec";
+import { ZoneSetting, arpaAvailableOnScale } from "../arpa/index";
+import { collisionPoints, dangerAreas } from "../core/pad";
+import { measuredHeading, measuredRotation, ownGroundVelocity, toScreenNm } from "../engine/index";
+import { AppState } from "./app";
+
+type Ctx = CanvasRenderingContext2D;
+type P = { x: number; y: number };
+
+const COL = {
+  track: "#7fe0ff",
+  acquiring: "#7fe0ff",
+  danger: "#ff5a4a",
+  lost: "#ffb347",
+  trial: "#ff9cf0",
+  own: "#e0ffe8",
+  guard: "rgba(255,210,74,0.75)",
+  excl: "rgba(170,170,170,0.55)",
+  ais: "#b6f27a",
+};
+
+/**
+ * ARPA overlay on the PPI: zones, target symbols, vectors, trial manoeuvre and alarm banner.
+ * All ARPA data is in the gyro frame, so it is drawn with the measured-frame rotation and
+ * lands on the echoes even when a gyro error is injected.
+ */
+export function drawArpa(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: number, size: number): void {
+  if (app.roc) return;
+  const w = app.world;
+  const a = app.arpa;
+  const s = a.settings;
+  if (s.standby) {
+    ctx.save();
+    ctx.font = "bold 14px monospace";
+    ctx.textAlign = "left";
+    ctx.fillStyle = COL.lost;
+    ctx.fillText("ARPA STANDBY", 8, 32);
+    ctx.restore();
+    return;
+  }
+  if (!arpaAvailableOnScale(w.radar.controls.rangeNm)) {
+    // Tracking carries on inside the ARPA, but the display only offers it on the ARPA range scales.
+    ctx.save();
+    ctx.font = "12px monospace";
+    ctx.textAlign = "left";
+    ctx.fillStyle = COL.lost;
+    ctx.fillText("ARPA NOT AVAILABLE ON THIS RANGE SCALE (USE 3, 6, 12 OR 24 NM)", 8, 32);
+    ctx.restore();
+    return;
+  }
+  if (!s.showData) return;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, s.brilliance / 100));
+  drawArpaData(ctx, app, px, ownNm, k, size);
+  ctx.restore();
+}
+
+function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: number, size: number): void {
+  const w = app.world;
+  const a = app.arpa;
+  const s = a.settings;
+  const B = Math.max(0, Math.min(1, s.brilliance / 100));
+  const orientM = measuredRotation(w, app.display);
+  const scr = (v: Vec2): P => toScreenNm(v, orientM);
+  const at = (rel: Vec2): P => {
+    const v = scr(rel);
+    return px({ x: ownNm.x + v.x, y: ownNm.y + v.y });
+  };
+  const own = px(ownNm);
+  const flash = Math.floor(app.wall * 2) % 2 === 0;
+  const hm = measuredHeading(w);
+
+  // Zones (relative bearings, centred on own ship)
+  const zone = (z: ZoneSetting, colour: string, fill: string | null): void => {
+    if (!z.on) return;
+    const full = normalizeDeg(z.toRel - z.fromRel) === 0;
+    const a0 = ((hm + z.fromRel - orientM - 90) * Math.PI) / 180;
+    const a1 = full ? a0 + 2 * Math.PI : a0 + (normalizeDeg(z.toRel - z.fromRel) * Math.PI) / 180;
+    ctx.beginPath();
+    ctx.arc(own.x, own.y, z.outerNm * k, a0, a1);
+    ctx.arc(own.x, own.y, z.innerNm * k, a1, a0, true);
+    ctx.closePath();
+    if (fill) {
+      ctx.fillStyle = fill;
+      ctx.fill();
+    }
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 1;
+    ctx.setLineDash(fill ? [] : [5, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  };
+  for (const z of s.guardZones) zone(z, COL.guard, null);
+  for (const z of s.exclusionZones) zone(z, COL.excl, "rgba(140,140,140,0.10)");
+
+  const T = s.vectorMinutes / 60;
+  const trialOn = s.trial.on;
+  const ownV = a.ownVelocity(w);
+  const trialV = velocityOf({ course: s.trial.course, speed: s.trial.speed });
+  // Remaining delay (counts down while the trial is on): vectors are unchanged until then, then bend.
+  const delayH = a.trialRemainingMin(w) / 60;
+  const trialRows = trialOn ? new Map(a.trial(w).map((r) => [r.trackId, r])) : null;
+
+  const line = (p0: P, p1: P, colour: string, dashed: boolean, width = 1.6): void => {
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = width;
+    ctx.setLineDash(dashed ? [4, 3] : []);
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  };
+
+  // Own ship vector: true vectors only. With a trial on, it shows own ship's future track
+  // (present course and speed for the delay, then the trial course and speed).
+  if (s.vectorMode === "true") {
+    if (trialOn) {
+      const d = Math.min(T, delayH);
+      const mid = scr(scale(ownV, d));
+      const end = scr(add(scale(ownV, d), scale(trialV, T - d)));
+      const m = { x: own.x + mid.x * k, y: own.y - mid.y * k };
+      line(own, m, COL.own, false, 2);
+      line(m, { x: own.x + end.x * k, y: own.y - end.y * k }, COL.trial, false, 2);
+    } else {
+      const v = scr(scale(ownV, T));
+      line(own, { x: own.x + v.x * k, y: own.y - v.y * k }, COL.own, false, 2);
+    }
+  }
+
+  // Guard-zone warning: the echo that caused it is marked until the warning is acknowledged.
+  if (flash) {
+    ctx.strokeStyle = COL.lost;
+    ctx.lineWidth = 1.5;
+    for (const al of a.alarms) {
+      if (al.kind !== "guard" || al.acked || !al.rel) continue;
+      const g = at(al.rel);
+      ctx.strokeRect(g.x - 9, g.y - 9, 18, 18);
+    }
+  }
+
+  // Self-test: two test targets with known motion, drawn with the vector time in use.
+  if (a.test) {
+    ctx.save();
+    ctx.font = "11px monospace";
+    for (const tg of a.test.targets) {
+      const p = at(tg.rel);
+      ctx.strokeStyle = COL.acquiring;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+      ctx.stroke();
+      line(p, at(add(tg.rel, scale(tg.relVel, T))), COL.acquiring, false);
+      ctx.fillStyle = COL.acquiring;
+      ctx.fillText(tg.id, p.x + 9, p.y - 7);
+    }
+    const ok = a.test.results.every((r) => r.ok);
+    ctx.fillStyle = ok ? COL.track : COL.danger;
+    ctx.font = "bold 13px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(ok ? "ARPA TEST: PASSED" : "ARPA TEST: FAILED", size / 2, 76);
+    ctx.restore();
+  }
+
+  // AIS reported targets (IMO MSC.192(79) 5.26 to 5.30). They are placed by their reported
+  // position, so with a gyro error they do not sit exactly on their radar echoes.
+  const aisViews = app.ais.targets(w, a, { cpaNm: s.cpaLimitNm, tcpaMin: s.tcpaLimitMin });
+  const hideTrack = new Set<number>();
+  const ownGround = ownGroundVelocity(w);
+  ctx.font = "10px monospace";
+  for (const v of aisViews) {
+    if (v.associatedTrack !== null) {
+      if (app.ais.settings.associatedShows === "radar") continue;
+      hideTrack.add(v.associatedTrack);
+    }
+    const rel = sub(v.pos, w.own.pos);
+    const p = at(rel);
+    const col = v.lost ? COL.lost : v.dangerous ? COL.danger : COL.ais;
+    const active = v.state === "activated";
+    const half = active ? 6 : 3.5;
+    const hp = at(add(rel, velocityOf({ course: v.report.heading, speed: 1 })));
+    const ang = Math.atan2(hp.x - p.x, -(hp.y - p.y));
+    if (v.dangerous && !flash) continue;
+    ctx.strokeStyle = col;
+    ctx.fillStyle = col;
+    ctx.lineWidth = active ? 1.6 : 1.2;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(0, -half * 1.6);
+    ctx.lineTo(half, half);
+    ctx.lineTo(-half, half);
+    ctx.closePath();
+    ctx.stroke();
+    if (active) {
+      ctx.beginPath();
+      ctx.moveTo(0, -half * 1.6);
+      ctx.lineTo(0, -half * 4);
+      ctx.stroke();
+    }
+    if (v.lost) {
+      ctx.beginPath();
+      ctx.moveTo(-8, -8);
+      ctx.lineTo(8, 8);
+      ctx.moveTo(8, -8);
+      ctx.lineTo(-8, 8);
+      ctx.stroke();
+    }
+    ctx.restore();
+    if (active && !v.lost) {
+      const tv = velocityOf({ course: v.report.cog, speed: v.report.sog });
+      const vec = s.vectorMode === "true" ? tv : sub(tv, ownGround);
+      const e = at(add(rel, scale(vec, T)));
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(e.x, e.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillText(v.report.name + (v.associatedTrack !== null ? ` = R${v.associatedTrack}` : ""), p.x + 10, p.y - 8);
+    }
+    if (app.ais.selected === v.report.id) ctx.strokeRect(p.x - 12, p.y - 12, 24, 24);
+  }
+
+  ctx.font = "11px monospace";
+  for (const t of a.tracks) {
+    if (hideTrack.has(t.id) && t.state === "tracking" && app.arpaSelected !== t.id) continue;
+    // Past positions (relative: where it was relative to us; true: its track over the water or ground).
+    if (s.past.mode !== "off" && t.state === "tracking") {
+      ctx.fillStyle = COL.track;
+      for (const q of a.pastPositions(w, t)) {
+        const pp = at(q);
+        ctx.fillRect(pp.x - 1.5, pp.y - 1.5, 3, 3);
+      }
+    }
+    const rel = t.est?.rel ?? a.predictRel(t, w.time);
+    const p = at(rel);
+    const sel = app.arpaSelected === t.id;
+    ctx.globalAlpha = B * (t.fading ? 0.55 : 1);
+
+    if (t.state === "lost") {
+      if (flash) {
+        ctx.strokeStyle = COL.lost;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - 8);
+        ctx.lineTo(p.x + 8, p.y);
+        ctx.lineTo(p.x, p.y + 8);
+        ctx.lineTo(p.x - 8, p.y);
+        ctx.closePath();
+        ctx.moveTo(p.x - 5, p.y - 5);
+        ctx.lineTo(p.x + 5, p.y + 5);
+        ctx.moveTo(p.x + 5, p.y - 5);
+        ctx.lineTo(p.x - 5, p.y + 5);
+        ctx.stroke();
+      }
+    } else if (t.quality === "acquiring" || !t.est) {
+      ctx.strokeStyle = COL.acquiring;
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      const trialDanger = trialRows?.get(t.id)?.dangerous ?? false;
+      const danger = trialOn ? trialDanger : t.dangerous;
+      const unacked = a.alarms.some((x) => x.key === `cpa-${t.id}` && !x.acked);
+      const colour = danger ? COL.danger : trialOn ? COL.trial : COL.track;
+      // Vector
+      // Vectors are not drawn for a stationary target (true mode) or one on the same course and speed as own ship (relative mode).
+      const hideVec = s.vectorMode === "true" ? length(t.est.trueVel) < a.cfg.stationaryKn : length(t.est.relVel) < a.cfg.stationaryKn;
+      if (hideVec && !trialOn) {
+        // no vector
+      } else if (trialOn && s.vectorMode === "relative") {
+        // Relative vector with a trial: unchanged until the delay has run, then bent to the trial relative motion.
+        const d = Math.min(T, delayH);
+        const mid = add(rel, scale(t.est.relVel, d));
+        const end2 = add(mid, scale(sub(t.est.trueVel, trialV), T - d));
+        line(p, at(mid), colour, t.quality === "prelim");
+        line(at(mid), at(end2), colour, t.quality === "prelim");
+      } else {
+        const vec = s.vectorMode === "true" ? t.est.trueVel : t.est.relVel;
+        line(p, at(add(rel, scale(vec, T))), colour, t.quality === "prelim");
+      }
+      // Collision-danger graphics: PPC (small circle) or PAD (hexagon) for steady tracks, at own ship's present speed.
+      if (s.graphics !== "off" && t.quality === "steady" && !trialOn) {
+        ctx.strokeStyle = colour;
+        ctx.lineWidth = 1.2;
+        if (s.graphics === "ppc") {
+          for (const c of collisionPoints(rel, t.est.trueVel, length(ownV))) {
+            const q = at(c.point);
+            line(p, q, colour, true, 1);
+            ctx.beginPath();
+            ctx.arc(q.x, q.y, 5, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        } else {
+          for (const d of dangerAreas(rel, t.est.trueVel, length(ownV), s.cpaLimitNm)) {
+            line(p, at(d.ppc.point), colour, true, 1);
+            ctx.beginPath();
+            d.outline.forEach((v, i) => {
+              const q = at(v);
+              if (i === 0) ctx.moveTo(q.x, q.y);
+              else ctx.lineTo(q.x, q.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+          }
+        }
+      }
+      // Symbol
+      if (danger && (!unacked || flash || trialOn)) {
+        ctx.strokeStyle = COL.danger;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - 9);
+        ctx.lineTo(p.x + 8, p.y + 6);
+        ctx.lineTo(p.x - 8, p.y + 6);
+        ctx.closePath();
+        ctx.stroke();
+      } else if (a.alarms.some((x) => x.key === `new-${t.id}` && !x.acked) && !flash) {
+        // New (intruder) target acquired in a guard zone: the symbol flashes until acknowledged.
+      } else if (!danger) {
+        ctx.strokeStyle = colour;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    if (sel) {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.2;
+      const r = 12;
+      const c = 4;
+      ctx.beginPath();
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+        ctx.moveTo(p.x + sx * r, p.y + sy * (r - c));
+        ctx.lineTo(p.x + sx * r, p.y + sy * r);
+        ctx.lineTo(p.x + sx * (r - c), p.y + sy * r);
+      }
+      ctx.stroke();
+    }
+    ctx.fillStyle = t.state === "lost" ? COL.lost : COL.track;
+    ctx.fillText(a.groundRefId === t.id ? `${t.id} R` : String(t.id), p.x + 10, p.y + 14);
+    ctx.globalAlpha = B;
+  }
+
+}
+
+/** ARPA text on the PPI (drawn outside the radar circle clip). */
+export function drawArpaHud(ctx: Ctx, app: AppState, size: number): void {
+  if (app.roc) return;
+  const a = app.arpa;
+  const s = a.settings;
+  const trialOn = s.trial.on;
+  const flash = Math.floor(app.wall * 2) % 2 === 0;
+  ctx.save();
+  ctx.textAlign = "left";
+  ctx.font = "12px monospace";
+  ctx.fillStyle = COL.track;
+  const stab = a.stabLabel();
+  ctx.fillText(`ARPA  VECT ${s.vectorMode === "true" ? "TRUE" : "REL"} ${s.vectorMinutes} MIN  ${stab}  CPA ${s.cpaLimitNm} NM / ${s.tcpaLimitMin} MIN`, 8, 32);
+  if (s.past.mode !== "off") ctx.fillText(`PAST POSN ${s.past.mode === "true" ? "TRUE" : "REL"}  ${s.past.points} x ${s.past.intervalMin} MIN`, 8, 48);
+  if (!s.showData) ctx.fillText("ARPA DATA OFF", 8, 64);
+  if (trialOn) {
+    ctx.fillStyle = COL.trial;
+    ctx.font = "bold 22px monospace";
+    ctx.textAlign = "center";
+    if (flash) ctx.fillText("TRIAL", size / 2, 58);
+  }
+  const alarm = a.alarms.find((x) => !x.acked);
+  if (alarm && flash) {
+    ctx.font = "bold 13px monospace";
+    ctx.textAlign = "center";
+    ctx.fillStyle = alarm.kind === "cpa" ? COL.danger : COL.lost;
+    ctx.fillText(alarm.text, size / 2, size - 28);
+  }
+  ctx.restore();
+}

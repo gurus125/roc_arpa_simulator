@@ -1,0 +1,173 @@
+import { describe, expect, it } from "vitest";
+import {
+  advanceLeg, monitorRoute, routeLegs, routeLength, segmentHitsCircle, segmentHitsPolygon, segmentToPolygonDistance, segmentToSegmentDistance,
+  segmentsIntersect, wheelOverDistance,
+} from "../src/core/route";
+import { length, sub } from "../src/core/vec";
+import { createWorld, stepWorld } from "../src/engine/index";
+import { HARBOUR_APPROACH, aisTargets, checkRoute, depthAt, ecdisPosition, newEcdisState, stepEcdis, ECDIS_DEFAULTS } from "../src/ecdis/index";
+import { validateScenario, scenarioToJson } from "../src/train/index";
+
+const P = (e: number, n: number): { e: number; n: number } => ({ e, n });
+
+describe("core: route maths (hand-worked 3-4-5 route)", () => {
+  // Waypoints (0,0) -> (0,4) -> (3,8): leg 1 is 000 x 4 NM, leg 2 is atan(3/4) = 036.870 x 5 NM.
+  const wps = [P(0, 0), P(0, 4), P(3, 8)];
+
+  it("legs and total length", () => {
+    const legs = routeLegs(wps);
+    expect(legs[0]!.bearing).toBeCloseTo(0, 9);
+    expect(legs[0]!.distance).toBeCloseTo(4, 9);
+    expect(legs[1]!.bearing).toBeCloseTo(36.8699, 3);
+    expect(legs[1]!.distance).toBeCloseTo(5, 9);
+    expect(routeLength(wps)).toBeCloseTo(9, 9);
+  });
+
+  it("wheel-over distance is R tan(turn/2)", () => {
+    expect(wheelOverDistance(90, 0.5)).toBeCloseTo(0.5, 9);
+    expect(wheelOverDistance(60, 0.3)).toBeCloseTo(0.173205, 5);
+    expect(wheelOverDistance(-90, 0.5)).toBeCloseTo(0.5, 9);
+  });
+
+  it("monitoring from (0.2, 1): XTD, bearing and distance to waypoint, distance and time to go, wheel-over", () => {
+    const m = monitorRoute(wps, P(0.2, 1), 0, 10, 0.5)!;
+    expect(m.xtd).toBeCloseTo(0.2, 9); // east of a northerly track = starboard
+    expect(m.distanceToWp).toBeCloseTo(Math.hypot(0.2, 3), 9); // 3.00666
+    expect(m.bearingToWp).toBeCloseTo(356.186, 2); // 360 - atan(0.2/3)
+    expect(m.distanceToGo).toBeCloseTo(8, 9); // 3 left on leg 1 + 5
+    expect(m.ttgHours).toBeCloseTo(0.8, 9);
+    expect(m.nextTurnDeg).toBeCloseTo(36.8699, 3);
+    // tan(36.87/2) = 1/3 exactly for a 3-4-5 triangle: wheel-over 0.5/3 before the waypoint.
+    expect(m.toWheelOver).toBeCloseTo(3 - 0.5 / 3, 6);
+    expect(monitorRoute(wps, P(-0.3, 1), 0, 0, 0.5)!.xtd).toBeCloseTo(-0.3, 9);
+    expect(monitorRoute(wps, P(0, 1), 0, 0, 0.5)!.ttgHours).toBeNull();
+  });
+
+  it("the active leg advances at the wheel-over point, not before, and stops on the last leg", () => {
+    expect(advanceLeg(wps, P(0, 3.8), 0, 0.5)).toBe(0); // 0.2 to go, wheel-over at 0.1667
+    expect(advanceLeg(wps, P(0, 3.9), 0, 0.5)).toBe(1);
+    expect(advanceLeg(wps, P(3, 9), 1, 0.5)).toBe(1);
+  });
+
+  it("segment and polygon tests", () => {
+    const sq = [P(0, 0), P(1, 0), P(1, 1), P(0, 1)];
+    expect(segmentsIntersect(P(0, 0), P(2, 2), P(0, 2), P(2, 0))).toBe(true);
+    expect(segmentsIntersect(P(0, 0), P(1, 0), P(0, 1), P(1, 1))).toBe(false);
+    expect(segmentsIntersect(P(0, 0), P(1, 0), P(1, 0), P(2, 5))).toBe(true); // touching at an end
+    expect(segmentHitsPolygon(P(-1, 0.5), P(2, 0.5), sq)).toBe(true); // straight through
+    expect(segmentHitsPolygon(P(0.2, 0.2), P(0.8, 0.8), sq)).toBe(true); // wholly inside
+    expect(segmentHitsPolygon(P(2, 0), P(2, 1), sq)).toBe(false);
+    expect(segmentToPolygonDistance(P(2, 0), P(2, 1), sq)).toBeCloseTo(1, 9);
+    expect(segmentToPolygonDistance(P(2, 2), P(3, 3), sq)).toBeCloseTo(Math.SQRT2, 9); // corner to corner
+    expect(segmentToSegmentDistance(P(0, 0), P(1, 0), P(0, 2), P(1, 2))).toBeCloseTo(2, 9);
+    expect(segmentHitsCircle(P(0, 0), P(4, 0), P(2, 0.5), 0.5)).toBe(true);
+    expect(segmentHitsCircle(P(0, 0), P(4, 0), P(2, 0.51), 0.5)).toBe(false);
+  });
+});
+
+describe("ECDIS trainer model on the harbour approach chart", () => {
+  const world = () => createWorld(HARBOUR_APPROACH);
+
+  it("the chart scenario is a valid scenario file", () => {
+    expect(validateScenario(JSON.parse(scenarioToJson(HARBOUR_APPROACH)))).toEqual([]);
+  });
+
+  it("route check: the planned route is clear at 10 m; a 20 m safety depth flags the Outer bar on leg 2", () => {
+    const w = world();
+    expect(checkRoute(w, w.route, ECDIS_DEFAULTS)).toEqual([]);
+    const deep = checkRoute(w, w.route, { ...ECDIS_DEFAULTS, safetyDepthM: 20 });
+    expect(deep.length).toBe(1);
+    expect(deep[0]!.leg).toBe(2);
+    expect(deep[0]!.text).toContain("Outer bar");
+  });
+
+  it("route check finds the wreck, land and a shoal, and refuses a single waypoint", () => {
+    const w = world();
+    const viaWreck = checkRoute(w, [P(0, -8), P(1.8, 3.5)], ECDIS_DEFAULTS);
+    expect(viaWreck.some((i) => i.text.startsWith("Wreck"))).toBe(true);
+    const overLand = checkRoute(w, [P(0, 0), P(5, 8)], ECDIS_DEFAULTS).map((i) => i.text).join(" ");
+    expect(overLand).toContain("East shore");
+    expect(overLand).toContain("East flats");
+    expect(checkRoute(w, [P(-4, 0), P(-1, 3)], ECDIS_DEFAULTS).some((i) => i.text.includes("Middle Ground"))).toBe(true);
+    // The wreck (radius 0.15) is 0.3 NM east of a line along e = 1.5: outside 0.1 NM, inside 0.25 NM.
+    expect(checkRoute(w, [P(1.5, 2.5), P(1.5, 4.5)], { ...ECDIS_DEFAULTS, xtdLimitNm: 0.1 })).toEqual([]);
+    expect(checkRoute(w, [P(1.5, 2.5), P(1.5, 4.5)], ECDIS_DEFAULTS).length).toBe(1);
+    expect(checkRoute(w, [P(0, 0)], ECDIS_DEFAULTS)[0]!.leg).toBe(0);
+  });
+
+  it("charted depth at a position", () => {
+    const w = world();
+    expect(depthAt(w, P(4.6, 0.6))).toBe(0); // on the island
+    expect(depthAt(w, P(3.5, 1.9))).toBe(8); // island bank
+    expect(depthAt(w, P(0, -1.5))).toBe(15);
+    expect(depthAt(w, P(0, -6))).toBeNull();
+  });
+
+  it("off-track alarm when the cross-track limit is exceeded, cleared when back on track", () => {
+    const w = world();
+    const st = newEcdisState(w);
+    st.monitoring = true;
+    w.own.pos = P(0.5, -6);
+    stepEcdis(w, st);
+    expect(st.alarms.find((a) => a.kind === "xtd")!.text).toContain("0.50 NM to starboard");
+    w.own.pos = P(0.1, -6);
+    stepEcdis(w, st);
+    expect(st.alarms.some((a) => a.kind === "xtd")).toBe(false);
+  });
+
+  it("look-ahead: danger ahead only when the 6-minute line reaches the shoal", () => {
+    const w = world();
+    w.env.current = { set: 0, drift: 0 };
+    const st = newEcdisState(w);
+    // 12 kn for 6 min = 1.2 NM. The Island bank's southern edge at e = 4.5 is at n = -0.713.
+    w.own.pos = P(4.5, -2.5);
+    stepEcdis(w, st);
+    expect(st.alarms.some((a) => a.kind === "grounding")).toBe(false);
+    w.own.pos = P(4.5, -1.5);
+    stepEcdis(w, st);
+    expect(st.alarms.find((a) => a.kind === "grounding")!.text).toContain("Island bank");
+    w.own.pos = P(3.5, 1.9);
+    stepEcdis(w, st);
+    expect(st.alarms.find((a) => a.kind === "contour")!.text).toContain("8 m");
+  });
+
+  it("wheel-over alarm one minute before the turn, and the active leg moves on", () => {
+    const w = world();
+    w.env.current = { set: 0, drift: 0 };
+    w.own.pos = P(0, -4.5);
+    const st = newEcdisState(w);
+    st.monitoring = true;
+    let sawWheelOver = false;
+    for (let i = 0; i < 400; i++) {
+      stepWorld(w, 1);
+      stepEcdis(w, st);
+      if (st.alarms.some((a) => a.kind === "wheelover")) sawWheelOver = true;
+    }
+    expect(sawWheelOver).toBe(true);
+    expect(st.activeLeg).toBe(1); // past waypoint 2, now on the leg to waypoint 3
+  });
+
+  it("GNSS failure: dead reckoning ignores the current, so the error grows at the drift rate", () => {
+    const w = world(); // current 060 at 1.5 kn
+    const st = newEcdisState(w);
+    stepEcdis(w, st);
+    st.gnss.failed = true;
+    for (let i = 0; i < 600; i++) {
+      stepWorld(w, 1);
+      stepEcdis(w, st);
+    }
+    const p = ecdisPosition(w, st);
+    expect(p.source).toBe("DR");
+    // 1.5 kn for 10 minutes = 0.25 NM.
+    expect(length(sub(p.pos, w.own.pos))).toBeCloseTo(0.25, 2);
+    expect(st.alarms.some((a) => a.kind === "position")).toBe(true);
+    st.gnss.failed = false;
+    stepEcdis(w, st);
+    expect(ecdisPosition(w, st).source).toBe("GNSS");
+  });
+
+  it("AIS shows ships only", () => {
+    const w = world();
+    expect(aisTargets(w, newEcdisState(w)).map((t) => t.name)).toEqual(["Outbound tanker", "Coaster"]);
+  });
+});
