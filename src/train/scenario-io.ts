@@ -58,6 +58,11 @@ export const SCENARIO_SCHEMA = {
             type: "array",
             items: { type: "object", required: ["atSeconds"], properties: { atSeconds: { type: "number", minimum: 0 }, course: { type: "number" }, speed: { type: "number", minimum: 0 } } },
           },
+          route: {
+            type: "object",
+            required: ["points"],
+            properties: { points: { type: "array", items: vec, minItems: 1, maxItems: 20 }, speeds: { type: "array", items: { type: ["number", "null"], minimum: 0 } } },
+          },
         },
       },
     },
@@ -145,6 +150,16 @@ export function validateScenario(x: unknown): string[] {
           ev.every((e) => isObj(e) && isNum(e["atSeconds"]) && e["atSeconds"] >= 0 && (e["course"] === undefined || isNum(e["course"])) && (e["speed"] === undefined || (isNum(e["speed"]) && e["speed"] >= 0))),
         `${n}: each event needs atSeconds, and an optional course and speed.`,
       );
+      const rt = t["route"];
+      if (rt !== undefined) {
+        const pts = isObj(rt) ? rt["points"] : undefined;
+        const sp = isObj(rt) ? rt["speeds"] : undefined;
+        need(Array.isArray(pts) && pts.length >= 1 && pts.length <= 20 && pts.every(vecOk), `${n}: route needs 1 to 20 points, each with numbers e and n.`);
+        need(
+          sp === undefined || (Array.isArray(sp) && Array.isArray(pts) && sp.length <= pts.length && sp.every((v) => v === null || (isNum(v) && v >= 0 && v <= 99))),
+          `${n}: route speeds must be numbers from 0 to 99 kn (or null for no change), no more of them than points.`,
+        );
+      }
     });
   }
   const coasts = x["coasts"];

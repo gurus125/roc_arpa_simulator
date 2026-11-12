@@ -195,6 +195,43 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.click("#stRun");
     await p.waitForFunction(() => /PASSED|FAILED/.test(document.querySelector("#stMsg").textContent), null, { timeout: 90000 });
     check(`${tag} self-test of the exercises passes`, /ALL \d+ EXERCISES PASSED/.test(await text("#stMsg")), await text("#stMsg"));
+
+    // 100 ships at once on programmed tracks: the scenario loads and the picture keeps moving.
+    await key("scen");
+    await p.selectOption("#scenario", { label: "Traffic: 100 ships on programmed tracks" });
+    await p.waitForTimeout(1500);
+    check(`${tag} 100-ship scenario: 100 targets`, (await p.evaluate(() => window.__simTest.targetCount())) === 100);
+    const fps = await p.evaluate(() => new Promise((res) => {
+      let n = 0;
+      const t0 = performance.now();
+      const f = () => {
+        n++;
+        if (performance.now() - t0 < 3000) requestAnimationFrame(f);
+        else res(n / 3);
+      };
+      requestAnimationFrame(f);
+    }));
+    console.log(`     100 ships: ${fps.toFixed(0)} frames a second in this headless browser`);
+    check(`${tag} 100-ship scenario: picture keeps moving (10 frames a second or more)`, fps >= 10, `${fps.toFixed(1)} fps`);
+
+    // Instructor programmes a track for a target by clicking points on the picture.
+    await key("instr");
+    await p.click("#inRtStart");
+    const cb = await p.locator("#ppi").boundingBox();
+    for (const [dx, dy] of [[0.30, 0.30], [0.40, 0.30], [0.40, 0.40]]) await p.mouse.click(cb.x + cb.width * dx, cb.y + cb.height * dy);
+    await p.waitForTimeout(300);
+    check(`${tag} track: three clicks give three waypoints`, (await text("#inRtMsg")).includes("3 of 20"), await text("#inRtMsg"));
+    await p.click("#inRtUndo");
+    await p.waitForTimeout(300);
+    check(`${tag} track: undo removes a waypoint`, (await text("#inRtMsg")).includes("2 of 20"), await text("#inRtMsg"));
+    await p.click("#inRtSet");
+    await p.waitForTimeout(300);
+    check(`${tag} track: target is put on the track`, /on a track, [12] points? ahead/.test(await text("#inRtMsg")), await text("#inRtMsg"));
+    await p.click("#inRtClear");
+    await p.waitForTimeout(300);
+    check(`${tag} track: target taken off the track`, (await text("#inRtMsg")).includes("no track"), await text("#inRtMsg"));
+    const speeds = await p.$$eval("#inReplaySpeed option", (os) => os.map((o) => Number(o.value)));
+    check(`${tag} replay: slow motion, real time and rapid speeds offered`, speeds.some((v) => v < 1) && speeds.includes(1) && speeds.some((v) => v > 1), speeds.join(","));
   }
 
   check(`${tag} no script errors`, errs.length === 0, errs.join("; "));

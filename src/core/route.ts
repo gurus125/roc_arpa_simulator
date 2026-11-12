@@ -30,6 +30,25 @@ export function wheelOverDistance(turnDeg: number, radiusNm: number): number {
   return radiusNm * Math.tan(half);
 }
 
+/** Most waypoints one target's route may hold. */
+export const MAX_ROUTE_WAYPOINTS = 20;
+
+/** Radius of a steady turn, NM, at `speedKn` with a rate of turn of `turnDegPerSec`: R = v / omega. */
+export function turnRadiusNm(speedKn: number, turnDegPerSec: number): number {
+  if (turnDegPerSec <= 0) return 0;
+  return speedKn / 3600 / ((turnDegPerSec * Math.PI) / 180);
+}
+
+/**
+ * True when a vessel at `pos`, sailing the leg `from` -> `wp`, has reached the waypoint: it is
+ * within `arrivalNm` of it, or it has come abeam of it (or gone past it) along the leg.
+ */
+export function waypointReached(pos: Vec2, from: Vec2, wp: Vec2, arrivalNm: number): boolean {
+  if (length(sub(wp, pos)) <= arrivalNm) return true;
+  const leg = length(sub(wp, from));
+  return leg > 0 && alongTrack(pos, from, wp) >= leg;
+}
+
 export interface RouteMonitor {
   /** Index of the active leg (0 = from waypoint 1 to waypoint 2). */
   leg: number;

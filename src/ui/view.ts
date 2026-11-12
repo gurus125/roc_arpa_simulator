@@ -1,7 +1,7 @@
 import { G, bgOuter, bgPpi, echoColour } from "./palette";
 import { fromPolar, normalizeDeg } from "../core/vec";
 import { rangeBearing } from "../core/nav";
-import { ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, ownCogSog, screenRotation, measuredRotation, measuredHeading, logSpeed } from "../engine/index";
+import { ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, ownCogSog, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead } from "../engine/index";
 import { AppState, ECHO_LIFETIME_S } from "./app";
 import { drawArpa, drawArpaHud } from "./arpa-view";
 import { HitKind } from "../engine/scan";
@@ -252,6 +252,36 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
       ctx.strokeRect(s.x - 2, s.y - 2, 4, 4);
     });
     ctx.stroke();
+  }
+  // Instructor only: tracks programmed for the targets, and the track being programmed now.
+  if (app.showRoutes || app.routeEdit) {
+    const track = (from: { e: number; n: number }, pts: { e: number; n: number }[], colour: string, numbered: boolean): void => {
+      if (pts.length === 0) return;
+      ctx.strokeStyle = colour;
+      ctx.fillStyle = colour;
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      const a = px(worldToDisplayNm(w, ds, from));
+      ctx.moveTo(a.x, a.y);
+      for (const q of pts) {
+        const s = px(worldToDisplayNm(w, ds, q));
+        ctx.lineTo(s.x, s.y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      pts.forEach((q, i) => {
+        const s = px(worldToDisplayNm(w, ds, q));
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, 3, 0, Math.PI * 2);
+        ctx.stroke();
+        if (numbered) ctx.fillText(String(i + 1), s.x + 5, s.y - 5);
+      });
+    };
+    if (app.showRoutes) for (const t of w.targets) if (t.route && t.id !== app.routeEdit?.targetId) track(t.pos, routeAhead(t), G("#7fb7ff"), false);
+    const ed = app.routeEdit;
+    const edT = ed ? w.targets.find((t) => t.id === ed.targetId) : undefined;
+    if (ed && edT) track(edT.pos, ed.points, "#ffb347", true);
   }
   // Parallel index lines: fixed to own ship, parallel to a chosen bearing, at a chosen distance off.
   ctx.strokeStyle = G("#7ad1ff");

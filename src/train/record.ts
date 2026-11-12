@@ -107,6 +107,31 @@ export function frameAt(rec: SessionRecord, t: number): Frame | null {
   return best ?? rec.frames[0] ?? null;
 }
 
+/**
+ * The frame for time t with the positions of own ship and of each target moved in a straight line
+ * towards the next frame, so that a slow replay runs smoothly between the 10-second samples.
+ * Everything else (heading, speed, alarms) is as recorded in the frame at or before t.
+ */
+export function frameInterpolated(rec: SessionRecord, t: number): Frame | null {
+  const a = frameAt(rec, t);
+  if (!a) return null;
+  const b = rec.frames[rec.frames.indexOf(a) + 1];
+  if (!b || b.t <= a.t || t <= a.t) return a;
+  const f = Math.min(1, (t - a.t) / (b.t - a.t));
+  const mix = (p: number, q: number): number => p + (q - p) * f;
+  return {
+    ...a,
+    own: { ...a.own, e: mix(a.own.e, b.own.e), n: mix(a.own.n, b.own.n) },
+    tg: a.tg.map((x) => {
+      const y = b.tg.find((z) => z.id === x.id);
+      return y ? { ...x, e: mix(x.e, y.e), n: mix(x.n, y.n) } : x;
+    }),
+  };
+}
+
+/** Replay speeds offered to the instructor: slow motion, real time and rapid (times real time). */
+export const REPLAY_SPEEDS = [0.25, 0.5, 1, 2, 5, 10, 30, 60] as const;
+
 const csvCell = (x: string | number): string => {
   const s = String(x);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;

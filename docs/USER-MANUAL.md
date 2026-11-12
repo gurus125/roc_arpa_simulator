@@ -95,7 +95,7 @@ and relative wind.
 - **VHF/SIGNAL**: typed VHF messages to the instructor and other stations; whistle signals of the
   collision regulations, and an automatic fog signal.
 - **WEATHER**: sea state, rain, abnormal propagation, interference, wind, current and tide.
-- **SCENARIO**: free-practice scenarios; show target names (a study aid).
+- **SCENARIO**: free-practice scenarios (one has 100 ships at once); show target names (a study aid).
 - **SETTINGS**: day or night display; telemotor 2 (faster rudder); own ship data.
 - **ROC EX**: radar observer exercises (plotting, position fixing, set and drift, clearing range,
   blind pilotage, traffic).

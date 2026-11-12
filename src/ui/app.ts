@@ -44,6 +44,10 @@ export interface AppState {
   comms: { t: number; from: string; text: string }[];
   /** Radar map symbols placed by the user, fixed to the ground (NM). */
   navMarks: Vec2[];
+  /** Instructor: the track being programmed for a target (points clicked on the picture so far), or null. */
+  routeEdit: { targetId: number; points: Vec2[] } | null;
+  /** Instructor: draw the programmed tracks of the targets on this display. Never set on a student's display. */
+  showRoutes: boolean;
   /** Performance monitor display on. */
   pmOn: boolean;
   /** Heading line temporarily suppressed (while the button is held). */
@@ -127,6 +131,8 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     pi: Array.from({ length: 4 }, () => ({ on: false, bearing: 0, range: 1 })),
     navLines: [],
     navMarks: [],
+    routeEdit: null,
+    showRoutes: false,
     snapshots: [],
     comms: [],
     pmOn: false,

@@ -129,4 +129,32 @@ export const SHIP_TYPES_TRAFFIC: Scenario = {
   })),
 };
 
-export const SCENARIOS: Scenario[] = [OPEN_SEA, COASTAL, SAR, SECOND_TRACE, HEAVY_TRAFFIC, SHIP_TYPES_TRAFFIC];
+/**
+ * One hundred ships at once, each steering its own programmed track of six waypoints. Shows that the
+ * simulator carries 100 targets together (STCW Code A-I/12 asks a radar simulator for at least 20).
+ */
+export const HUNDRED_SHIPS: Scenario = {
+  id: "hundred-ships",
+  name: "Traffic: 100 ships on programmed tracks",
+  description:
+    "One hundred ships within 24 NM, each steering its own track from waypoint to waypoint. A crowded picture: practise picking out the ships that matter and setting sensible CPA limits. The ARPA tracks only as many as its capacity allows.",
+  own: { heading: 0, speed: 12 },
+  env: { seaState: 2 },
+  coasts: [],
+  targets: Array.from({ length: 100 }, (_, i) => {
+    const t = VESSEL_TYPES[i % VESSEL_TYPES.length]!;
+    const pos = fromPolar((i * 37 + 5) % 360, 2 + ((i * 13) % 45) * 0.5);
+    const course0 = (i * 71) % 360;
+    const bend = i % 2 === 0 ? 40 : -40;
+    const points: { e: number; n: number }[] = [];
+    let at = pos;
+    for (let k = 0; k < 6; k++) {
+      const step = fromPolar(course0 + k * bend, 3);
+      at = { e: at.e + step.e, n: at.n + step.n };
+      points.push(at);
+    }
+    return { id: i + 1, name: `${t.name.split(",")[0]!} ${i + 1}`, ...targetFromType(t), pos, course: course0, speed: t.speedKn, events: [], route: { points } };
+  }),
+};
+
+export const SCENARIOS: Scenario[] = [OPEN_SEA, COASTAL, SAR, SECOND_TRACE, HEAVY_TRAFFIC, SHIP_TYPES_TRAFFIC, HUNDRED_SHIPS];

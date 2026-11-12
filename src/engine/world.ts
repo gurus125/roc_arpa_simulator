@@ -1,4 +1,5 @@
-import { Vec2, add, angleDiffDeg, courseSpeedOf, normalizeDeg, scale, sub, velocityOf, length, CourseSpeed } from "../core/vec";
+import { Vec2, add, angleDiffDeg, bearingOf, courseSpeedOf, normalizeDeg, scale, sub, velocityOf, length, CourseSpeed } from "../core/vec";
+import { MAX_ROUTE_WAYPOINTS, turnRadiusNm, waypointReached, wheelOverDistance } from "../core/route";
 import { CoastEdge, CoastSample, Coast, Scenario, Target, World } from "./types";
 import { targetTypeById } from "./targets";
 import { tidalStreamRate } from "../core/current";
@@ -103,9 +104,10 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
       accelKnPerSec: 0.1,
     },
     targets: sc.targets.map((t) => {
-      const { motion: _m, ...rest } = t as Target;
+      const { motion: _m, route, ...rest } = t as Target;
       const tgt: Target = { ...rest, pos: { ...t.pos }, events: [...t.events].sort((a, b) => a.atSeconds - b.atSeconds), nextEvent: 0 };
       initTargetMotion(tgt);
+      if (route) setTargetRoute(tgt, route.points, route.speeds);
       return tgt;
     }),
     coasts: sc.coasts,
@@ -169,9 +171,11 @@ export function stepWorld(w: World, dtSec: number): void {
   for (const t of w.targets) {
     while (t.nextEvent < t.events.length && t.events[t.nextEvent]!.atSeconds <= tNext) {
       const ev = t.events[t.nextEvent]!;
+      if (ev.course !== undefined) clearTargetRoute(t);
       orderTarget(t, ev);
       t.nextEvent++;
     }
+    if (t.route) followRoute(t);
     const m = t.motion;
     const type = m ? targetTypeById(t.typeId) : undefined;
     if (m && type) {
@@ -205,6 +209,67 @@ export function orderTarget(t: Target, o: { course?: number; speed?: number }): 
   } else {
     if (o.course !== undefined) t.course = normalizeDeg(o.course);
     if (o.speed !== undefined) t.speed = Math.max(0, o.speed);
+  }
+}
+
+/** A target without a turning circle alters at the waypoint; this is how close counts as "at", NM. */
+export const ROUTE_ARRIVAL_NM = 0.02;
+
+/**
+ * Programme a route for a target: it steers for each waypoint in turn and carries on as it goes
+ * after the last. `speeds[i]` is ordered when the leg to waypoint i begins. Returns false (and
+ * changes nothing) for a fixed object or an empty list. Waypoints beyond MAX_ROUTE_WAYPOINTS are dropped.
+ */
+export function setTargetRoute(t: Target, points: Vec2[], speeds?: (number | null)[]): boolean {
+  if (t.kind === "buoy" || t.kind === "beacon" || points.length === 0) return false;
+  const pts = points.slice(0, MAX_ROUTE_WAYPOINTS).map((p) => ({ ...p }));
+  t.route = { points: pts, next: 0, from: { ...t.pos }, ...(speeds ? { speeds: speeds.slice(0, pts.length) } : {}) };
+  const first = speeds?.[0];
+  if (first !== null && first !== undefined) orderTarget(t, { speed: first });
+  followRoute(t);
+  return true;
+}
+
+/** Take a target off its route: it keeps the course and speed it has now. */
+export function clearTargetRoute(t: Target): void {
+  delete t.route;
+}
+
+/** Waypoints of a target's route still ahead of it (empty when it has no route or has finished it). */
+export function routeAhead(t: Target): Vec2[] {
+  const r = t.route;
+  return r ? r.points.slice(r.next ?? 0) : [];
+}
+
+/** Move on to the next waypoint when the present one is reached, and steer for the waypoint ahead. */
+function followRoute(t: Target): void {
+  const r = t.route;
+  if (!r) return;
+  const type = t.motion ? targetTypeById(t.typeId) : undefined;
+  let next = r.next ?? 0;
+  while (next < r.points.length) {
+    const wp = r.points[next]!;
+    const from = r.from ?? t.pos;
+    let arrive = ROUTE_ARRIVAL_NM;
+    const after = r.points[next + 1];
+    if (after && t.motion && type) {
+      // A ship with a turning circle puts the wheel over early, to come out of the turn on the next leg;
+      // never earlier than half way along the leg, so a tight track is cut short, not skipped.
+      const turn = angleDiffDeg(bearingOf(sub(after, wp)), bearingOf(sub(wp, from)));
+      const wheelOver = wheelOverDistance(turn, turnRadiusNm(t.motion.stw, type.turnDegPerSec));
+      arrive = Math.max(arrive, Math.min(wheelOver, length(sub(wp, from)) / 2));
+    }
+    if (!waypointReached(t.pos, from, wp, arrive)) break;
+    r.from = { ...wp };
+    next++;
+    const sp = r.speeds?.[next];
+    if (next < r.points.length && sp !== null && sp !== undefined) orderTarget(t, { speed: sp });
+  }
+  r.next = next;
+  const ahead = r.points[next];
+  if (ahead) {
+    const v = sub(ahead, t.pos);
+    if (length(v) > 1e-6) orderTarget(t, { course: bearingOf(v) });
   }
 }
 

@@ -1,8 +1,9 @@
 import { bearingOf, fromPolar, length, normalizeDeg } from "../core/vec";
-import { IMO_TABLE2, Scenario, TARGET_TYPES, Target, TargetKind, initTargetMotion, orderTarget, rcsForDetectionRange, targetFromType, targetTypeById } from "../engine/index";
+import { IMO_TABLE2, Scenario, TARGET_TYPES, Target, TargetKind, clearTargetRoute, initTargetMotion, orderTarget, rcsForDetectionRange, routeAhead, setTargetRoute, targetFromType, targetTypeById } from "../engine/index";
+import { MAX_ROUTE_WAYPOINTS } from "../core/route";
 import { EXERCISES } from "../roc/index";
 import {
-  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, PLACEHOLDER_SCORING, ScoringConfig, SessionRecord, Store, frameAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
+  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, PLACEHOLDER_SCORING, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
 } from "../train/index";
 import { AppState, rewind } from "./app";
 import { $, download, esc, inputValue, mmss } from "./dom";
@@ -77,7 +78,7 @@ export function drawReplay(ctx: CanvasRenderingContext2D, size: number, rec: Ses
   ctx.font = "10px monospace";
   ctx.fillText("1 NM", 10, size - 16);
   const upTo = rec.frames.filter((f) => f.t <= t);
-  const now = frameAt(rec, t);
+  const now = frameInterpolated(rec, t);
   if (!now) return;
   const track = (pts: { e: number; n: number }[], colour: string): void => {
     ctx.strokeStyle = colour;
@@ -155,12 +156,17 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div class="row two"><label for="inTgt">Target</label><select id="inTgt"></select></div>
       <div class="grid2"><div><label for="inTgtC">New course (°)</label><input type="number" id="inTgtC" min="0" max="359"></div><div><label for="inTgtS">New speed (kn)</label><input type="number" id="inTgtS" min="0" max="60" step="0.5"></div></div>
       <div class="btns"><button id="inTgtApply">Alter target now</button><button id="inTgtDel">Remove target</button><button id="inTgtAis">Switch its AIS on/off</button></div>
+      <div class="btns"><button id="inRtStart">Programme a track</button><button id="inRtUndo">Undo point</button><button id="inRtSet">Set track</button><button id="inRtClear">Take off track</button></div>
+      <div class="grid2"><div><label for="inRtSpd">Speed on the track (kn, blank = as now)</label><input type="number" id="inRtSpd" min="0" max="60" step="0.5"></div>
+        <div class="check"><input type="checkbox" id="inRtShow"><label for="inRtShow">Show target tracks on this display</label></div></div>
+      <p class="small" id="inRtMsg"></p>
       <div class="btns"><button id="inBack2">Take exercise back 2 min</button><button id="inBack5">Back 5 min</button><button id="inBack10">Back 10 min</button></div>
       <div class="grid2" style="margin-top:8px"><div><label for="inNewName">New target name</label><input type="text" id="inNewName" value="Intruder"></div><div><label for="inNewKind">Type</label><select id="inNewKind">${typeOptions("general-cargo")}</select></div>
         <div style="grid-column:1/3"><label for="inNewStd">Echo strength</label><select id="inNewStd"><option value="">Typical for its type</option>${IMO_TABLE2.filter((t) => t.kind !== "coast").map((t, i) => `<option value="${i}">IMO table 2: ${t.name} (X ${t.xNm} NM, S ${t.sNm} NM)</option>`).join("")}</select></div>
         <div><label for="inNewBrg">True bearing (°)</label><input type="number" id="inNewBrg" value="30"></div><div><label for="inNewRng">Range (NM)</label><input type="number" id="inNewRng" value="8" step="0.1"></div>
         <div><label for="inNewC">Course (°)</label><input type="number" id="inNewC" value="210"></div><div><label for="inNewS">Speed (kn)</label><input type="number" id="inNewS" value="12" step="0.5"></div></div>
       <div class="btns"><button id="inNewAdd">Add target now</button></div>
+      <p class="hint">Track: press "Programme a track", click up to ${MAX_ROUTE_WAYPOINTS} points on the radar picture in the order the target is to pass them, then "Set track". The target steers from point to point (a ship of a catalogue type turns on its turning circle) and carries on as it goes after the last point. Altering its course by hand, or "Take off track", ends the track. Tracks are drawn only on this display, never on a student's.</p>
       <p class="hint">"Taking the exercise back" returns the ships, weather and faults to that moment so the trainees can try again. Sensor faults (gyro, log, gyro failure) are in the Instructor box on the ARPA tab. Weather, sea state and current are on the Radar tab. Every injection is written to the exercise record.</p></section>
     <section><h2>Monitor other displays</h2><p class="small" id="inLinkMode"></p><div id="inStations"></div>
       <div class="btns"><button id="inAllPause">Pause all</button><button id="inAllRun">Run all</button></div>
@@ -176,6 +182,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div id="inRecView" hidden><h2 style="margin-top:10px" id="inRecTitle"></h2>
         <canvas id="inReplay" style="aspect-ratio:1/1;background:#08100e"></canvas>
         <div class="btns"><button id="inPlay">Play</button><input type="range" id="inScrub" min="0" max="100" value="0" style="flex:1"><span class="val" id="inScrubT">00:00</span></div>
+        <div class="row two"><label for="inReplaySpeed">Replay speed</label><select id="inReplaySpeed">${REPLAY_SPEEDS.map((v) => `<option value="${v}"${v === 30 ? " selected" : ""}>${v}x${v < 1 ? " (slow motion)" : v === 1 ? " (real time)" : ""}</option>`).join("")}</select></div>
         <div class="log" id="inRecEvents"></div><div id="inRecResult"></div>
         <div id="inRecDebrief" class="small"></div>
         <h2 style="margin-top:10px">Assessor's decision</h2>
@@ -312,8 +319,46 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     const t = app.world.targets.find((x) => x.id === Number(tgtSel.value));
     if (!t) return;
     const c = inputValue("inTgtC"), s = inputValue("inTgtS");
+    if (c !== "" && t.route) clearTargetRoute(t); // a course ordered by hand takes the target off its track
     orderTarget(t, { ...(c !== "" ? { course: Number(c) } : {}), ...(s !== "" ? { speed: Number(s) } : {}) });
     note(app, `${t.name} ordered to ${c !== "" ? `${Math.round(normalizeDeg(Number(c)))}°` : "same course"} ${s !== "" ? `${Number(s)} kn` : "same speed"}${t.motion ? " (comes round gradually)" : ""}.`);
+  });
+  // Programmed tracks (routes) for targets.
+  const selTarget = (app: AppState): Target | undefined => app.world.targets.find((x) => x.id === Number(tgtSel.value));
+  let rtWarn = { text: "", until: 0 };
+  $("inRtStart").addEventListener("click", () => {
+    const app = api.getApp();
+    const t = selTarget(app);
+    if (!t || t.kind === "buoy" || t.kind === "beacon") {
+      rtWarn = { text: "Choose a vessel first: a buoy or a beacon cannot be given a track.", until: performance.now() + 5000 };
+      return;
+    }
+    app.routeEdit = { targetId: t.id, points: [] };
+  });
+  $("inRtUndo").addEventListener("click", () => {
+    api.getApp().routeEdit?.points.pop();
+  });
+  $("inRtSet").addEventListener("click", () => {
+    const app = api.getApp();
+    const ed = app.routeEdit;
+    const t = ed ? app.world.targets.find((x) => x.id === ed.targetId) : undefined;
+    if (!ed || !t || ed.points.length === 0) return;
+    const sp = inputValue("inRtSpd");
+    setTargetRoute(t, ed.points, sp !== "" ? [Math.max(0, Number(sp))] : undefined);
+    note(app, `${t.name} put on a track of ${ed.points.length} waypoint${ed.points.length === 1 ? "" : "s"}${sp !== "" ? ` at ${Number(sp)} kn` : ""}.`);
+    app.routeEdit = null;
+  });
+  $("inRtClear").addEventListener("click", () => {
+    const app = api.getApp();
+    const t = selTarget(app);
+    if (app.routeEdit && (!t || app.routeEdit.targetId === t.id)) app.routeEdit = null;
+    if (t?.route) {
+      clearTargetRoute(t);
+      note(app, `${t.name} taken off its track.`);
+    }
+  });
+  $<HTMLInputElement>("inRtShow").addEventListener("change", () => {
+    api.getApp().showRoutes = $<HTMLInputElement>("inRtShow").checked;
   });
   $("inTgtDel").addEventListener("click", () => {
     const app = api.getApp();
@@ -427,6 +472,8 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
   // ------------------------------------------------------------ records and replay
   let viewing: SessionRecord | null = null;
   let playing = false;
+  /** Replay time in seconds of the exercise; kept apart from the slider, which moves in whole seconds. */
+  let replayT = 0;
   let recSig = "";
   const replayCanvas = $<HTMLCanvasElement>("inReplay");
   const scrub = $<HTMLInputElement>("inScrub");
@@ -437,7 +484,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       replayCanvas.width = size;
       replayCanvas.height = size;
     }
-    const t = Number(scrub.value);
+    const t = replayT;
     const c = replayCanvas.getContext("2d");
     if (c) drawReplay(c, size, viewing, t);
     $("inScrubT").textContent = mmss(t);
@@ -452,6 +499,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     $("inRecTitle").textContent = `${r.title} | ${r.students.join(" / ") || "no names"} | ${r.startedIso.slice(0, 16).replace("T", " ")}`;
     scrub.max = String(Math.max(1, Math.round(r.simSeconds)));
     scrub.value = "0";
+    replayT = 0;
     $("inRecResult").innerHTML = r.result ? resultHtml(r.result) : `<p class="small">${r.summary.map(esc).join("<br>")}</p>`;
     $("inRecDebrief").innerHTML = debriefHtml(r);
     ($("asDec") as HTMLSelectElement).value = r.assessor?.decision ?? "";
@@ -465,8 +513,12 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     viewing.assessor = { decision: inputValue("asDec") as "" | "competent" | "not-yet", name: inputValue("asName").trim(), remarks: inputValue("asRem").trim() };
     $("asMsg").textContent = st.save() ? "Saved." : "Could not save.";
   });
-  scrub.addEventListener("input", drawRec);
+  scrub.addEventListener("input", () => {
+    replayT = Number(scrub.value);
+    drawRec();
+  });
   $("inPlay").addEventListener("click", () => {
+    if (!playing && replayT >= Number(scrub.max)) replayT = 0; // at the end: play again from the start
     playing = !playing;
     $("inPlay").textContent = playing ? "Stop" : "Play";
   });
@@ -675,17 +727,35 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       tgtSel.innerHTML = app.world.targets.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("");
       if (app.world.targets.some((t) => String(t.id) === cur)) tgtSel.value = cur;
     }
+    // Track status for the chosen target, and the track being programmed.
+    const ed = app.routeEdit;
+    const edT = ed ? app.world.targets.find((t) => t.id === ed.targetId) : undefined;
+    if (ed && !edT) app.routeEdit = null;
+    const selT = selTarget(app);
+    const ahead = selT ? routeAhead(selT).length : 0;
+    const rtText = ed && edT
+      ? `Programming ${edT.name}: ${ed.points.length} of ${MAX_ROUTE_WAYPOINTS} points. Click on the radar picture, then press "Set track".`
+      : selT
+        ? selT.route
+          ? ahead > 0 ? `${selT.name}: on a track, ${ahead} point${ahead === 1 ? "" : "s"} ahead.` : `${selT.name}: track finished, carrying on as it goes.`
+          : `${selT.name}: no track.`
+        : "";
+    const rtShown = performance.now() < rtWarn.until ? rtWarn.text : rtText;
+    if ($("inRtMsg").textContent !== rtShown) $("inRtMsg").textContent = rtShown;
+    $<HTMLInputElement>("inRtShow").checked = app.showRoutes;
     $("inLinkMode").textContent = `Link: ${api.link.mode}. This display is ${api.link.station}.`;
     drawStations();
     drawRecs();
     if (viewing && playing) {
       const dt = app.wall - lastWall;
-      const next = Number(scrub.value) + Math.max(0, Math.min(dt, 0.5)) * 30;
+      const speed = Number(inputValue("inReplaySpeed")) || 30;
+      const next = replayT + Math.max(0, Math.min(dt, 0.5)) * speed;
       if (next >= Number(scrub.max)) {
         playing = false;
         $("inPlay").textContent = "Play";
       }
-      scrub.value = String(Math.min(Number(scrub.max), next));
+      replayT = Math.min(Number(scrub.max), next);
+      scrub.value = String(Math.floor(replayT));
       drawRec();
     }
     lastWall = app.wall;

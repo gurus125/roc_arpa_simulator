@@ -16,6 +16,7 @@ import { setDisplayPalette } from "./palette";
 import { soundWhistle } from "./whistle";
 import { FOG_SIGNAL_INTERVAL_S, SignalId, WHISTLE_SIGNALS, fogSignalFor, whistleFrequencyHz, whistleSignal } from "../core/signals";
 import { formatLatLon, latLonOf } from "../core/nav";
+import { MAX_ROUTE_WAYPOINTS } from "../core/route";
 
 /** Latitude and longitude of the scenarios' zero point. A made-up position: the scenarios are not tied to a real chart. */
 const SCENARIO_ORIGIN = { lat: 18 + 50 / 60, lon: 72 + 30 / 60 };
@@ -96,6 +97,10 @@ const trainUi = initTrainUi({
 
 function setRole(r: "student" | "instructor"): void {
   session.role = r;
+  if (r === "student") {
+    app.routeEdit = null;
+    app.showRoutes = false;
+  }
   document.body.dataset["role"] = r;
   instrUi.refresh();
   trainUi.refreshList();
@@ -350,7 +355,9 @@ function setTab(tab: Tab): void {
 
 function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExercise } = {}): void {
   const ex = opts.roc;
+  const keepRoutes = app.showRoutes && session.role === "instructor";
   app = createApp(sc);
+  app.showRoutes = keepRoutes;
   const a = app;
   // Exercises that state own ship's rates use the exercise ship; anything else goes back to a ship model.
   if (opts.arpa?.ownRates) setSelect("shipType", "simple");
@@ -806,6 +813,11 @@ function setup(): void {
     const p = toDisplayNm(ev);
     if (!p) return;
     const wp = displayNmToWorld(app.world, app.display, p.x, p.y);
+    if (app.routeEdit && session.role === "instructor") {
+      // Instructor is programming a target's track: each click adds a waypoint.
+      if (app.routeEdit.points.length < MAX_ROUTE_WAYPOINTS) app.routeEdit.points.push(wp);
+      return;
+    }
     if (pickMode === "eblOrigin") {
       app.eblOrigin = wp;
       setCheck("eblOn", true);

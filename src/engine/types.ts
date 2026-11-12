@@ -11,6 +11,18 @@ export interface TargetEvent {
   speed?: number;
 }
 
+/** A route programmed for one target: it steers from waypoint to waypoint, then carries on as it goes. */
+export interface TargetRoute {
+  /** Waypoints in order, NM, east/north frame. At most MAX_ROUTE_WAYPOINTS (core/route). */
+  points: Vec2[];
+  /** Speed ordered when the leg TO each waypoint begins, knots. Missing or null: no change of speed. */
+  speeds?: (number | null)[];
+  /** Index of the waypoint being steered for; points.length once the route is finished. Set by the engine. */
+  next?: number;
+  /** Where the present leg began: the last waypoint, or the position when the route was given. Set by the engine. */
+  from?: Vec2;
+}
+
 export interface Target {
   id: number;
   name: string;
@@ -48,6 +60,8 @@ export interface Target {
    * the result OVER THE GROUND (with current and leeway), recomputed every step.
    */
   motion?: { heading: number; stw: number; orderedCourse: number; orderedSpeed: number };
+  /** Programmed route, if any. A timed course order (an event with a course) ends it. */
+  route?: TargetRoute;
 }
 
 export interface Coast {
