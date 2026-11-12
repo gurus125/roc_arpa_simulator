@@ -157,4 +157,30 @@ export const HUNDRED_SHIPS: Scenario = {
   }),
 };
 
-export const SCENARIOS: Scenario[] = [OPEN_SEA, COASTAL, SAR, SECOND_TRACE, HEAVY_TRAFFIC, SHIP_TYPES_TRAFFIC, HUNDRED_SHIPS];
+const typed = (id: string): ReturnType<typeof targetFromType> => targetFromType(TARGET_TYPES.find((t) => t.id === id)!);
+
+/** A river passage that shows the false echoes of STCW Code B-I/12 paragraph 6. The place is invented. */
+export const FALSE_ECHOES: Scenario = {
+  id: "false-echoes",
+  name: "False echoes: power line, bridge and quay",
+  description:
+    "Up a river towards a bridge. An overhead power line crosses 3 NM ahead: it paints ONE echo dead ahead that closes on a steady bearing, like a vessel on a collision course. The quay wall to starboard mirrors the ship lying to port and paints a false ship inland. The ship close on the port beam is painted again astern, in the funnel's shadow sector (an indirect echo). Close to the bridge, the bridge is painted again beyond itself. None of these is a vessel: a false echo lies on land, in a shadow sector or on a steady bearing square to a cable, and it moves or vanishes when own ship alters course.",
+  own: { heading: 0, speed: 8 },
+  env: { seaState: 1 },
+  coasts: [
+    { name: "West bank", closed: false, heightM: 15, points: [{ e: -0.9, n: -3 }, { e: -0.9, n: 9 }] },
+    { name: "East bank", closed: false, heightM: 15, points: [{ e: 0.9, n: -3 }, { e: 0.9, n: 9 }] },
+  ],
+  structures: [
+    { name: "Overhead power line", kind: "power-line", a: { e: -0.9, n: 3 }, b: { e: 0.9, n: 3 } },
+    { name: "Road bridge", kind: "bridge", a: { e: -0.9, n: 6 }, b: { e: 0.9, n: 6 } },
+    { name: "Container quay", kind: "reflector", a: { e: 0.85, n: 0.4 }, b: { e: 0.85, n: 2.6 } },
+  ],
+  targets: [
+    { id: 1, name: "Ship at the west berth", ...typed("general-cargo"), pos: { e: -0.5, n: 1.6 }, course: 0, speed: 0, events: [] },
+    { id: 2, name: "Ship on the port beam", ...typed("general-cargo"), pos: { e: -0.35, n: 0.2 }, course: 0, speed: 8, events: [] },
+    { id: 3, name: "Outbound coaster", ...typed("coaster"), pos: { e: 0.3, n: 5 }, course: 180, speed: 6, events: [] },
+  ],
+};
+
+export const SCENARIOS: Scenario[] = [OPEN_SEA, COASTAL, SAR, SECOND_TRACE, HEAVY_TRAFFIC, SHIP_TYPES_TRAFFIC, HUNDRED_SHIPS, FALSE_ECHOES];

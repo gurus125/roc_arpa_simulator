@@ -52,6 +52,10 @@ Learner's manual: `docs/USER-MANUAL.md`. Instructor's operation manual: `docs/IN
 Target tracks (`src/core/route.ts`, `src/engine/world.ts`): the instructor can programme a track of up to 20
 waypoints for any target; 100 targets run together (scenario "Traffic: 100 ships on programmed tracks").
 Replay runs from 0.25x (slow motion) to 60x.
+Realism (13 Nov 2026): false echoes (`src/core/falseecho.ts`: power line, bridge, mirror images, indirect echoes),
+own ship in a seaway (`src/core/seaway.ts`: roll, pitch, yaw; estimated response), true-motion picture driven by the
+speed input, target tracks that allow for current. Radar beamwidths and pulse settings are from one maker's published
+specification; two own-ship types are fitted to published figures (see `PUBLISHED` in `src/core/shipmodel.ts`).
 `npm run test:screen` checks the built page in a headless browser (needs Playwright).
 Explanatory text is hidden until HELP is pressed. The layout is our own arrangement
 (`src/ui/console-ui.ts`), not a copy of any maker's screen.
@@ -59,7 +63,7 @@ Explanatory text is hidden until HELP is pressed. The layout is our own arrangem
 ## Develop
 
     npm install
-    npm test            # 368 tests
+    npm test            # 405 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

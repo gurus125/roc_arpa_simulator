@@ -44,7 +44,12 @@ export interface ShipType {
   windDrag: number;
   maxRudderDeg: number;
   rudderRateDegPerSec: number;
+  /** Where the handling figures come from: a published source, or an estimate. Shown to the user. */
+  basis: string;
 }
+
+/** Basis of the ship types whose figures come from no ship: chosen only to lie inside the IMO limits. */
+export const ESTIMATE_BASIS = "Estimate: figures chosen to pass the IMO manoeuvrability criteria (MSC.137(76)); not from any ship's data.";
 
 /** Engine telegraph steps as fractions of full sea speed (PLACEHOLDER fractions). */
 export const TELEGRAPH: { key: string; label: string; fraction: number }[] = [
@@ -70,13 +75,37 @@ export const HARD_OVER_SECONDS: Record<1 | 2, number> = { 1: 28, 2: 18 };
 /** Rudder rate in degrees per second with one or two power units running. */
 export const rudderRate = (units: 1 | 2): number => 70 / HARD_OVER_SECONDS[units];
 
-const BASE = { asternPower: 0.6, driftFactor: 0.3, turnLoss: 4, windDrag: 0.000005, maxRudderDeg: 35, rudderRateDegPerSec: rudderRate(1) };
+const BASE = { asternPower: 0.6, driftFactor: 0.3, turnLoss: 4, windDrag: 0.000005, maxRudderDeg: 35, rudderRateDegPerSec: rudderRate(1), basis: ESTIMATE_BASIS };
+
+/**
+ * Published figures that two of the ship types are fitted to (see tests/shipmodel.test.ts).
+ * VLCC: ABS Guide for Vessel Maneuverability (2017), Appendix 1, sample VLCC of 349.8 m at 15 kn:
+ * numerical simulation of the 35 degree turning circle (Table 5), 10/10 zig-zag (Table 6) and the
+ * predicted track reach (Table 3). These are a classification society's worked example, not sea trials.
+ * YUKUN: full-scale sea trial of MV Yukun, 24 August 2012 (Mei, Sun and Shi, "Full-Scale Maneuvering
+ * Trials Correction and Motion Modelling Based on Actual Sea and Weather Conditions", Sensors 20 (2020) 3963).
+ * Lengths are between perpendiculars; ratios are in ship lengths.
+ */
+export const PUBLISHED = {
+  vlcc: { lengthM: 349.8, speedKn: 15, advanceL: 2.77, tacticalDiameterL: 2.79, steadyDiameterL: 2.73, speedInTurnKn: 5.33, secondsTo90: 173, secondsTo180: 409, initialTurningL: 1.62, trackReachL: [13.7, 18.3] },
+  yukun: { lengthM: 105, advanceL: 3.21, tacticalDiameterL: 2.98, rudderRateDegPerSec: 2.8 },
+} as const;
 
 export const SHIP_TYPES: ShipType[] = [
   { ...BASE, id: "container", name: "Container ship, 230 m", lengthM: 230, beamM: 32.2, draughtM: 11.5, maxSpeedKn: 22, kPrime: 0.9, tPrime: 1.2, speedTimeS: 600, engineTimeS: 40, leeway: 0.035 },
   { ...BASE, id: "bulk", name: "Bulk carrier, loaded, 225 m", lengthM: 225, beamM: 32.3, draughtM: 14.2, maxSpeedKn: 14.5, kPrime: 1.05, tPrime: 2.1, speedTimeS: 1000, engineTimeS: 60, leeway: 0.015 },
   { ...BASE, id: "tanker", name: "Product tanker, 180 m", lengthM: 180, beamM: 32, draughtM: 11, maxSpeedKn: 15, kPrime: 1.0, tPrime: 1.8, speedTimeS: 800, engineTimeS: 50, leeway: 0.02 },
   { ...BASE, id: "coaster", name: "Coaster, 90 m", lengthM: 90, beamM: 14, draughtM: 5.5, maxSpeedKn: 13, kPrime: 1.0, tPrime: 1.0, speedTimeS: 300, engineTimeS: 25, leeway: 0.03 },
+  {
+    ...BASE, id: "vlcc", name: "VLCC, loaded, 350 m (published sample ship)", lengthM: 349.8, beamM: 58.3, draughtM: 19.4, maxSpeedKn: 15,
+    kPrime: 1.1, tPrime: 0.971, driftFactor: 0.306, turnLoss: 15.2, speedTimeS: 2326, engineTimeS: 60, asternPower: 0.53, leeway: 0.01,
+    basis: "Fitted to the sample VLCC in the ABS Guide for Vessel Maneuverability (2017), Appendix 1: turning circle, initial turning and track reach from that guide's simulation and prediction (a worked example, not sea trials). Wind and sea response are estimates.",
+  },
+  {
+    ...BASE, id: "yukun", name: "Training ship, 105 m (sea-trial turning circle)", lengthM: 105, beamM: 18, draughtM: 5.4, maxSpeedKn: 16,
+    kPrime: 1.157, tPrime: 1.34, speedTimeS: 300, engineTimeS: 25, leeway: 0.03, rudderRateDegPerSec: 2.8,
+    basis: "Turning circle fitted to the full-scale sea trial of MV Yukun, 2012 (Mei, Sun and Shi, Sensors 20 (2020) 3963): advance 3.21 and tactical diameter 2.98 ship lengths. Full speed, stopping, speed loss, wind and sea response are estimates.",
+  },
 ];
 
 export function shipTypeById(id: string): ShipType {

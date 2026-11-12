@@ -67,10 +67,15 @@ export function shorelineDetectionNm(heightM: number): number {
   return 6 * Math.max(heightM, 0) / 3;
 }
 
-/** PLACEHOLDER typical values, not from an IMO document. */
+/**
+ * Radar set data from a maker's published specification (Furuno FAR-2117 / FAR-2127 / FAR-2137S
+ * series brochure): X band 9410 MHz with the 6.5 ft radiator XN20AF (horizontal beamwidth 1.23 deg,
+ * vertical 20 deg); S band 3050 MHz with the 12 ft radiator SN36AF (1.8 deg, 25 deg). One real
+ * set, taken as typical; it is not an IMO requirement. Wavelength = speed of light / frequency.
+ */
 export const BAND_DATA = {
-  X: { name: "X band", frequencyGHz: 9.41, wavelengthCm: 3.2, beamwidthDeg: 1.2 },
-  S: { name: "S band", frequencyGHz: 3.05, wavelengthCm: 9.8, beamwidthDeg: 2.0 },
+  X: { name: "X band", frequencyGHz: 9.41, wavelengthCm: 3.2, beamwidthDeg: 1.23, verticalBeamwidthDeg: 20 },
+  S: { name: "S band", frequencyGHz: 3.05, wavelengthCm: 9.8, beamwidthDeg: 1.8, verticalBeamwidthDeg: 25 },
 } as const;
 
 export interface PulseSetting {
@@ -86,14 +91,17 @@ export interface PulseSetting {
 
 const PULSES: Record<PulseSetting["name"], PulseSetting> = {
   short: { name: "short", microseconds: 0.07, prfHz: 3000, rangeDiscriminationNm: (0.07 * 150) / 1852, minRangeNm: 0.02 },
-  medium: { name: "medium", microseconds: 0.25, prfHz: 1500, rangeDiscriminationNm: (0.25 * 150) / 1852, minRangeNm: 0.03 },
-  long: { name: "long", microseconds: 0.8, prfHz: 750, rangeDiscriminationNm: (0.8 * 150) / 1852, minRangeNm: 0.07 },
+  medium: { name: "medium", microseconds: 0.3, prfHz: 1500, rangeDiscriminationNm: (0.3 * 150) / 1852, minRangeNm: 0.03 },
+  long: { name: "long", microseconds: 1.2, prfHz: 600, rangeDiscriminationNm: (1.2 * 150) / 1852, minRangeNm: 0.07 },
 };
 
 /**
- * PLACEHOLDER typical pulse settings. With no manual choice the pulse follows the range scale
- * (short to 1.5 NM, medium to 6 NM, long beyond). IMO asks for 40 m minimum range and 40 m range
- * discrimination on the short scales.
+ * Pulse lengths and repetition rates from the same maker's specification (Furuno FAR-21x7 series:
+ * 0.07 microseconds at 3000 Hz, 0.3 at 1500 Hz, 1.2 at 600 Hz; the set has three more steps in
+ * between, not modelled). With no manual choice the pulse follows the range scale (short to
+ * 1.5 NM, medium to 6 NM, long beyond), which is within the choices that set offers on each scale.
+ * The minimum ranges here are PLACEHOLDERS (the set's specification gives 22 m on the shortest
+ * scale). IMO asks for 40 m minimum range and 40 m range discrimination on the short scales.
  */
 export function pulseFor(rangeScaleNm: number, manual?: "auto" | "short" | "medium" | "long"): PulseSetting {
   if (manual && manual !== "auto") return PULSES[manual];

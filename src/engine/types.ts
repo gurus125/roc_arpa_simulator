@@ -59,7 +59,14 @@ export interface Target {
    * makes, and the course and speed it has been ordered to. `course` and `speed` above are then
    * the result OVER THE GROUND (with current and leeway), recomputed every step.
    */
-  motion?: { heading: number; stw: number; orderedCourse: number; orderedSpeed: number };
+  motion?: {
+    heading: number;
+    stw: number;
+    orderedCourse: number;
+    orderedSpeed: number;
+    /** What carried the vessel off its heading in the last step: current plus leeway, knots east/north. Set by the engine. */
+    drift?: Vec2;
+  };
   /** Programmed route, if any. A timed course order (an event with a course) ends it. */
   route?: TargetRoute;
 }
@@ -84,6 +91,19 @@ export interface Hazard {
   center: Vec2;
   /** NM */
   radius: number;
+}
+
+/**
+ * A man-made structure that gives false echoes (STCW Code B-I/12 paragraph 6), as the straight line a-b.
+ * "power-line": an overhead cable; it returns ONE echo, where the beam meets it at right angles.
+ * "bridge": paints as a line across the channel, repeats itself beyond when close, and mirrors echoes.
+ * "reflector": a large flat face (quay wall, sheds, tank farm) that paints as a line and mirrors echoes.
+ */
+export interface Structure {
+  name: string;
+  kind: "power-line" | "bridge" | "reflector";
+  a: Vec2;
+  b: Vec2;
 }
 
 /** A charted area of shallow water: nowhere inside it is deeper than `depthM`. Outside every area the water is deep. */
@@ -126,6 +146,12 @@ export interface OwnShip {
    * rudder follows `rudderOrder` and `ordered.course` follows the heading. The engine order is
    * `ordered.speed` (the speed it gives in the end; negative for astern).
    */
+  /**
+   * Motion in a seaway now (only with a ship model, and only in a sea): roll and pitch in degrees
+   * (+ = starboard side down, bow down), heave in metres, and the yaw the sea has put on the
+   * heading, degrees. The phases are the engine's own. See core/seaway.
+   */
+  seaway?: { rollDeg: number; pitchDeg: number; yawDeg: number; heaveM: number; rollPhase: number; encounterPhase: number };
   model?: { typeId: string; steering: "auto" | "hand"; rudderOrder: number; motion: ShipMotion; /** Steering gear power units (telemotors) running: 1 (default) or 2. */ steeringUnits?: 1 | 2 };
 }
 
@@ -220,6 +246,8 @@ export interface World {
   route: Vec2[];
   /** Charted shallow areas (optional chart data). */
   depths: DepthArea[];
+  /** Structures that give false echoes. */
+  structures: Structure[];
 }
 
 export interface Scenario {
@@ -233,6 +261,7 @@ export interface Scenario {
   hazards?: Hazard[];
   route?: Vec2[];
   depths?: DepthArea[];
+  structures?: Structure[];
 }
 
 /** IMO MSC.192(79) 5.10.1: 0.25, 0.5, 0.75, 1.5, 3, 6, 12 and 24 NM. */

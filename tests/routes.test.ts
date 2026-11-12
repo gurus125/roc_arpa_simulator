@@ -72,6 +72,17 @@ describe("target routes (engine)", () => {
     run(w, 120); // 0.93 NM run: past half way, and the wheel is over
     expect(routeAhead(t)).toHaveLength(2);
   });
+  it("a ship on a track allows for the current and stays on the line", () => {
+    // Hand-worked current triangle: 10 kn through the water, track 000, current setting 090 at 2 kn.
+    // Allowance = asin(2 / 10) = 11.54 degrees to port, so heading 348.46; speed made good = sqrt(100 - 4) = 9.798 kn.
+    const w = createWorld({ ...base, env: { current: { set: 90, drift: 2 } }, targets: [{ ...typed(1, "coaster", 0, 0, 0, 10), route: { points: [{ e: 0, n: 10 }] } }] });
+    const t = w.targets[0]!;
+    run(w, 15 * 60, 0.5);
+    expect(Math.abs(t.pos.e)).toBeLessThan(0.03);
+    expect(Math.abs(t.pos.n - 9.798 * 0.25)).toBeLessThan(0.05);
+    expect(Math.abs(t.motion!.heading - 348.46)).toBeLessThan(1.5);
+    expect(Math.abs(t.speed - 9.798)).toBeLessThan(0.1);
+  });
   it("orders the leg's speed when the leg begins", () => {
     const w = createWorld({ ...base, targets: [{ ...plain(1, 0, 0, 0, 12), route: { points: [{ e: 0, n: 1 }, { e: 0, n: 3 }], speeds: [null, 6] } }] });
     const t = w.targets[0]!;

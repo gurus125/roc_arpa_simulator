@@ -158,7 +158,10 @@ one optional alteration at a given minute), then "Load in simulator" or "Save to
 scenarios appear in the free practice list. "Download JSON" and "Open JSON file" move scenarios
 between computers. A track can be written into a scenario file for any target as
 `"route": { "points": [{ "e": 2, "n": 5 }, ...], "speeds": [null, 8] }` (east and north in NM
-from the scenario origin; at most 20 points).
+from the scenario origin; at most 20 points). Structures that give false echoes are written as
+`"structures": [{ "name": "Cable", "kind": "power-line", "a": { "e": -1, "n": 3 }, "b": { "e": 1, "n": 3 } }]`
+with kind "power-line", "bridge" or "reflector" (a quay wall or other large flat face). The
+scenario "False echoes: power line, bridge and quay" shows all of them.
 
 ## 12. Locking a classroom PC to the simulator (kiosk mode)
 
@@ -179,10 +182,16 @@ tried on the academy's PCs; try it before relying on it.
 
 - No approval: the simulator has not been approved by DG Shipping or certified by DNV or anyone
   else, and no radar instructor has reviewed it.
-- Many figures are placeholders, not measured data: ship handling coefficients, target ship
-  figures, band differences, automatic clutter settings, echo shapes, scoring tolerances.
+- Many figures are estimates, not measured data: the handling of four of the six ship types, target
+  ship figures, the ship's response to the sea, automatic clutter settings, echo shapes, the
+  strength of false echoes, scoring tolerances. Radar beamwidths and pulse lengths are those of one
+  maker's published specification.
 - Radar and ARPA only: no chart display, no outside view, no echo sounder, no voice radio.
-- Own ship moves in three degrees of freedom (ahead, sideways, turning). It does not roll or pitch.
+- Own ship's ahead, sideways and turning motion come from the manoeuvring model. Roll, pitch, heave
+  and the yaw a sea gives are added as simple wave motions whose size is an estimate; the sea does
+  not slow the ship or set her. Two ship types are fitted to published figures (SHIP page, HELP);
+  the others are estimates.
 - Linked displays have been tested on one computer only.
-- The ARPA tracks 20 targets. Tracks programmed for targets do not allow for current: the target
-  steers straight for the next point and is set off the line by a current.
+- The ARPA tracks 20 targets. It cannot acquire a false echo; a real ARPA can.
+- A target on a programmed track allows for current and leeway and stays on the line; a plain
+  target (no catalogue type) is not moved by the current at all.

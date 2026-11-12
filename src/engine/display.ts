@@ -16,16 +16,36 @@ export interface DisplayState {
   viewOrigin: Vec2;
   /** Relative motion: where own ship is drawn, in NM from the screen centre (off-centring). */
   offCentre: { x: number; y: number };
+  /**
+   * Sea stabilisation: how far, NM, the picture's frame has been carried by the difference between
+   * own ship's real motion through the water and the motion the display works out from its inputs
+   * (heading and log or manual speed). Zero while the speed input is right and the ship is not
+   * moving sideways. See `stepSpeedInput`.
+   */
+  inputShift: Vec2;
 }
 
 /**
  * Reference frame.
  *  - Ground stabilised: the reference frame is the ground (world frame).
  *  - Sea stabilised: the frame drifts with the current, so charted fixed objects slide
- *    across the screen at the speed of the current, as on a real sea-stabilised display.
+ *    across the screen at the speed of the current, as on a real sea-stabilised display. The
+ *    display moves own ship by its speed input, so a wrong speed makes them slide as well.
  */
 export function frameShift(w: World, ds: DisplayState, time: number = w.time): Vec2 {
-  return ds.stabilisation === "sea" ? scale(currentVelocity(w), time / 3600) : { e: 0, n: 0 };
+  return ds.stabilisation === "sea" ? add(scale(currentVelocity(w), time / 3600), ds.inputShift) : { e: 0, n: 0 };
+}
+
+/**
+ * A sea-stabilised display moves own ship across the screen by dead reckoning: along the ship's
+ * head at the speed it is given (log, or a speed set by hand). Call once every simulation step
+ * with that speed. Where the ship really moves differently through the water (wrong speed input,
+ * log error, no log, or sideways movement in a turn), the difference is carried into the frame,
+ * and every echo slides across the true-motion picture by that much.
+ */
+export function stepSpeedInput(w: World, ds: DisplayState, dtSec: number, inputSpeedKn: number): void {
+  const deadReckoning = velocityOf({ course: w.own.heading, speed: inputSpeedKn });
+  ds.inputShift = add(ds.inputShift, scale(sub(ownWaterVelocity(w), deadReckoning), dtSec / 3600));
 }
 
 export function toRef(w: World, ds: DisplayState, p: Vec2, time: number = w.time): Vec2 {
@@ -151,6 +171,7 @@ export function newDisplayState(w: World): DisplayState {
     courseUpRef: measuredHeading(w),
     viewOrigin: { ...w.own.pos },
     offCentre: { x: 0, y: 0 },
+    inputShift: { e: 0, n: 0 },
   };
 }
 

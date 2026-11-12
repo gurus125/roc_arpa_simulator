@@ -5,7 +5,7 @@ import { AisSystem } from "../ais/index";
 import { Vec2 } from "../core/vec";
 import {
   DisplayState, Hit, Scenario, TrailStore, World, createWorld, newDisplayState, recentreTrueMotion, scanWedge,
-  stepWorld, updateTrueMotionOrigin, SCENARIOS, measuredHeading,
+  stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading,
 } from "../engine/index";
 
 export type TrailMode = "off" | "relative" | "true";
@@ -169,6 +169,9 @@ export function advance(app: AppState, wallDt: number, rng: () => number = Math.
     const steps = Math.max(1, Math.ceil(simDt / 0.5));
     for (let i = 0; i < steps; i++) {
       stepWorld(w, simDt / steps);
+      // Speed input of the display's sea stabilisation: the speed set by hand, else the log (nothing when the log has failed).
+      const as = app.arpa.settings;
+      stepSpeedInput(w, app.display, simDt / steps, as.logMode === "manual" ? as.manualSpeedKn : app.arpa.logFailed ? 0 : logSpeed(w));
       updateTrueMotionOrigin(w, app.display);
       if (app.radarStandby) app.arpa.settings.standby = true;
       if (!app.roc) app.arpa.step(w, rng);

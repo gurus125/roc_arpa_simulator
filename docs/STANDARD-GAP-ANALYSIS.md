@@ -50,11 +50,11 @@ New gaps found from DGS 5/2004 and STCW B-I/12 (not in the table below):
 | Item | Source | Now |
 |------|--------|-----|
 | PPC (potential point of collision) and PAD (predicted area of danger) graphics | DGS 5/2004 syllabus; B-I/12 para 30 | BUILT 11 Nov 2026 (PAD is a simplified hexagon) |
-| Manual speed input, and the effect of a wrong manual speed on true motion | B-I/12 para 8.2, 8.3, 32.4 | BUILT for the ARPA (wrong speed gives wrong true vectors). The true-motion PICTURE still moves at the real speed: not done |
-| Unstabilised head-up display (picture smears when the ship yaws) | B-I/12 para 8.1, 12 | Head-up already was unstabilised (relative bearing scale, no gyro); now labelled so. The ship does not yaw, so no smear |
+| Manual speed input, and the effect of a wrong manual speed on true motion | B-I/12 para 8.2, 8.3, 32.4 | BUILT: a wrong speed gives wrong true vectors, and (13 Nov 2026) the sea-stabilised true-motion picture moves own ship by the speed input, so fixed objects slide when it is wrong |
+| Unstabilised head-up display (picture smears when the ship yaws) | B-I/12 para 8.1, 12 | Head-up is unstabilised; since 13 Nov 2026 the ship yaws in a seaway, so the head-up picture smears |
 | Target aspect and composition changing the echo | B-I/12 para 5.4, 7 | BUILT 12 Nov 2026: echo strength and shape change with aspect (placeholder curve); composition not modelled |
-| Ship motion in a seaway affecting the picture | B-I/12 para 5.5 | Missing |
-| False echoes from large structures, bridges and power lines; indirect echoes | B-I/12 para 6 | Missing (multiple, side-lobe and second-trace exist) |
+| Ship motion in a seaway affecting the picture | B-I/12 para 5.5 | BUILT 13 Nov 2026 (simplified): roll, pitch, heave and yaw from sea state and sea direction; rolling tips the beam and weakens echoes abeam; yaw smears a head-up picture. The size of the motions is an estimate |
+| False echoes from large structures, bridges and power lines; indirect echoes | B-I/12 para 6 | BUILT 13 Nov 2026: single echo of an overhead cable, mirror images in a quay wall or bridge, bridge repeated beyond itself, indirect echo in the shadow sector; scenario "False echoes". Strengths are estimates; the ARPA cannot acquire them |
 | Effects of pulse length and beamwidth on the picture; land shape from topography | B-I/12 para 7 | BUILT 12 Nov 2026: echoes painted from beamwidth and pulse length; land paints inland by height. No terrain model |
 | Centre and heading-marker misalignment as bearing errors | B-I/12 para 9.5 | Heading marker only |
 | Receiver noise saturation with gain too high | B-I/12 para 8.3 | To be checked on screen |
@@ -227,8 +227,8 @@ integrated bridge or anchor-handling training are left out.
 | 1.1.14 | GPS, echo sounder, speed log through the water (two-axis ground speed for ships over 50,000 GRT) | Partial: position readout, STW and SOG; no echo sounder, no two-axis speed |
 | 1.1.15 | Relative wind direction and force | Met |
 | 1.1.16 | Sound panel to the rules of the road | Met (own-ship whistle and fog signals) |
-| 2.1.1 | Own ship on a mathematical model with 6 degrees of freedom | NOT MET: 3 degrees (surge, sway, yaw); no roll, pitch or heave |
-| 2.1.2 | Open-water hydrodynamics with wind, wave, tidal stream and current | Partial: wind, current and tide; no wave forces |
+| 2.1.1 | Own ship on a mathematical model with 6 degrees of freedom | Partly: surge, sway and yaw from the manoeuvring model; roll, pitch, heave and wave yaw added 13 Nov 2026 as simple wave motions with estimated size. Not a coupled six-degree model |
+| 2.1.2 | Open-water hydrodynamics with wind, wave, tidal stream and current | Partial: wind, current and tide act on the ship; waves roll, pitch and yaw her but do not slow or set her |
 | 2.1.8 | Exercise areas with correct land, depth, buoys and tidal streams, matching the charts and publications used | MISSING: the areas are invented; there is no real charted area |
 | 2.1.9 | Radar: weather, tidal stream, current, shadow sectors, spurious and false echoes, propagation effects; coastlines, buoys, SART | Met by feature list (clutter, shadow sectors and land shadow, multiple, side-lobe and second-trace echoes, racon, SART). Realism not judged by a radar instructor |
 | 2.1.10 | ARPA: manual and automatic acquisition, past track, exclusion areas, vector/graphic time scale and data, trial manoeuvre | Met |
@@ -270,14 +270,17 @@ Documents DNV asks for (Table 1-6, 1.8, 1.9, Appendix A)
 - Simulation objectives (STCW competence against exercises), operating capabilities including the
   limits and possible errors of real equipment, variety of conditions: partly, in COMPLIANCE-MATRIX.md
   and the manual.
-- Test programmes with acceptance criteria and their justification: not written. The 368 unit tests,
+- Test programmes with acceptance criteria and their justification: not written. The 405 unit tests,
   182 screen checks and the exercise self-test are evidence, not a test programme in DNV's sense.
 - Change-log: git history only.
 - Appendix A, for each own-ship model: ship particulars, speed data (telegraph table, tactical
   diameter, crash stop), engine, propeller, rudder and autopilot data, all "modelled, documented and
   verified"; plus model test documentation, manoeuvring booklet, wheelhouse poster and pilot card
-  (IMO A.601(15)). NOT MET: the four ship types use placeholder coefficients checked only against
-  the IMO manoeuvrability limits, not against a real ship.
+  (IMO A.601(15)). NOT MET. Since 13 Nov 2026 two of the six ship types are fitted to published
+  figures (a VLCC to the sample ship in the ABS Guide for Vessel Maneuverability 2017, Appendix 1;
+  a 105 m training ship to the sea-trial turning circle of MV Yukun, Sensors 20 (2020) 3963), with
+  the fit stated in tests/shipmodel.test.ts. The other four are estimates, and none has a
+  manoeuvring booklet, wheelhouse poster or pilot card.
 
 What to aim for
 - Class C is no longer a radar-and-ARPA-only class. To claim it the product would need ECDIS, an
@@ -297,6 +300,13 @@ once with programmable tracks (done 12 Nov 2026); (3) replay with slow and fast 
 operation manual, kiosk-mode procedure (done 12 Nov 2026); (4) own-ship models built from a real
 ship's manoeuvring booklet; (5) the documents and a test programme; (6) freeze a version and keep a
 change-log.
+
+Realism work of 13 Nov 2026 (asked for by the user): target tracks allow for current; true-motion
+picture follows the speed input; false echoes; seaway motion; radar set data from a maker's
+published specification (Furuno FAR-21x7 series: beamwidths, pulse lengths, repetition rates); wave
+heights from the WMO sea state code; two ship types fitted to published figures. Still estimates:
+four ship types, target ship figures, response to the sea, automatic clutter, echo shapes (beam =
+length / 7), land depth, strength of false echoes.
 
 Scope decided by the user on 12 Nov 2026: ROC and ARPA only. ECDIS, charts, an outside view and an
 echo sounder are not to be built, so class C and class D are not targets.

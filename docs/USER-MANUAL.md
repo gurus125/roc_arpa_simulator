@@ -79,7 +79,13 @@ true data is wrong while CPA and TCPA stay correct.
 
 Press **SHIP**.
 
-- **Ship**: choose the ship type. Large ships turn and stop slowly.
+- **Ship**: choose the ship type. Large ships turn and stop slowly. Two types are fitted to
+  published figures (the 350 m VLCC to a classification society's sample ship, the 105 m training
+  ship to a sea-trial turning circle); the others are estimates. Press HELP to see which.
+- **In a sea** the ship rolls, pitches and yaws (the SHIP page shows ROLL and PITCH). The sea comes
+  from the direction of the wind. Heavy rolling in a beam sea tips the radar beam, so echoes abeam
+  fade and come back; yawing smears a head-up picture, which is why north-up or course-up is used
+  in a seaway.
 - **AUTOPILOT**: set the course; the ship steers to it.
 - **HAND STEERING**: press a rudder angle in the Hand steering box. Minus is port, plus is
   starboard; the − and + keys change it by 1°. The rudder takes time to move: the bar under the
@@ -89,6 +95,22 @@ Press **SHIP**.
 
 The OWN SHIP box always shows heading, speed, course and speed made good, rudder, rate of turn
 and relative wind.
+
+## 7a. Things the picture does that are not ships
+
+- **True motion and the speed input.** In sea-stabilised true motion the display moves own ship by
+  the heading and the speed it is given (the log, or a speed set by hand under ARPA). If that speed
+  is wrong, own ship moves the wrong amount and everything else, buoys and land included, slides
+  across the picture. With no speed input own ship stays still and the whole picture moves past.
+- **False echoes** (scenario "False echoes: power line, bridge and quay"):
+  - an overhead power line paints ONE echo, where the beam meets the cable at right angles. It
+    stays on a steady bearing and closes, like a ship on a collision course;
+  - a quay wall or other large flat face mirrors a ship and paints a false one behind the wall;
+  - a strong ship close by is painted again in the funnel's shadow sector astern, at the same
+    range (an indirect echo);
+  - close to a bridge, the bridge is painted a second time beyond itself.
+  A false echo lies on land, in a shadow sector, or square to a cable, and it moves or vanishes
+  when own ship alters course.
 
 ## 8. Other keys
 
@@ -117,6 +139,9 @@ VRM 1 at regular times, plot them on a plotting sheet, and manoeuvre at 12 minut
 ## 10. Limits of this simulator
 
 - The marking tolerances are placeholders until your academy sets its own.
-- Ship and target figures are typical values, not data of real ships.
-- The radar picture is simplified compared with a real set.
+- Ship and target figures are estimates, except where the SHIP page names a published source. The
+  ship's response to the sea is an estimate.
+- The radar picture is simplified compared with a real set. Beamwidths and pulse lengths are those
+  of one maker's set, taken as typical.
+- False echoes can be seen but the ARPA cannot acquire them; on a real ARPA they can be acquired.
 - Positions are not on a real chart.

@@ -180,6 +180,12 @@ export function validateScenario(x: unknown): string[] {
     dp === undefined || (Array.isArray(dp) && dp.every((d) => isObj(d) && typeof d["name"] === "string" && isNum(d["depthM"]) && d["depthM"] >= 0 && Array.isArray(d["points"]) && d["points"].length >= 3 && d["points"].every(vecOk))),
     "Each depth area needs a name, a depth in metres and at least three points.",
   );
+  const stx = x["structures"];
+  need(
+    stx === undefined ||
+      (Array.isArray(stx) && stx.every((q) => isObj(q) && typeof q["name"] === "string" && ["power-line", "bridge", "reflector"].includes(q["kind"] as string) && vecOk(q["a"]) && vecOk(q["b"]))),
+    'Each structure needs a name, a kind ("power-line", "bridge" or "reflector") and two end points a and b.',
+  );
   return errs;
 }
 

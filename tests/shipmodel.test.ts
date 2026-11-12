@@ -176,3 +176,57 @@ describe("own ship with a manoeuvring model in the simulation", () => {
     expect(Math.abs(angleDiffDeg(w.own.heading, 0))).toBeLessThan(1);
   });
 });
+
+/*
+ * Two ship types are fitted to PUBLISHED figures. The expected values below are copied from the
+ * sources, not from the code:
+ * - VLCC: ABS Guide for Vessel Maneuverability (2017), Appendix 1, sample VLCC, L = 349.8 m, 15 kn.
+ *   Simulation of the 35 deg turning circle (Table 5): advance 2.77 L, tactical diameter 2.79 L,
+ *   steady turning diameter 2.73 L, speed in the turn 5.33 kn, 173 s to 90 deg, 409 s to 180 deg.
+ *   10/10 zig-zag (Table 6): 1.62 L run to a 10 deg change of heading. Track reach predicted
+ *   between 13.7 L and 18.3 L (Table 3). A classification society's worked example, not sea trials.
+ * - Training ship: sea trial of MV Yukun, 2012 (Mei, Sun, Shi, Sensors 20 (2020) 3963), Lpp 105 m,
+ *   35 deg rudder at 2.8 deg/s: advance 3.21 Lpp, tactical diameter 2.98 Lpp.
+ * This simple model (first-order steering) cannot match every figure at once; the tolerances say how close it is.
+ */
+describe("own-ship types fitted to published figures", () => {
+  const within = (value: number, published: number, fraction: number): void => {
+    expect(Math.abs(value - published) / published).toBeLessThanOrEqual(fraction);
+  };
+  it("VLCC: turning circle, initial turning and stopping against the ABS sample ship", () => {
+    const type = SHIP_TYPES.find((t) => t.id === "vlcc")!;
+    const L = 349.8;
+    expect(type.lengthM).toBe(L);
+    const turn = () => ({ rudder: 35, speed: 15 });
+    const at90 = run(type, atSpeed(type, 15), 0, 6000, turn, (_m, h) => h >= 90);
+    const at180 = run(type, atSpeed(type, 15), 0, 6000, turn, (_m, h) => h >= 180);
+    const steady = run(type, atSpeed(type, 15), 0, 5000, turn);
+    const steadyDiameter = (2 * Math.hypot(steady.m.u, steady.m.v) * KN) / ((steady.m.r * Math.PI) / 180);
+    within(at90.y / L, 2.77, 0.05); // advance
+    within(at180.x / L, 2.79, 0.06); // tactical diameter
+    within(at90.t, 173, 0.05);
+    within(at180.t, 409, 0.15);
+    within(steadyDiameter / L, 2.73, 0.13);
+    expect(Math.abs(steady.m.u - 5.33)).toBeLessThan(0.2);
+    const init = run(type, atSpeed(type, 15), 0, 3000, () => ({ rudder: 10, speed: 15 }), (_m, h) => h >= 10);
+    within(init.dist / L, 1.62, 0.1);
+    const stop = run(type, atSpeed(type, 15), 0, 9000, () => ({ rudder: 0, speed: -0.45 * 15 }), (m) => m.u <= 0);
+    expect(stop.dist / L).toBeGreaterThanOrEqual(13.7);
+    expect(stop.dist / L).toBeLessThanOrEqual(18.3);
+  });
+  it("training ship: advance and tactical diameter against the MV Yukun sea trial", () => {
+    const type = SHIP_TYPES.find((t) => t.id === "yukun")!;
+    const L = 105;
+    expect(type.lengthM).toBe(L);
+    expect(type.rudderRateDegPerSec).toBe(2.8);
+    const turn = () => ({ rudder: 35, speed: type.maxSpeedKn });
+    const at90 = run(type, atSpeed(type, type.maxSpeedKn), 0, 3000, turn, (_m, h) => h >= 90);
+    const at180 = run(type, atSpeed(type, type.maxSpeedKn), 0, 3000, turn, (_m, h) => h >= 180);
+    within(at90.y / L, 3.21, 0.02);
+    within(at180.x / L, 2.98, 0.02);
+  });
+  it("every type says where its figures come from; only two claim a published source", () => {
+    for (const t of SHIP_TYPES) expect(t.basis.length).toBeGreaterThan(20);
+    expect(SHIP_TYPES.filter((t) => !t.basis.startsWith("Estimate")).map((t) => t.id)).toEqual(["vlcc", "yukun"]);
+  });
+});

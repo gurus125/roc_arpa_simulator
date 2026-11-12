@@ -2,8 +2,9 @@ import { Vec2, add, angleDiffDeg, bearingOf, courseSpeedOf, normalizeDeg, scale,
 import { MAX_ROUTE_WAYPOINTS, turnRadiusNm, waypointReached, wheelOverDistance } from "../core/route";
 import { CoastEdge, CoastSample, Coast, Scenario, Target, World } from "./types";
 import { targetTypeById } from "./targets";
-import { tidalStreamRate } from "../core/current";
+import { courseToSteer, tidalStreamRate } from "../core/current";
 import { autopilotRudder, rudderRate, shipTypeById, stepShip } from "../core/shipmodel";
+import { seawayResponse } from "../core/seaway";
 
 export const COAST_SAMPLE_SPACING_NM = 0.025;
 
@@ -134,6 +135,7 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
     hazards: (sc.hazards ?? []).map((h) => ({ ...h, center: { ...h.center } })),
     route: (sc.route ?? []).map((p) => ({ ...p })),
     depths: (sc.depths ?? []).map((d) => ({ ...d, points: d.points.map((p) => ({ ...p })) })),
+    structures: (sc.structures ?? []).map((s) => ({ ...s, a: { ...s.a }, b: { ...s.b } })),
   };
 }
 
@@ -158,6 +160,7 @@ export function stepWorld(w: World, dtSec: number): void {
     o.speedThroughWater = Math.max(0, o.speedThroughWater + clamp(dv, -maxDv, maxDv));
   }
 
+  stepSeaway(w, dtSec);
   o.pos = add(o.pos, scale(ownGroundVelocity(w), dtSec / 3600));
 
   const sn = w.sensors;
@@ -187,6 +190,7 @@ export function stepWorld(w: World, dtSec: number): void {
       let ground = add(velocityOf({ course: m.heading, speed: m.stw }), currentVelocity(w));
       const aw = apparentWind(w, m.heading, ground);
       if (aw) ground = add(ground, velocityOf({ course: m.heading + 90, speed: type.leeway * aw.beam }));
+      m.drift = sub(ground, velocityOf({ course: m.heading, speed: m.stw }));
       const cs = courseSpeedOf(ground);
       t.speed = cs.speed;
       t.course = cs.speed > 0.01 ? cs.course : m.heading;
@@ -210,6 +214,42 @@ export function orderTarget(t: Target, o: { course?: number; speed?: number }): 
     if (o.course !== undefined) t.course = normalizeDeg(o.course);
     if (o.speed !== undefined) t.speed = Math.max(0, o.speed);
   }
+}
+
+/** With no wind set, the sea is taken to come from this direction, degrees true (an arbitrary choice). */
+export const DEFAULT_SEA_FROM_DEG = 270;
+
+/** Direction the sea comes FROM, degrees true: the wind's direction when a wind is set. */
+export function seaFromDeg(w: World): number {
+  const wind = w.env.wind;
+  return wind && wind.speedKn > 0 ? wind.from : DEFAULT_SEA_FROM_DEG;
+}
+
+/**
+ * Roll, pitch, heave and yaw of own ship in the sea that is running. Only a ship with a manoeuvring
+ * model moves; the exercise ship (fixed rates) stays steady so that plotting exercises are not disturbed.
+ * The yaw is put on the heading itself, so the gyro, the picture and the autopilot all feel it.
+ */
+function stepSeaway(w: World, dtSec: number): void {
+  const o = w.own;
+  if (!o.model || w.env.seaState <= 0) {
+    if (o.seaway) {
+      o.heading = normalizeDeg(o.heading - o.seaway.yawDeg);
+      delete o.seaway;
+    }
+    return;
+  }
+  const sw = o.seaway ?? (o.seaway = { rollDeg: 0, pitchDeg: 0, yawDeg: 0, heaveM: 0, rollPhase: 0, encounterPhase: 0 });
+  const r = seawayResponse(w.env.seaState, normalizeDeg(seaFromDeg(w) - o.heading), o.speedThroughWater, shipTypeById(o.model.typeId).lengthM);
+  sw.rollPhase += (2 * Math.PI * dtSec) / r.rollPeriodS;
+  if (r.encounterPeriodS > 0) sw.encounterPhase += (2 * Math.PI * dtSec) / r.encounterPeriodS;
+  sw.rollDeg = r.rollDeg * Math.sin(sw.rollPhase);
+  sw.pitchDeg = r.pitchDeg * Math.sin(sw.encounterPhase);
+  sw.heaveM = r.heaveM * Math.cos(sw.encounterPhase);
+  const yaw = r.yawDeg * Math.sin(sw.encounterPhase + 1);
+  o.heading = normalizeDeg(o.heading + yaw - sw.yawDeg);
+  sw.yawDeg = yaw;
+  if (o.model.steering === "hand") o.ordered.course = o.heading; // in hand steering the autopilot's course follows the heading
 }
 
 /** A target without a turning circle alters at the waypoint; this is how close counts as "at", NM. */
@@ -269,7 +309,13 @@ function followRoute(t: Target): void {
   const ahead = r.points[next];
   if (ahead) {
     const v = sub(ahead, t.pos);
-    if (length(v) > 1e-6) orderTarget(t, { course: bearingOf(v) });
+    if (length(v) > 1e-6) {
+      // A ship set by the current or blown by the wind steers off the line by the allowance that
+      // makes good the track to the waypoint (current triangle); if it cannot hold the track it steers for the point.
+      const d = t.motion?.drift ? courseSpeedOf(t.motion.drift) : null;
+      const cts = t.motion && d && d.speed > 0.01 ? courseToSteer(bearingOf(v), t.motion.stw, { set: d.course, drift: d.speed }) : null;
+      orderTarget(t, { course: cts ? cts.heading : bearingOf(v) });
+    }
   }
 }
 

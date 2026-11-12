@@ -1,6 +1,7 @@
 import { targetLengthM } from "./world";
 import { aspectFactor, echoShape } from "./echo";
-import { Vec2, add, fromPolar, length, normalizeDeg, sub } from "../core/vec";
+import { Vec2, add, fromPolar, length, normalizeDeg, scale, sub } from "../core/vec";
+import { footOfPerpendicular, mirrorPoint, reflectionPoint } from "../core/falseecho";
 import {
   THRESHOLD, detectionProbability, effectiveSignal, noiseDensity, rainClutterProbability, rainIntensityAt,
   relativeBearing, seaClutterProbability, sensitivity, stcAttenuation,
@@ -8,7 +9,20 @@ import {
 import { World } from "./types";
 import { pulseFor, rcsForDetectionRange, shorelineDetectionNm, unambiguousRangeNm } from "./band";
 
-export type HitKind = "target" | "coast" | "multiple" | "sidelobe" | "sea-clutter" | "rain-clutter" | "noise" | "racon" | "sart" | "ramark" | "second-trace" | "interference";
+export type HitKind =
+  | "target" | "coast" | "multiple" | "sidelobe" | "sea-clutter" | "rain-clutter" | "noise" | "racon" | "sart" | "ramark" | "second-trace" | "interference"
+  /** False echoes: mirror image in a structure, indirect echo by way of own ship's funnel or mast, the single echo of an overhead cable. */
+  | "false" | "indirect" | "power-line";
+
+/** An indirect echo needs a strong, close target: signal level and range limits, and its strength against the true echo. Placeholders. */
+export const INDIRECT_MIN_SIGNAL = 6;
+export const INDIRECT_MAX_RANGE_NM = 4;
+export const INDIRECT_STRENGTH = 0.06;
+/** A mirror image is this much weaker than a direct echo at the same path length; a bridge repeats itself inside this range. Placeholders. */
+export const MIRROR_STRENGTH = 0.25;
+export const BRIDGE_MULTIPLE_RANGE_NM = 1;
+/** Spacing of the points that paint a bridge or a reflecting face, NM. */
+export const STRUCTURE_SAMPLE_NM = 0.025;
 
 /** Spacing of the 12 dots of a SART response, NM, and the range inside which a transponder answers (placeholder). */
 export const SART_DOT_SPACING_NM = 0.64;
@@ -182,6 +196,53 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
     // Side-lobe echoes: arcs of weak echoes either side of a very strong, close target.
     if (e >= 8 && range <= 3) {
       for (const off of [-9, 9]) emit(normalizeDeg(tb + off), range, e * 0.08, "sidelobe", 2.5, t.id);
+    }
+    // Indirect echo: part of the pulse goes out and back by way of own ship's funnel or mast, so a
+    // strong, close target is painted a second time in the shadow sector, on the bearing of the
+    // obstruction and at the target's own range.
+    if (e >= INDIRECT_MIN_SIGNAL && range <= INDIRECT_MAX_RANGE_NM) {
+      for (const s of w.radar.shadowSectors) {
+        const mid = normalizeDeg(s.from + ((((s.to - s.from) % 360) + 360) % 360) / 2);
+        if (Math.abs(((rel - mid + 540) % 360) - 180) > 20) emit(normalizeDeg(heading + mid), range, e * INDIRECT_STRENGTH, "indirect", 3);
+      }
+    }
+  }
+
+  // Man-made structures and the false echoes they give.
+  for (const st of w.structures) {
+    const foot = footOfPerpendicular(w.own.pos, st.a, st.b);
+    const footV = sub(foot.point, w.own.pos);
+    const footRange = length(footV);
+    const signalAt = (pos: Vec2, rcs: number, height: number, rangeNm: number): number =>
+      effectiveSignal(w, { rcs, height, rangeNm, relBearing: relativeBearing(bearingOfVec(sub(pos, w.own.pos)), heading), pos });
+    if (st.kind === "power-line") {
+      // An overhead cable returns only where the beam meets it at right angles: one echo, on a steady
+      // bearing, closing as the ship approaches. It looks like a vessel on a collision course.
+      if (foot.onSegment && footRange > 0.02) emit(bearingOfVec(footV), footRange, signalAt(foot.point, 0.2, 25, footRange), "power-line", 3);
+      continue;
+    }
+    // A bridge or a large flat face paints as a line.
+    const ab = sub(st.b, st.a);
+    const n = Math.max(1, Math.round(length(ab) / STRUCTURE_SAMPLE_NM));
+    for (let i = 0; i <= n; i++) {
+      const p = add(st.a, scale(ab, i / n));
+      const v = sub(p, w.own.pos);
+      const r = length(v);
+      if (r > c.rangeNm || r < 0.02) continue;
+      const es = signalAt(p, 1, 20, r);
+      emit(bearingOfVec(v), r, es, "coast", 3);
+      // Close to a bridge the pulse bounces between ship and bridge: the part of the bridge square
+      // on to the ship is painted again at twice the range, beyond the bridge.
+      if (st.kind === "bridge" && foot.onSegment && footRange < BRIDGE_MULTIPLE_RANGE_NM && length(sub(p, foot.point)) < 0.15) emit(bearingOfVec(v), 2 * r, es * 0.15, "multiple", 2.5);
+    }
+    // Mirror images: a target on the same side as own ship is also seen by way of the face, and is
+    // painted behind it, on the bearing of the reflecting point and at the length of the bent path.
+    for (const t of w.targets) {
+      if (!reflectionPoint(w.own.pos, t.pos, st.a, st.b)) continue;
+      const image = mirrorPoint(t.pos, st.a, st.b);
+      const v = sub(image, w.own.pos);
+      const r = length(v);
+      emit(bearingOfVec(v), r, signalAt(image, t.rcs, t.height, r) * MIRROR_STRENGTH, "false", 3);
     }
   }
 

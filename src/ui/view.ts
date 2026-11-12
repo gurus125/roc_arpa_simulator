@@ -22,6 +22,9 @@ const KIND_COLOUR: Record<HitKind, string> = {
   ramark: "#c8ff9d",
   "second-trace": "#9dffb0",
   interference: "#8fe8a8",
+  false: "#9dffb0",
+  indirect: "#9dffb0",
+  "power-line": "#9dffb0",
 };
 
 function fmtNm(x: number): string {

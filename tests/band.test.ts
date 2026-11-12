@@ -79,15 +79,18 @@ describe("IMO MSC.192(79) table 2: detection ranges on X and S band", () => {
   });
 });
 
-describe("pulse settings and minimum range (placeholder typical values)", () => {
+describe("pulse settings (a maker's published figures) and minimum range (placeholder)", () => {
   it("short pulse on the short scales meets the 40 m minimum range and range discrimination of MSC.192(79) 5.4 and 5.5", () => {
     const p = pulseFor(0.75);
     expect(p.name).toBe("short");
     expect(p.minRangeNm * 1852).toBeLessThanOrEqual(40);
     expect(p.rangeDiscriminationNm * 1852).toBeLessThanOrEqual(40);
     expect(minRangeNm(1.5)).toBe(0.02);
-    // Half the pulse length: 0.25 microseconds x 150 m = 37.5 m.
-    expect(pulseFor(6).rangeDiscriminationNm * 1852).toBeCloseTo(37.5, 6);
+    // Half the pulse length: 0.3 microseconds x 150 m = 45 m (Furuno FAR-21x7 series: 0.07, 0.3 and 1.2 microseconds at 3000, 1500 and 600 Hz).
+    expect(pulseFor(6).rangeDiscriminationNm * 1852).toBeCloseTo(45, 6);
+    expect([pulseFor(0.75).prfHz, pulseFor(6).prfHz, pulseFor(12).prfHz]).toEqual([3000, 1500, 600]);
+    expect(BAND_DATA.X.beamwidthDeg).toBe(1.23);
+    expect(BAND_DATA.S.beamwidthDeg).toBe(1.8);
     expect(pulseFor(12).name).toBe("long");
   });
   it("the S-band beam is wider than the X-band beam", () => {
@@ -118,8 +121,8 @@ describe("pulse length, second-trace echoes, ramark, interference, echo processi
     expect(pulseFor(6, "short").name).toBe("short");
     expect(pulseEnergyFactor(6, "auto")).toBe(1);
     expect(pulseEnergyFactor(6)).toBe(1);
-    expect(pulseEnergyFactor(6, "long")).toBeCloseTo(Math.sqrt(0.8 / 0.25), 12);
-    expect(pulseEnergyFactor(6, "short")).toBeCloseTo(Math.sqrt(0.07 / 0.25), 12);
+    expect(pulseEnergyFactor(6, "long")).toBeCloseTo(2, 12); // sqrt(1.2 / 0.3)
+    expect(pulseEnergyFactor(6, "short")).toBeCloseTo(Math.sqrt(0.07 / 0.3), 12);
     expect(minRangeNm(6, "long")).toBe(0.07);
     expect(minRangeNm(6, "short")).toBe(0.02);
   });

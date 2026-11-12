@@ -279,7 +279,7 @@ function applyControls(): void {
     for (const b of $("telegraph").querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset["k"] === now?.key);
     setText("shipInfo", simple
       ? `Exercise ship: turns at ${PLOT_RULES.turnDegPerMin}°/min and changes speed at ${PLOT_RULES.speedKnPerMin} kn/min, whatever the speed. Autopilot only.`
-      : `${st.name}: sea full ${st.maxSpeedKn} kn, length ${st.lengthM} m. Model coefficients are placeholders, not trial data.`);
+      : `${st.name}: sea full ${st.maxSpeedKn} kn, length ${st.lengthM} m. ${st.basis}`);
   }
   app.ebl2 = { on: chk("ebl2On"), bearing: num("ebl2Brg") };
   app.vrm2 = { on: chk("vrm2On"), range: num("vrm2Rng") };
@@ -918,7 +918,9 @@ function updateReadouts(): void {
     setText("teleInfo", app.world.own.model ? `hard over to hard over: ${HARD_OVER_SECONDS[units]} s` : "not used by the exercise ship");
     setText("helmGear", app.world.own.model ? `telemotor ${units === 2 ? "1 + 2" : "1"}: ${HARD_OVER_SECONDS[units]} s` : "");
     setText("helmNow", mo ? `${mo.rudder > 0.5 ? "+" : ""}${mo.rudder.toFixed(0)}°` : "---");
-    setText("shipNow", mo ? `HDG ${pad3(measuredHeading(app.world))}   RUDDER ${sd(mo.rudder, "°")}   ROT ${sd(mo.r * 60, "°/min")}   STW ${mo.u.toFixed(1)} kn` : "");
+    const swy = app.world.own.seaway;
+    const side = (x: number, pos: string, neg: string): string => `${Math.abs(x).toFixed(0)}° ${Math.abs(x) < 0.5 ? "" : x > 0 ? pos : neg}`.trim();
+    setText("shipNow", mo ? `HDG ${pad3(measuredHeading(app.world))}   RUDDER ${sd(mo.rudder, "°")}   ROT ${sd(mo.r * 60, "°/min")}   STW ${mo.u.toFixed(1)} kn${swy ? `   ROLL ${side(swy.rollDeg, "S", "P")}   PITCH ${side(swy.pitchDeg, "bow down", "bow up")}` : ""}` : "");
   }
   // Hand steering: the autopilot is disengaged, so its course setting is shown as OFF and does not move.
   if (app.world.own.model?.steering === "hand") setText("ordCourseV", "OFF");

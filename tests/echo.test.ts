@@ -12,38 +12,39 @@ describe("shape of a painted echo (worked by hand)", () => {
     expect(targetExtents(210, 0).alongM).toBeCloseTo(210, 6);
   });
   it("a point target paints one beamwidth wide and half a pulse length deep", () => {
-    // X band 1.2 deg; medium pulse 0.25 microseconds = 0.25 x 150 m = 37.5 m.
+    // Maker's figures (Furuno FAR-21x7 series): X band 1.23 deg (6.5 ft radiator), S band 1.8 deg (12 ft);
+    // medium pulse 0.3 microseconds = 0.3 x 150 m = 45 m.
     const s = echoShape("X", controls(6), 4);
-    expect(s.arcDeg).toBeCloseTo(1.2, 9);
-    expect(s.depthNm).toBeCloseTo(37.5 / NM, 9);
-    expect(echoShape("S", controls(6), 4).arcDeg).toBeCloseTo(2.0, 9); // 10 cm radar: wider beam
+    expect(s.arcDeg).toBeCloseTo(1.23, 9);
+    expect(s.depthNm).toBeCloseTo(45 / NM, 9);
+    expect(echoShape("S", controls(6), 4).arcDeg).toBeCloseTo(1.8, 9); // 10 cm radar: wider beam, even with a 12 ft radiator
   });
   it("beam-on at 6 NM, a 210 m ship adds 1.08 deg to the beamwidth and 30 m to the depth", () => {
     // 210 m at 6 NM (11112 m) spans atan(210/11112) = 1.083 deg.
     const s = echoShape("X", controls(6), 6, 210, 90);
-    expect(s.arcDeg).toBeCloseTo(1.2 + (210 / (6 * NM)) * (180 / Math.PI), 6);
-    expect(s.arcDeg).toBeCloseTo(2.283, 2);
-    expect(s.depthNm).toBeCloseTo((37.5 + 30) / NM, 9);
+    expect(s.arcDeg).toBeCloseTo(1.23 + (210 / (6 * NM)) * (180 / Math.PI), 6);
+    expect(s.arcDeg).toBeCloseTo(2.313, 2);
+    expect(s.depthNm).toBeCloseTo((45 + 30) / NM, 9);
   });
   it("end-on, the same ship paints narrow and deep", () => {
     const s = echoShape("X", controls(6), 6, 210, 0);
-    expect(s.arcDeg).toBeCloseTo(1.2 + (30 / (6 * NM)) * (180 / Math.PI), 6);
-    expect(s.depthNm).toBeCloseTo((37.5 + 210) / NM, 9);
+    expect(s.arcDeg).toBeCloseTo(1.23 + (30 / (6 * NM)) * (180 / Math.PI), 6);
+    expect(s.depthNm).toBeCloseTo((45 + 210) / NM, 9);
   });
-  it("range discrimination: a long pulse paints 120 m deep, a short pulse 10.5 m", () => {
-    expect(echoShape("X", controls(6, "long"), 4).depthNm).toBeCloseTo(120 / NM, 9);
+  it("range discrimination: a long pulse (1.2 microseconds) paints 180 m deep, a short pulse 10.5 m", () => {
+    expect(echoShape("X", controls(6, "long"), 4).depthNm).toBeCloseTo(180 / NM, 9);
     expect(echoShape("X", controls(6, "short"), 4).depthNm).toBeCloseTo(10.5 / NM, 9);
     // Two point targets 60 m apart on one bearing: one echo on long pulse, two on short pulse.
     expect(echoShape("X", controls(6, "long"), 4).depthNm * NM).toBeGreaterThan(60);
     expect(echoShape("X", controls(6, "short"), 4).depthNm * NM).toBeLessThan(60);
   });
-  it("bearing discrimination: at 6 NM a 1.2 deg beam is 233 m wide, so targets 200 m apart at one range merge", () => {
+  it("bearing discrimination: at 6 NM a 1.23 deg beam is 239 m wide, so targets 200 m apart at one range merge", () => {
     const widthM = 6 * NM * ((echoShape("X", controls(6), 6).arcDeg * Math.PI) / 180);
-    expect(widthM).toBeCloseTo(232.7, 0);
+    expect(widthM).toBeCloseTo(238.5, 0); // 11112 m x 1.23 deg in radians
     expect(widthM).toBeGreaterThan(200);
   });
   it("echo stretch enlarges the paint in range", () => {
-    expect(echoShape("X", { ...controls(6), echoStretch: true }, 4).depthNm).toBeCloseTo((37.5 / NM) * 1.8, 9);
+    expect(echoShape("X", { ...controls(6), echoStretch: true }, 4).depthNm).toBeCloseTo((45 / NM) * 1.8, 9);
   });
   it("aspect: beam-on returns more than end-on", () => {
     expect(aspectFactor(90)).toBeCloseTo(1.4, 9);

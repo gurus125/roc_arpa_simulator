@@ -1,6 +1,7 @@
 import { Vec2, angleDiffDeg, length, normalizeDeg, sub } from "../core/vec";
 import { RadarControls, RadarSet, ShadowSector, TargetKind, World } from "./types";
-import { pulseEnergyFactor, pulseFor, sBandFactor } from "./band";
+import { BAND_DATA, pulseEnergyFactor, pulseFor, sBandFactor } from "./band";
+import { beamTiltDeg, verticalPatternFactor } from "../core/seaway";
 
 /**
  * Simplified radar signal model, tuned so that the effects described in the ROC handout
@@ -109,6 +110,16 @@ export interface SignalInput {
   kind?: TargetKind | "coast";
 }
 
+/**
+ * 1 on an even keel. When own ship is rolled or pitched the beam is tipped off the horizon, most
+ * abeam for roll and most ahead and astern for pitch, and echoes there weaken or are lost.
+ */
+export function seawayFactor(w: World, relBearing: number): number {
+  const sw = w.own.seaway;
+  if (!sw) return 1;
+  return verticalPatternFactor(beamTiltDeg(sw.rollDeg, sw.pitchDeg, relBearing), BAND_DATA[w.radar.band].verticalBeamwidthDeg);
+}
+
 /** Effective echo level after the receiver and the operator's controls. Compare with THRESHOLD. */
 export function effectiveSignal(w: World, s: SignalInput, c: RadarControls = w.radar.controls): number {
   if (s.rangeNm < minRangeNm(c.rangeNm, c.pulse)) return 0;
@@ -121,6 +132,7 @@ export function effectiveSignal(w: World, s: SignalInput, c: RadarControls = w.r
   e *= 1 - (w.radar.band === "S" ? 0.15 : 0.5) * rain; // rain attenuates 3 cm waves far more than 10 cm
   if (w.radar.band === "S") e *= sBandFactor(s.kind); // small targets and buoys return less on 10 cm
   e *= shadowFactor(w.radar, s.relBearing);
+  e *= seawayFactor(w, s.relBearing);
   e *= pulseEnergyFactor(c.rangeNm, c.pulse);
   e *= w.radar.performance ?? 1;
   return e;
