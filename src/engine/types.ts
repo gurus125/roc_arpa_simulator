@@ -112,7 +112,7 @@ export interface OwnShip {
    * rudder follows `rudderOrder` and `ordered.course` follows the heading. The engine order is
    * `ordered.speed` (the speed it gives in the end; negative for astern).
    */
-  model?: { typeId: string; steering: "auto" | "hand"; rudderOrder: number; motion: ShipMotion };
+  model?: { typeId: string; steering: "auto" | "hand"; rudderOrder: number; motion: ShipMotion; /** Steering gear power units (telemotors) running: 1 (default) or 2. */ steeringUnits?: 1 | 2 };
 }
 
 export interface RadarControls {

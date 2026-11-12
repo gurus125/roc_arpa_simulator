@@ -51,7 +51,7 @@ Explanatory text is hidden until HELP is pressed. The layout is our own arrangem
 ## Develop
 
     npm install
-    npm test            # 339 tests
+    npm test            # 340 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

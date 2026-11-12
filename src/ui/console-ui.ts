@@ -35,7 +35,7 @@ const KEYS: Key[] = [
   { key: "trial", label: "TRIAL", sections: ["Trial manoeuvre"], tab: "arpa" },
   { key: "ais", label: "AIS LIST", sections: ["AIS targets"], tab: "arpa" },
   { key: "arpa", label: "ARPA", sections: ["ARPA operation"], tab: "arpa" },
-  { key: "set", label: "SETTINGS", sections: ["Display mode", "Own ship data"], tab: "top" },
+  { key: "set", label: "SETTINGS", sections: ["Settings", "Own ship data"], tab: "top" },
   { key: "comm", label: "VHF", sections: ["Communications (VHF, typed)"], tab: "top" },
   { key: "env", label: "WEATHER", sections: ["Environment"], tab: "radar" },
   { key: "scen", label: "SCENARIO", sections: ["Free practice", "Linked own ships", "Study aids"], tab: "radar" },

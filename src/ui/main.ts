@@ -1,5 +1,5 @@
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
-import { SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
+import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
 import { BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
 import { ARPA_EXERCISES, PLOT_RULES, ArpaExSession, ArpaExercise, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
@@ -564,6 +564,18 @@ function setup(): void {
   });
   applyMode(store.data.displayMode === "night" ? "night" : "day");
 
+  // Steering gear: telemotor 1 always runs; telemotor 2 can be started as well (the rudder then moves faster).
+  $("teleKeys").addEventListener("click", (ev) => {
+    if ((ev.target as HTMLElement).closest("button")?.dataset["u"] !== "2") return;
+    const mo = app.world.own.model;
+    if (mo) mo.steeringUnits = mo.steeringUnits === 2 ? 1 : 2;
+  });
+  // Own ship data is shown only when asked for.
+  $("osToggle").addEventListener("click", () => {
+    const off = $("osSection").classList.toggle("off");
+    $("osToggle").classList.toggle("on", !off);
+  });
+
   // Own ship data typed in by the user (fixed particulars and voyage data), kept on this computer.
   const os = store.data.ownShip;
   const osFields: [string, keyof typeof os][] = [["osName", "name"], ["osCall", "callSign"], ["osImo", "imo"], ["osMmsi", "mmsi"], ["osHaz", "hazardous"], ["osDest", "destination"], ["osEta", "eta"]];
@@ -846,6 +858,17 @@ function updateReadouts(): void {
   {
     const mo = app.world.own.model?.motion;
     const sd = (x: number, unit: string): string => (Math.abs(x) < 0.5 ? "0" : `${x > 0 ? "S" : "P"} ${Math.abs(x).toFixed(0)}${unit}`);
+    // Rudder angle indicator and steering gear state.
+    const units = app.world.own.model?.steeringUnits ?? 1;
+    const r = mo?.rudder ?? 0;
+    const bar = $("rudderBar").style;
+    bar.left = `${50 + Math.min(0, r) / 0.7}%`;
+    bar.width = `${Math.abs(r) / 0.7}%`;
+    $("rudderOrd").style.left = `${50 + (app.world.own.model?.steering === "hand" ? app.world.own.model.rudderOrder : r) / 0.7}%`;
+    $("teleKeys").querySelector<HTMLElement>('button[data-u="2"]')!.classList.toggle("on", units === 2);
+    ($("teleKeys").querySelector('button[data-u="2"]') as HTMLButtonElement).disabled = !app.world.own.model;
+    setText("teleInfo", app.world.own.model ? `hard over to hard over: ${HARD_OVER_SECONDS[units]} s` : "not used by the exercise ship");
+    setText("helmGear", app.world.own.model ? `telemotor ${units === 2 ? "1 + 2" : "1"}: ${HARD_OVER_SECONDS[units]} s` : "");
     setText("helmNow", mo ? `${mo.rudder > 0.5 ? "+" : ""}${mo.rudder.toFixed(0)}°` : "---");
     setText("shipNow", mo ? `HDG ${pad3(measuredHeading(app.world))}   RUDDER ${sd(mo.rudder, "°")}   ROT ${sd(mo.r * 60, "°/min")}   STW ${mo.u.toFixed(1)} kn` : "");
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHIP_TYPES, ShipMotion, ShipType, autopilotRudder, stepShip } from "../src/core/shipmodel";
+import { SHIP_TYPES, ShipMotion, ShipType, autopilotRudder, rudderRate, stepShip } from "../src/core/shipmodel";
 
 const KN = 0.514444;
 const DT = 0.5;
@@ -74,15 +74,20 @@ describe("own-ship model against the IMO manoeuvrability criteria (resolution MS
       expect(maxH).toBeLessThan(66);
     });
   }
-  it("the rudder moves at its limited rate: hard over to hard over (35 to 35) takes about 30 s", () => {
+  it("hard over to hard over (-35 to +35) takes 28 s with one steering gear unit and 18 s with two", () => {
     const type = SHIP_TYPES[0]!;
-    let m = { ...atSpeed(type, 10), rudder: -35 };
-    let t = 0;
-    while (m.rudder < 35 - 1e-9) {
-      m = stepShip(type, m, { rudder: 35, speed: 10 }, null, DT);
-      t += DT;
-    }
-    expect(t).toBeCloseTo(70 / 2.3, 0);
+    const time = (rate?: number): number => {
+      let m = { ...atSpeed(type, 10), rudder: -35 };
+      let t = 0;
+      while (m.rudder < 35 - 1e-9) {
+        m = stepShip(type, m, { rudder: 35, speed: 10, ...(rate === undefined ? {} : { rudderRateDegPerSec: rate }) }, null, 0.25);
+        t += 0.25;
+      }
+      return t;
+    };
+    expect(time()).toBeCloseTo(28, 1); // the ship type's own rate is one unit
+    expect(time(rudderRate(1))).toBeCloseTo(28, 1);
+    expect(time(rudderRate(2))).toBeCloseTo(18, 1);
   });
   it("a beam wind gives leeway to leeward; a head wind takes off speed", () => {
     const type = SHIP_TYPES[0]!;
@@ -126,6 +131,23 @@ describe("own ship with a manoeuvring model in the simulation", () => {
     const h2 = w.own.heading;
     runW(w, 60);
     expect(Math.abs(angleDiffDeg(w.own.heading, h2))).toBeLessThan(0.5); // steady again
+  });
+  it("in the simulation the second steering gear unit brings the rudder over sooner", () => {
+    const secondsToHardOver = (units: 1 | 2): number => {
+      const w = createWorld(sc);
+      setShipModel(w, "container");
+      w.own.model!.steering = "hand";
+      w.own.model!.steeringUnits = units;
+      w.own.model!.rudderOrder = 35;
+      let t = 0;
+      while (w.own.model!.motion.rudder < 35 - 1e-9) {
+        stepWorld(w, 0.25);
+        t += 0.25;
+      }
+      return t;
+    };
+    expect(secondsToHardOver(1)).toBeCloseTo(14, 1); // midships to hard over: half of 28 s
+    expect(secondsToHardOver(2)).toBeCloseTo(9, 1); // half of 18 s
   });
   it("relative wind: 20 kn from north on a ship steering north at 12 kn is felt as 32 kn from ahead", () => {
     const w = createWorld(sc);

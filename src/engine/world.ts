@@ -2,7 +2,7 @@ import { Vec2, add, angleDiffDeg, courseSpeedOf, normalizeDeg, scale, sub, veloc
 import { CoastEdge, CoastSample, Coast, Scenario, Target, World } from "./types";
 import { targetTypeById } from "./targets";
 import { tidalStreamRate } from "../core/current";
-import { autopilotRudder, shipTypeById, stepShip } from "../core/shipmodel";
+import { autopilotRudder, rudderRate, shipTypeById, stepShip } from "../core/shipmodel";
 
 export const COAST_SAMPLE_SPACING_NM = 0.025;
 
@@ -59,6 +59,7 @@ export function setShipModel(w: World, typeId: string): void {
     steering: prev?.steering ?? "auto",
     rudderOrder: prev?.rudderOrder ?? 0,
     motion: prev?.motion ?? { u: o.speedThroughWater, v: 0, r: 0, rudder: 0, engine: o.ordered.speed },
+    steeringUnits: prev?.steeringUnits ?? 1,
   };
 }
 
@@ -141,7 +142,7 @@ export function stepWorld(w: World, dtSec: number): void {
     const type = shipTypeById(o.model.typeId);
     const m0 = o.model.motion;
     const rudder = o.model.steering === "auto" ? autopilotRudder(type, angleDiffDeg(o.ordered.course, o.heading), m0.r, m0.u) : o.model.rudderOrder;
-    const m = stepShip(type, m0, { rudder, speed: o.ordered.speed }, relativeWind(w), dtSec);
+    const m = stepShip(type, m0, { rudder, speed: o.ordered.speed, rudderRateDegPerSec: rudderRate(o.model.steeringUnits ?? 1) }, relativeWind(w), dtSec);
     o.model.motion = m;
     o.heading = normalizeDeg(o.heading + m.r * dtSec);
     o.speedThroughWater = m.u;

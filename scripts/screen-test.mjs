@@ -160,16 +160,26 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   await p.waitForTimeout(200);
   check(`${tag} rings off`, (await text("#ringsKey")) === "RINGS OFF");
   await p.click("#ringsKey");
-  // Settings: day / night mode and own ship data.
+  // Settings: day / night mode, steering gear and own ship data (with a ship model again, not the exercise ship).
+  await key("scen");
+  await p.selectOption("#scenario", "1");
+  await p.waitForTimeout(300);
   await key("set");
   await p.click('#modeKeys button[data-m="night"]');
   await p.waitForTimeout(300); // the key label is redrawn on the next frame
   check(`${tag} night mode`, (await p.evaluate(() => document.body.dataset.mode)) === "night" && (await text("#nightKey")) === "NIGHT");
   await p.click("#nightKey");
   check(`${tag} day mode`, (await p.evaluate(() => document.body.dataset.mode)) === "day");
+  check(`${tag} own ship data is hidden until asked for`, !(await p.locator("#osName").isVisible()));
+  await p.click("#osToggle");
   await p.fill("#osName", "MV TEST");
   await p.locator("#osName").blur();
   check(`${tag} own ship data: position, UTC and size shown`, /\d\d°\d\d\.\d'N\s+\d{3}°/.test(await text("#osPos")) && /\d{4}-\d\d-\d\d \d\d:\d\d:\d\d/.test(await text("#osUtc")), (await text("#osPos")) + " | " + (await text("#osUtc")));
+  check(`${tag} telemotor 1 only at the start: 28 s`, (await text("#teleInfo")).includes("28 s"), await text("#teleInfo"));
+  await p.click('#teleKeys button[data-u="2"]');
+  await p.waitForTimeout(300);
+  check(`${tag} telemotor 2 started: 18 s`, (await text("#teleInfo")).includes("18 s"), await text("#teleInfo"));
+  await p.click('#teleKeys button[data-u="2"]');
   check(`${tag} own ship data: name is kept`, (await p.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => localStorage.getItem(k).includes("ownShip")))).ownShip.name)) === "MV TEST");
 
   // Instructor self-test of the exercises (once is enough: it does not depend on the screen size).

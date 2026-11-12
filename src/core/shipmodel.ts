@@ -60,7 +60,17 @@ export const TELEGRAPH: { key: string; label: string; fraction: number }[] = [
   { key: "NF", label: "SEA FULL", fraction: 1 },
 ];
 
-const BASE = { asternPower: 0.6, driftFactor: 0.3, turnLoss: 4, windDrag: 0.000005, maxRudderDeg: 35, rudderRateDegPerSec: 2.3 };
+/**
+ * Time for the rudder to go from hard over to hard over (35 deg one side to 35 deg the other),
+ * seconds, with one steering gear power unit ("telemotor") running and with two. Figures given by
+ * the academy. (SOLAS II-1 regulation 29 requires 35 deg one side to 30 deg the other in not more
+ * than 28 seconds with one power unit.)
+ */
+export const HARD_OVER_SECONDS: Record<1 | 2, number> = { 1: 28, 2: 18 };
+/** Rudder rate in degrees per second with one or two power units running. */
+export const rudderRate = (units: 1 | 2): number => 70 / HARD_OVER_SECONDS[units];
+
+const BASE = { asternPower: 0.6, driftFactor: 0.3, turnLoss: 4, windDrag: 0.000005, maxRudderDeg: 35, rudderRateDegPerSec: rudderRate(1) };
 
 export const SHIP_TYPES: ShipType[] = [
   { ...BASE, id: "container", name: "Container ship, 230 m", lengthM: 230, beamM: 32.2, draughtM: 11.5, maxSpeedKn: 22, kPrime: 0.9, tPrime: 1.2, speedTimeS: 600, engineTimeS: 40, leeway: 0.035 },
@@ -91,6 +101,8 @@ export interface ShipOrders {
   rudder: number;
   /** Engine order as the speed it gives in the end, knots (negative: astern). */
   speed: number;
+  /** Rudder rate now, degrees per second (two steering gear units move it faster). Default: the ship type's rate with one unit. */
+  rudderRateDegPerSec?: number;
 }
 
 /** Full astern as a fraction of full sea speed (the lowest telegraph step). */
@@ -109,7 +121,8 @@ export function stepShip(type: ShipType, m: ShipMotion, orders: ShipOrders, relW
   const uMax = type.maxSpeedKn * KN;
   // Rudder and engine follow their orders at limited rates.
   const dOrder = clamp(orders.rudder, -type.maxRudderDeg, type.maxRudderDeg);
-  const rudder = m.rudder + clamp(dOrder - m.rudder, -type.rudderRateDegPerSec * dt, type.rudderRateDegPerSec * dt);
+  const rate = orders.rudderRateDegPerSec ?? type.rudderRateDegPerSec;
+  const rudder = m.rudder + clamp(dOrder - m.rudder, -rate * dt, rate * dt);
   const eOrder = clamp(orders.speed, -ASTERN_FULL * type.maxSpeedKn, type.maxSpeedKn);
   const eRate = (type.maxSpeedKn / type.engineTimeS) * dt;
   const engine = m.engine + clamp(eOrder - m.engine, -eRate, eRate);

@@ -101,8 +101,15 @@
   #helmScale button.zero { border-color:var(--accent); }
   button.pm1 { width:30px; padding:3px 0; font-weight:700; }
   body:not(.help) .hint { display:none; }
-  #modeKeys button { padding:8px 22px; font:700 13px ui-monospace, Consolas, monospace; }
-  #modeKeys button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+  .setrow > .small { width:92px; }
+  .setrow button { padding:7px 16px; font:700 12px ui-monospace, Consolas, monospace; }
+  .setrow button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+  section.off { display:none !important; }
+  /* Rudder angle indicator under the hand steering keys: -35 sits under the "-35" key, +35 under the "+35" key. */
+  #rudderInd { position:relative; height:12px; margin:0 calc(100% / 17 * 1.5) 6px; background:var(--box); border:1px solid var(--line); border-radius:3px; }
+  #rudderInd::before { content:""; position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:var(--muted); }
+  #rudderBar { position:absolute; top:1px; bottom:1px; background:var(--accent); border-radius:2px; }
+  #rudderOrd { position:absolute; top:-3px; bottom:-3px; width:2px; margin-left:-1px; background:var(--bright); }
   table.own { width:100%; border-collapse:collapse; font:12px ui-monospace, Consolas, monospace; }
   table.own td { padding:2px 4px; border-bottom:1px solid var(--line); }
   table.own td:first-child { color:var(--muted); width:42%; }
@@ -241,16 +248,19 @@
     <section>
       <h2>Hand steering</h2>
       <div id="helmScale"></div>
-      <div class="btns" style="justify-content:space-between"><span class="small">PORT (−)</span><span>Rudder order <b id="helmV">0°</b> &nbsp; rudder now <b id="helmNow">0°</b></span><span class="small">STARBOARD (+)</span></div>
+      <div id="rudderInd" title="Rudder angle indicator: where the rudder is now (bar) and the order (line)"><i id="rudderBar"></i><u id="rudderOrd"></u></div>
+      <div class="btns" style="justify-content:space-between"><span class="small">PORT (−)</span><span>Order <b id="helmV">0°</b> &nbsp; rudder now <b id="helmNow">0°</b> &nbsp; <span class="small" id="helmGear"></span></span><span class="small">STARBOARD (+)</span></div>
       <input type="range" id="helm" min="-35" max="35" step="1" value="0" hidden>
       <p class="hint">Press HAND STEERING in the Own ship box first. Then press an angle: minus is port, plus is starboard. The − and + keys at the ends change the order by 1°. The rudder takes time to move to the order.</p>
     </section>
     <section>
-      <h2>Display mode</h2>
-      <div class="btns" id="modeKeys"><button data-m="day">DAY</button><button data-m="night">NIGHT</button></div>
-      <p class="hint">Day: dark-blue picture, yellow echoes, white graphics. Night: black picture with everything dimmed, so the display does not spoil night vision on the bridge.</p>
+      <h2>Settings</h2>
+      <div class="btns setrow" id="modeKeys"><span class="small">Display</span><button data-m="day">DAY</button><button data-m="night">NIGHT</button></div>
+      <div class="btns setrow" id="teleKeys"><span class="small">Steering gear</span><button data-u="1" class="on" title="The primary unit: always running">TELEMOTOR 1</button><button data-u="2" title="Start or stop the second unit">TELEMOTOR 2</button><span class="small" id="teleInfo"></span></div>
+      <div class="btns setrow"><span class="small">Ship</span><button id="osToggle">OWN SHIP DATA</button></div>
+      <p class="hint">Day: dark-blue picture, yellow echoes, white graphics. Night: black picture with everything dimmed, so the display does not spoil night vision on the bridge. Telemotor 1 is the primary steering gear unit and always runs: the rudder then takes 28 seconds from hard over to hard over. With telemotor 2 running as well it takes 18 seconds. Every new scenario starts on telemotor 1 only.</p>
     </section>
-    <section>
+    <section id="osSection" class="off">
       <h2>Own ship data</h2>
       <table class="own"><tbody>
         <tr><td colspan="2" class="small">FIXED DATA</td></tr>
