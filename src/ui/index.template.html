@@ -476,6 +476,8 @@
         <div class="check"><input type="checkbox" id="rain"><label for="rain">Rain squall near own ship</label></div>
         <div class="row"><label for="rainInt">Rain intensity</label><input type="range" id="rainInt" min="10" max="100" value="80"><span class="val" id="rainIntV">80</span></div>
         <div class="check"><input type="checkbox" id="duct"><label for="duct">Abnormal propagation (ducting)</label></div>
+        <div class="row two"><label for="refr">Refraction</label><select id="refr"><option value="standard">Standard atmosphere</option><option value="sub">Sub-refraction (shorter ranges)</option><option value="super">Super-refraction (longer ranges)</option></select></div>
+        <p class="hint">Refraction changes how far the radar sees over the horizon: in sub-refraction (cold air over a warmer sea, bad weather) targets are detected at about 80% of the usual range; in super-refraction (warm dry air over a cooler sea, settled weather) at up to about 140%. Ducting carries the beam much further and brings second-trace echoes.</p>
         <div class="check"><input type="checkbox" id="interf"><label for="interf">Interference from another ship's radar</label></div>
         <div class="row two"><label for="windFrom">Wind from (°)</label><input type="number" id="windFrom" min="0" max="359" value="0"></div>
         <div class="row two"><label for="windSpd">Wind speed (kn)</label><input type="number" id="windSpd" min="0" max="70" step="1" value="0"></div>
@@ -531,6 +533,8 @@
         <div class="row two"><label for="arpaVec">Vectors</label><select id="arpaVec"><option value="relative">Relative</option><option value="true">True</option></select></div>
         <div class="row two"><label for="arpaVecT">Vector time (1-60 min)</label><input type="number" id="arpaVecT" min="1" max="60" step="1" value="6"></div>
         <div class="row two"><label for="arpaGraphics">Danger graphics</label><select id="arpaGraphics"><option value="off">Off</option><option value="ppc">PPC (collision points)</option><option value="pad">PAD (danger areas)</option></select></div>
+        <div class="check"><input type="checkbox" id="arpaVecSup"><label for="arpaVecSup">Vectors of dangerous targets only (safe limit vector suppression)</label></div>
+        <p class="hint">With this on, a target that does not violate the CPA and TCPA limits is tracked but shows no vector. Its vector comes back, with the alarm, when it violates the limits. Switch it off before planning a manoeuvre.</p>
         <div class="row two"><label for="arpaStab">Stabilisation</label><select id="arpaStab"><option value="sea">Sea (through the water)</option><option value="ground">Ground (fixed reference)</option></select></div>
         <div class="row two"><label for="pastMode">Past positions</label><select id="pastMode"><option value="off">Off</option><option value="relative">Relative</option><option value="true">True</option></select></div>
         <div class="grid2">
@@ -548,6 +552,9 @@
           <div><label for="arpaTcpaLim">TCPA limit (min)</label><input type="number" id="arpaTcpaLim" min="1" max="60" step="1" value="12"></div>
         </div>
         <div class="btns"><button id="arpaAckNext">Acknowledge next</button><button id="arpaSilence">Silence sound 30 s</button></div>
+        <div class="btns"><span class="small">Anchor watch</span><input type="number" id="anchorLim" min="0.02" max="1" step="0.01" value="0.1" style="width:70px" title="Distance the marked target may move before the warning, NM"><span class="small">NM</span><button id="anchorSet">On, selected target</button><button id="anchorOff">Off</button></div>
+        <p class="small" id="anchorInfo"></p>
+        <p class="hint">Anchor watch: at anchor, select a tracked target that you know is stationary (a small isolated mark) and press "On, selected target". A warning is given when it has moved more than the distance set from where it was: own ship, or the target, is dragging.</p>
         <p class="hint">An ALARM (a dangerous target) sounds until it is acknowledged, flashes until then, and stays shown until the danger has gone. A WARNING gives one short signal, flashes until acknowledged, and is announced again every 5 minutes if it is left. Alerts are acknowledged one at a time: "Acknowledge next" (and the ALARM ACK key) takes alarms first, then the oldest warning. "Silence" stops the sound for 30 seconds without acknowledging anything.</p>
         <ul class="alarms" id="arpaAlarms"></ul>
       </section>
@@ -623,6 +630,7 @@
           <div><label for="ansTrueS">True speed (kn)</label><input type="number" id="ansTrueS" step="0.1"></div>
           <div><label for="ansCpa">CPA (NM)</label><input type="number" id="ansCpa" step="0.01"></div>
           <div><label for="ansTcpa">TCPA from last obs (min)</label><input type="number" id="ansTcpa" step="0.1"></div>
+          <div><label for="ansAsp">Aspect at last obs (0 to 180°)</label><div style="display:flex;gap:4px"><select id="ansAspSide" style="width:auto" title="Red: own ship is on the target's port side. Green: on its starboard side."><option value="red">Red</option><option value="green">Green</option></select><input type="number" id="ansAsp" min="0" max="180" step="1"></div></div>
           <div><label for="ansRisk">Risk of collision?</label><select id="ansRisk"><option value="no">No</option><option value="yes">Yes</option></select></div>
           <div><label for="ansSit">Situation</label><select id="ansSit"><option value="no-risk">No risk</option><option value="head-on">Head-on</option><option value="crossing-give-way">Crossing, I give way</option><option value="crossing-stand-on">Crossing, I stand on</option><option value="overtaking">I am overtaking</option><option value="overtaken">I am being overtaken</option></select></div>
         </div>

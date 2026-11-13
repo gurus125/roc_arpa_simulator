@@ -1,5 +1,6 @@
 import { Vec2, length, normalizeDeg, sub } from "../core/vec";
 import { rangeBearing } from "../core/nav";
+import { formatAspect } from "../core/plot";
 import {
   EXERCISES, ExerciseKind, Message, PlotReport, PlotAnswerInput, RocSession, SituationAnswer, computeFix,
   evaluateClearing, evaluatePilotage, evaluatePlot, evaluateSetDrift, evaluateTraffic, exerciseById, FixResult, ROC_PLACEHOLDERS,
@@ -143,13 +144,14 @@ export function initRocUi(api: RocUiApi): RocUi {
     return `<table class="res"><thead><tr><th></th><th>You</th><th>Your plot</th><th>Truth</th></tr></thead><tbody>
       ${row("Relative course °", "relativeCourse", 1)}${row("Relative speed kn", "relativeSpeed", 1)}
       ${row("True course °", "trueCourse", 1)}${row("True speed kn", "trueSpeed", 1)}
-      ${row("CPA NM", "cpa", 2)}${row("TCPA min", "tcpaMinutes", 1)}</tbody></table>
+      ${row("CPA NM", "cpa", 2)}${row("TCPA min", "tcpaMinutes", 1)}
+      <tr><td>Aspect</td><td>${st.aspect === undefined ? "not given" : formatAspect(st.aspect)}</td><td>${formatAspect(rep.fromPlotAspect)} ${st.aspect === undefined ? "" : mark(rep.aspectVsPlotOk)}</td><td>${formatAspect(rep.truthAspect)} ${st.aspect === undefined ? "" : mark(rep.aspectVsTruthOk)}</td></tr></tbody></table>
       <p>Risk of collision: you said <b>${st.risk ? "yes" : "no"}</b>, truth is <b>${rep.truthRisk ? "yes" : "no"}</b> ${mark(rep.riskOk)}<br>
       Situation: you said <b>${SIT_LABEL[st.risk ? st.situation : "no-risk"]}</b>, truth is <b>${SIT_LABEL[rep.truthSituation!]}</b> ${mark(rep.situationOk)}</p>
       <p class="${consistent ? "ok" : "no"}">${consistent ? "Your answers agree with your own plot: the working is right." : "Your answers do not agree with your own plot: check the working."}</p>
       <p class="${accurate ? "ok" : "wn"}">${accurate ? "Your plot matches the true values: good observations." : "Your plot differs from the true values: check how you read the bearings and ranges."}</p>
       ${msgList(rep.messages)}
-      <p class="small">Tolerances are placeholders: course ±${ROC_PLACEHOLDERS.plotTolerances.courseDeg}°, speed ±${ROC_PLACEHOLDERS.plotTolerances.speedKn} kn, CPA ±${ROC_PLACEHOLDERS.plotTolerances.cpaNm} NM, TCPA ±${ROC_PLACEHOLDERS.plotTolerances.tcpaMinutes} min. "Vector triangle" shows the construction.</p>`;
+      <p class="small">Tolerances are placeholders: course ±${ROC_PLACEHOLDERS.plotTolerances.courseDeg}°, speed ±${ROC_PLACEHOLDERS.plotTolerances.speedKn} kn, CPA ±${ROC_PLACEHOLDERS.plotTolerances.cpaNm} NM, TCPA ±${ROC_PLACEHOLDERS.plotTolerances.tcpaMinutes} min, aspect ±${ROC_PLACEHOLDERS.aspectToleranceDeg}°. "Vector triangle" shows the construction.</p>`;
   }
 
   function status(app: AppState): void {
@@ -221,6 +223,8 @@ export function initRocUi(api: RocUiApi): RocUi {
       cpa: Number(val("ansCpa")), tcpaMinutes: Number(val("ansTcpa")),
       risk, situation: val("ansSit") as SituationAnswer,
     };
+    // Aspect: Red (own ship on the target's port side) is negative, Green positive.
+    if (val("ansAsp").trim() !== "") st.aspect = Math.min(180, Math.max(0, Number(val("ansAsp")))) * (val("ansAspSide") === "green" ? 1 : -1);
     const rep = evaluatePlot(s.observations, st, s.ex.safePassingNm);
     lastPlot = rep;
     lastStudent = st;
@@ -364,7 +368,7 @@ export function initRocUi(api: RocUiApi): RocUi {
       const clr = $<HTMLSelectElement>("clrObj");
       clr.innerHTML = "";
       for (const c of s.charted) clr.add(new Option(c.name, String(c.id)));
-      for (const id of ["ansRelC", "ansRelS", "ansTrueC", "ansTrueS", "ansCpa", "ansTcpa", "ansSet", "ansDrift"]) (document.getElementById(id) as HTMLInputElement).value = "";
+      for (const id of ["ansRelC", "ansRelS", "ansTrueC", "ansTrueS", "ansCpa", "ansTcpa", "ansAsp", "ansSet", "ansDrift"]) (document.getElementById(id) as HTMLInputElement).value = "";
     }
     refreshTable(app);
     status(app);

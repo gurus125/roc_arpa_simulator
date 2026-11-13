@@ -39,7 +39,8 @@ display" and "Hours per pair" are the academy's limits to set; nothing is enforc
 ## 3. Changing the environment during an exercise
 
 WEATHER key: sea state, rain squall and its intensity, abnormal propagation (ducting, which brings
-second-trace echoes), interference from another radar, wind direction and speed, current set and
+second-trace echoes), refraction (standard, sub-refraction with detection ranges of about 80%, or
+super-refraction with about 140%), interference from another radar, wind direction and speed, current set and
 drift, and a tidal stream (maximum rate, direction of the flood, hours after slack at the start).
 Changes act at once.
 
@@ -204,5 +205,8 @@ tried on the academy's PCs; try it before relying on it.
   documents go. IEC 62288 and IEC 62388, which say more, have not been read. Not done: the AIS turn
   indicator, AIS true-scale outlines, and a 24-hour alert history.
 - The ARPA tracks 20 targets. It cannot acquire a false echo; a real ARPA can.
+- The simulator was compared with the textbook "Radar and ARPA Manual" (Bole and Dineley, 1990):
+  see `BOOK-CHECK-RADAR-ARPA-MANUAL.md`. The largest gap found and not yet closed is a marked
+  exercise on switching on and setting up the radar.
 - A target on a programmed track allows for current and leeway and stays on the line; a plain
   target (no catalogue type) is not moved by the current at all.

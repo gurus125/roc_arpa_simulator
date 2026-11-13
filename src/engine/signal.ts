@@ -1,5 +1,5 @@
 import { Vec2, angleDiffDeg, length, normalizeDeg, sub } from "../core/vec";
-import { RadarControls, RadarSet, ShadowSector, TargetKind, World } from "./types";
+import { RadarControls, RadarSet, Refraction, ShadowSector, TargetKind, World } from "./types";
 import { BAND_DATA, pulseEnergyFactor, pulseFor, sBandFactor } from "./band";
 import { beamTiltDeg, verticalPatternFactor } from "../core/seaway";
 
@@ -56,9 +56,35 @@ export function ftcRainFactor(ftc: number): number {
   return 1 - 0.92 * (ftc / 100);
 }
 
-/** Sea clutter level at range (before receiver sensitivity and STC). */
-export function seaClutter(rangeNm: number, seaState: number): number {
-  return (seaState / 9) * 4 * Math.exp(-rangeNm / 1.2);
+/**
+ * How much further sea clutter reaches straight to windward than abeam of the wind, and how much
+ * less straight to leeward, as a fraction. PLACEHOLDER: the book gives the shape of the pattern
+ * (Bole and Dineley 3.6.1.3 and Figure 3.38: the upwind wave fronts are steeper, so "the radial
+ * extent of sea clutter echoes will be found to be greater to windward than it is to leeward"),
+ * not a figure.
+ */
+export const CLUTTER_WINDWARD = 0.3;
+
+/**
+ * Sea clutter level at range (before receiver sensitivity and STC). `windward` is the cosine of
+ * the angle between the direction looked along and the direction the sea comes from: 1 looking
+ * straight into the sea, 0 abeam of it, -1 looking down-sea.
+ */
+export function seaClutter(rangeNm: number, seaState: number, windward = 0): number {
+  return (seaState / 9) * 4 * Math.exp(-rangeNm / (1.2 * (1 + CLUTTER_WINDWARD * windward)));
+}
+
+/** Direction the sea comes from when no wind is set, degrees true (the same as world.ts uses for the ship's motion). */
+const SEA_FROM_DEFAULT_DEG = 270;
+
+/**
+ * Sea clutter with the pulse in use compared with the pulse the range scale would choose. The
+ * patch of sea that answers at one moment is as deep as the pulse is long, so a shorter pulse
+ * returns less clutter and a longer one more (Bole and Dineley 3.6.1.6: a long pulse improves the
+ * response of sea clutter as of any target; a shorter pulse is a way to combat masking).
+ */
+export function clutterPulseFactor(rangeScaleNm: number, pulse?: RadarControls["pulse"]): number {
+  return pulseFor(rangeScaleNm, pulse).microseconds / pulseFor(rangeScaleNm).microseconds;
 }
 
 /** Rain intensity (0 to 1) at a world position. */
@@ -70,9 +96,23 @@ export function rainIntensityAt(w: World, p: Vec2): number {
   return m;
 }
 
-export function radarHorizonNm(antennaHeightM: number, targetHeightM: number, ducting: boolean): number {
-  const h = 2.2 * (Math.sqrt(antennaHeightM) + Math.sqrt(targetHeightM));
-  return ducting ? h * 2 : h;
+/**
+ * Detection range compared with the standard atmosphere. Bole and Dineley, Radar and ARPA Manual:
+ * in sub-refraction "something of the order of 80%" of the standard range (3.8.2.1); in
+ * super-refraction "increases of some 40% are not uncommon" (3.8.3.1). Both depend on how severe
+ * the conditions are, so these are typical figures, not fixed ones.
+ */
+export const REFRACTION_FACTOR: Record<Refraction, number> = { standard: 1, sub: 0.8, super: 1.4 };
+
+/**
+ * Theoretical detection range from the heights of the antenna and the target, NM:
+ * 2.21 (sqrt(h) + sqrt(H)) with the heights in metres, for the standard atmosphere (Bole and
+ * Dineley 3.8.1). Ducting carries the energy round the Earth's curve; its factor of 2 here is a
+ * placeholder (the book says only "considerably extending the detection ranges").
+ */
+export function radarHorizonNm(antennaHeightM: number, targetHeightM: number, ducting: boolean, refraction: Refraction = "standard"): number {
+  const h = 2.21 * (Math.sqrt(antennaHeightM) + Math.sqrt(targetHeightM));
+  return ducting ? h * 2 : h * REFRACTION_FACTOR[refraction];
 }
 
 /** Closest range at which an echo can be shown. Shorter pulse on the short range scales. */
@@ -123,7 +163,7 @@ export function seawayFactor(w: World, relBearing: number): number {
 /** Effective echo level after the receiver and the operator's controls. Compare with THRESHOLD. */
 export function effectiveSignal(w: World, s: SignalInput, c: RadarControls = w.radar.controls): number {
   if (s.rangeNm < minRangeNm(c.rangeNm, c.pulse)) return 0;
-  if (s.rangeNm > radarHorizonNm(w.own.antennaHeight, s.height, w.env.ducting)) return 0;
+  if (s.rangeNm > radarHorizonNm(w.own.antennaHeight, s.height, w.env.ducting, w.env.refraction ?? "standard")) return 0;
   const sens = sensitivity(c, w.radar.tuningOptimum);
   const rain = rainIntensityAt(w, s.pos);
   let e = echoStrength(s.rcs, s.rangeNm) * sens;
@@ -150,7 +190,10 @@ export function detectionProbability(effective: number): number {
  */
 export function seaClutterProbability(w: World, rangeNm: number, relBearing: number, c: RadarControls = w.radar.controls): number {
   const sens = sensitivity(c, w.radar.tuningOptimum);
-  const level = seaClutter(rangeNm, w.env.seaState) * (w.radar.band === "S" ? 0.6 : 1) * sens * stcAttenuation(rangeNm, c.stc) * shadowFactor(w.radar, normalizeDeg(relBearing));
+  const wind = w.env.wind;
+  const seaFrom = wind && wind.speedKn > 0 ? wind.from : SEA_FROM_DEFAULT_DEG;
+  const windward = Math.cos((angleDiffDeg(w.own.heading + relBearing, seaFrom) * Math.PI) / 180);
+  const level = seaClutter(rangeNm, w.env.seaState, windward) * clutterPulseFactor(c.rangeNm, c.pulse) * (w.radar.band === "S" ? 0.6 : 1) * sens * stcAttenuation(rangeNm, c.stc) * shadowFactor(w.radar, normalizeDeg(relBearing));
   return clamp((level - 0.8 * THRESHOLD) / THRESHOLD, 0, 1) * (c.echoAverage ? 0.3 : 1);
 }
 

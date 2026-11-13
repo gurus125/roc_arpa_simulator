@@ -112,6 +112,23 @@ describe("manual plotting exercise", () => {
     expect(r.situationOk).toBe(true);
     expect(r.messages.some((m) => m.level === "error")).toBe(false);
   });
+  it("gives the target's aspect and marks the aspect reported", () => {
+    // Worked by hand. After 12 minutes own ship is at (0, 2.4) and the target at (2.243, 4.243): it bears
+    // atan2(2.243, 1.843) = 050.6. From the target own ship bears 230.6; the target steers 270, so own ship is
+    // 39.4 degrees on its port bow: Red 39.
+    const { ex, session } = plot();
+    const none = evaluatePlot(session.observations, rightAnswer, ex.safePassingNm);
+    expect(none.fromPlotAspect).toBeCloseTo(-39.4, 0);
+    expect(none.truthAspect).toBeCloseTo(-39.4, 0);
+    expect(none.aspectVsPlotOk).toBeUndefined();
+    const red = evaluatePlot(session.observations, { ...rightAnswer, aspect: -39 }, ex.safePassingNm);
+    expect(red.aspectVsPlotOk).toBe(true);
+    expect(red.aspectVsTruthOk).toBe(true);
+    const green = evaluatePlot(session.observations, { ...rightAnswer, aspect: 39 }, ex.safePassingNm);
+    expect(green.aspectVsPlotOk).toBe(false);
+    const far = evaluatePlot(session.observations, { ...rightAnswer, aspect: -39 - ROC_PLACEHOLDERS.aspectToleranceDeg - 2 }, ex.safePassingNm);
+    expect(far.aspectVsTruthOk).toBe(false);
+  });
   it("marks wrong answers and wrong COLREG situation", () => {
     const { ex, session } = plot();
     const r = evaluatePlot(session.observations, { ...rightAnswer, cpa: 2.0, tcpaMinutes: 30, situation: "crossing-stand-on" }, ex.safePassingNm);

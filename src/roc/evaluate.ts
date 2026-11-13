@@ -1,6 +1,6 @@
 import { CourseSpeed, Vec2, angleDiffDeg, bearingOf, courseSpeedOf, fromPolar, length, sub, velocityOf, minutesToHours } from "../core/vec";
 import { computeCpa } from "../core/cpa";
-import { analysePlot, PlotAnalysis } from "../core/plot";
+import { ASPECT_MIN_SPEED_KN, analysePlot, aspectOf, PlotAnalysis } from "../core/plot";
 import { Answer, AnswerCheck, PLACEHOLDER_TOLERANCES, Tolerances, checkAnswer } from "../core/assess";
 import { combineFixes, fixFromRangeBearing, angleOfCut, setDriftFromFixes } from "../core/nav";
 import { SetDrift } from "../core/current";
@@ -14,6 +14,8 @@ import { ExerciseDef } from "./exercises";
  */
 export const ROC_PLACEHOLDERS = {
   plotTolerances: PLACEHOLDER_TOLERANCES,
+  /** Largest acceptable error of the reported aspect, degrees. */
+  aspectToleranceDeg: 5,
   /** Largest acceptable error of a radar fix, NM. */
   fixErrorNm: 0.15,
   /** Position lines crossing at less than this angle give a poor fix, degrees. */
@@ -41,6 +43,8 @@ export type SituationAnswer = "no-risk" | "head-on" | "crossing-give-way" | "cro
 export interface PlotAnswerInput extends Answer {
   risk: boolean;
   situation: SituationAnswer;
+  /** Aspect reported by the student: positive Green, negative Red, degrees. Left out when not given. */
+  aspect?: number;
 }
 
 export function situationOf(hint: ColregHint): SituationAnswer {
@@ -72,6 +76,11 @@ export interface PlotReport {
   studentVsTruth?: Comparison;
   riskOk?: boolean;
   situationOk?: boolean;
+  /** Aspect from the student's own plot and from the true values (null: the target is stopped). */
+  fromPlotAspect?: number | null;
+  truthAspect?: number | null;
+  aspectVsPlotOk?: boolean;
+  aspectVsTruthOk?: boolean;
 }
 
 const toAnswer = (a: PlotAnalysis): Answer => ({
@@ -156,6 +165,7 @@ export function evaluatePlot(
   const t = truthAnswer(last.truth);
   const truthRisk = t.closing && t.answer.cpa < safePassingNm;
   const truthSituation: SituationAnswer = truthRisk ? situationOf(t.hint) : "no-risk";
+  const truthAspect = last.truth.targetSpeed < ASPECT_MIN_SPEED_KN ? null : aspectOf(bearingOf(sub(last.truth.targetPos!, last.truth.ownPos)), last.truth.targetCourse);
   const report: PlotReport = {
     valid: true,
     messages,
@@ -165,12 +175,19 @@ export function evaluatePlot(
     truthRisk,
     truthSituation,
     plotVsTruth: checkAnswer(fromPlot, t.answer, tol),
+    fromPlotAspect: analysis.aspect,
+    truthAspect,
   };
   if (student) {
     report.studentVsPlot = checkAnswer(student, fromPlot, tol);
     report.studentVsTruth = checkAnswer(student, t.answer, tol);
     report.riskOk = student.risk === truthRisk;
     report.situationOk = student.risk === truthRisk && (!truthRisk || student.situation === truthSituation);
+    if (student.aspect !== undefined) {
+      const near = (ref: number | null): boolean => ref !== null && Math.abs(angleDiffDeg(student.aspect!, ref)) <= ROC_PLACEHOLDERS.aspectToleranceDeg;
+      report.aspectVsPlotOk = near(analysis.aspect);
+      report.aspectVsTruthOk = near(truthAspect);
+    }
   }
   return report;
 }

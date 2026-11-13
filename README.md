@@ -49,6 +49,10 @@ as deep as the pulse plus the target, so range and bearing discrimination, sidew
 aspect, and land depth appear on the picture. Beam = length / 7, aspect curve and land depth are placeholders.
 Sound signals (`src/core/signals.ts`): COLREG rule 34 and 35 whistle signals, automatic fog signal.
 Learner's manual: `docs/USER-MANUAL.md`. Instructor's operation manual: `docs/INSTRUCTOR-MANUAL.md`.
+Checked against the textbook "Radar and ARPA Manual" (Bole and Dineley, 1990): `docs/BOOK-CHECK-RADAR-ARPA-MANUAL.md`.
+From that check: the target's aspect in the plot report (`aspectOf` in `src/core/plot.ts`), sub- and super-refraction
+and the 2.21 radar horizon (`src/engine/signal.ts`), sea clutter stronger to windward and with a longer pulse, and the
+ARPA's anchor watch, safe limit vector suppression and trial alarm (`src/arpa/tracker.ts`). Tests: `tests/bole.test.ts`.
 Target tracks (`src/core/route.ts`, `src/engine/world.ts`): the instructor can programme a track of up to 20
 waypoints for any target; 100 targets run together (scenario "Traffic: 100 ships on programmed tracks").
 Replay runs from 0.25x (slow motion) to 60x and shows the trainee's radar picture, recorded every 15 seconds
@@ -79,7 +83,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 427 tests
+    npm test            # 441 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

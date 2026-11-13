@@ -241,6 +241,7 @@ function applyControls(): void {
   c.brilliance = num("brill");
   w.env.seaState = num("sea");
   w.env.ducting = chk("duct");
+  w.env.refraction = sel("refr") as NonNullable<typeof w.env.refraction>;
   w.env.interference = chk("interf");
   c.pulse = sel("pulse") as NonNullable<typeof c.pulse>;
   c.echoStretch = chk("echoStretch");
@@ -386,6 +387,7 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
   setCheck("rain", !!rain0);
   if (rain0) setSlider("rainInt", Math.round(rain0.intensity * 100));
   setCheck("duct", sc.env.ducting ?? false);
+  setSelect("refr", sc.env.refraction ?? "standard");
   setCheck("interf", sc.env.interference ?? false);
   setSelect("pulse", "auto");
   for (const id of ["echoStretch", "echoAvg", "irOn", "pmOn"]) setCheck(id, false);
@@ -770,7 +772,7 @@ function setup(): void {
   });
 
   const ids = [
-    "shipType", "helm", "windFrom", "windSpd", "autoSea", "autoRain", "autoTune", "gain", "tuning", "stc", "ftc", "brill", "sea", "duct", "interf", "pulse", "echoStretch", "echoAvg", "irOn", "pmOn", "curSet", "curDrift", "tideRate", "tideSet", "tideHrs", "ordCourse", "ordSpeed",
+    "shipType", "helm", "windFrom", "windSpd", "autoSea", "autoRain", "autoTune", "gain", "tuning", "stc", "ftc", "brill", "sea", "duct", "refr", "interf", "pulse", "echoStretch", "echoAvg", "irOn", "pmOn", "curSet", "curDrift", "tideRate", "tideSet", "tideHrs", "ordCourse", "ordSpeed",
     "eblOn", "eblBrg", "vrmOn", "vrmRng", "trails", "trailMin", "shadow", "names", "rainInt",
   ];
   for (const id of ids) {
@@ -1058,6 +1060,8 @@ window.addEventListener("beforeunload", () => store.save());
 // Hook for the screen test (scripts/screen-test.mjs): where the first target's echo is on the picture, CSS pixels.
 (window as unknown as { __simTest: unknown }).__simTest = {
   targetCount: (): number => app.world.targets.length,
+  refraction: (): string => app.world.env.refraction ?? "standard",
+  vectorSuppress: (): boolean => app.arpa.settings.vectorSuppress,
   firstTargetScreen: (): { x: number; y: number } | null => {
     const t = app.world.targets[0];
     if (!t) return null;

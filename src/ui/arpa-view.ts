@@ -308,7 +308,9 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
       // Vector
       // Vectors are not drawn for a stationary target (true mode) or one on the same course and speed as own ship (relative mode).
       const hideVec = s.vectorMode === "true" ? length(t.est.trueVel) < a.cfg.stationaryKn : length(t.est.relVel) < a.cfg.stationaryKn;
-      if (hideVec && !trialOn) {
+      // Safe limit vector suppression: no vector for a target inside the safe limits (it is still tracked).
+      const suppressed = s.vectorSuppress && !danger && !trialOn;
+      if ((hideVec && !trialOn) || suppressed) {
         // no vector
       } else if (trialOn && s.vectorMode === "relative") {
         // Relative vector with a trial: unchanged until the delay has run, then bent to the trial relative motion.
@@ -435,6 +437,8 @@ export function drawArpaHud(ctx: Ctx, app: AppState, size: number): void {
     line(a.stabLabel());
     line(`CPA ${s.cpaLimitNm} NM  TCPA ${s.tcpaLimitMin} MIN`);
     if (s.past.mode !== "off") line(`PAST ${s.past.mode === "true" ? "TRUE" : "REL"} ${s.past.points} x ${s.past.intervalMin} MIN`);
+    if (s.vectorSuppress) line("SAFE VECTORS OFF");
+    if (s.anchorWatch.trackId !== null) line(`ANCHOR WATCH ${s.anchorWatch.trackId}`);
     if (!s.showData) line("ARPA DATA OFF");
   }
   if (trialOn) {

@@ -74,7 +74,7 @@ export interface SelfTestTarget {
   relVel: Vec2;
 }
 
-export type AlarmKind = "cpa" | "lost" | "new" | "guard" | "capacity" | "groundref" | "action" | "order" | "malfunction" | "course";
+export type AlarmKind = "cpa" | "lost" | "new" | "guard" | "capacity" | "groundref" | "action" | "order" | "malfunction" | "course" | "trial" | "anchor";
 
 export interface ArpaAlarm {
   key: string;
@@ -633,6 +633,7 @@ export class ArpaSystem {
     this.checkMalfunction(w);
     this.checkGroundRef(w);
     this.checkTrial(w);
+    this.checkAnchorWatch(w);
     const stab = this.effectiveStab();
     for (const t of this.tracks) {
       while (t.hits.length > this.cfg.fadingScans) t.hits.shift();
@@ -670,6 +671,7 @@ export class ArpaSystem {
    * alarm sounds once: the trial manoeuvre point has been reached (the real ship has not turned).
    */
   private checkTrial(w: World): void {
+    this.checkTrialAlarm(w);
     const tr = this.settings.trial;
     const sig = tr.on ? `${tr.course}|${tr.speed}|${tr.delayMinutes}` : "";
     if (sig !== this.trialSig) {
@@ -681,6 +683,70 @@ export class ArpaSystem {
     if (tr.on && tr.delayMinutes > 0 && !this.trialActionRaised && this.trialRemainingMin(w) <= 0) {
       this.trialActionRaised = true;
       this.raise(w, "action", "action", "TIME FOR ACTION: the trial manoeuvre delay has elapsed. Trial is still on.");
+    }
+  }
+
+  /**
+   * Trial alarm (Bole and Dineley 5.2.8): like the CPA/TCPA alarm, but for the manoeuvre being
+   * tried. While the trial is on, a warning names each target that would pass inside the limits
+   * if the trial manoeuvre were made. It goes when the trial is changed to one that clears the
+   * target, or is switched off.
+   */
+  private checkTrialAlarm(w: World): void {
+    const rows = this.settings.trial.on ? this.trial(w).filter((r) => r.dangerous) : [];
+    const keys = new Set(rows.map((r) => `trial-${r.trackId}`));
+    this.alarms = this.alarms.filter((a) => a.kind !== "trial" || keys.has(a.key));
+    for (const r of rows) {
+      this.raise(w, `trial-${r.trackId}`, "trial", `TRIAL: target ${r.trackId} would pass inside the limits (CPA ${r.result.cpa.toFixed(2)} NM in ${r.result.tcpaMinutes.toFixed(1)} min).`, r.trackId);
+    }
+  }
+
+  /** Position of the anchor watch target when it was marked, relative to own ship, gyro frame, NM. */
+  private anchorMark: Vec2 | null = null;
+
+  /**
+   * Start the anchor watch on a tracked target that the observer knows to be stationary (a small
+   * isolated mark, for example). Returns false, with a message, when the target has no data yet.
+   */
+  setAnchorWatch(w: World, trackId: number, limitNm: number): boolean {
+    const t = this.tracks.find((x) => x.id === trackId);
+    if (!t || !t.est || t.state === "lost" || t.quality === "acquiring") {
+      this.say(w, "Anchor watch: select a target that is being tracked first.");
+      return false;
+    }
+    this.settings.anchorWatch = { trackId, limitNm: Math.max(0.01, limitNm) };
+    this.anchorMark = { ...t.est.rel };
+    this.alarms = this.alarms.filter((a) => a.kind !== "anchor");
+    this.event(w, `Anchor watch set on target ${trackId}: warning at ${this.settings.anchorWatch.limitNm.toFixed(2)} NM.`, false);
+    return true;
+  }
+
+  clearAnchorWatch(w: World): void {
+    if (this.settings.anchorWatch.trackId !== null) this.event(w, "Anchor watch off.", false);
+    this.settings.anchorWatch = { ...this.settings.anchorWatch, trackId: null };
+    this.anchorMark = null;
+    this.alarms = this.alarms.filter((a) => a.kind !== "anchor");
+  }
+
+  /** How far the anchor watch target has moved from its marked position, NM, or null when the watch is off or the target has no data. */
+  anchorWatchMovedNm(): number | null {
+    const id = this.settings.anchorWatch.trackId;
+    const t = id === null ? undefined : this.tracks.find((x) => x.id === id);
+    if (!t || !t.est || !this.anchorMark) return null;
+    return length(sub(t.est.rel, this.anchorMark));
+  }
+
+  private checkAnchorWatch(w: World): void {
+    const aw = this.settings.anchorWatch;
+    if (aw.trackId === null) return;
+    const t = this.tracks.find((x) => x.id === aw.trackId);
+    if (!t || t.state === "lost") {
+      this.raise(w, "anchor", "anchor", `ANCHOR WATCH: target ${aw.trackId} is no longer tracked. The anchor watch is not working.`);
+      return;
+    }
+    const moved = this.anchorWatchMovedNm();
+    if (moved !== null && moved > aw.limitNm) {
+      this.raise(w, "anchor", "anchor", `ANCHOR WATCH: target ${aw.trackId} has moved ${moved.toFixed(2)} NM from its marked position. Own ship or the target may be dragging.`, aw.trackId);
     }
   }
 

@@ -19,7 +19,7 @@
 export type AlertPriority = "alarm" | "warning" | "caution";
 
 /** Kinds of ARPA and AIS alert in this simulator. */
-export type AlertKind = "cpa" | "lost" | "new" | "guard" | "capacity" | "groundref" | "action" | "order" | "malfunction" | "course" | "ais-cpa" | "ais-lost";
+export type AlertKind = "cpa" | "lost" | "new" | "guard" | "capacity" | "groundref" | "action" | "order" | "malfunction" | "course" | "trial" | "anchor" | "ais-cpa" | "ais-lost";
 
 export function alertPriority(kind: AlertKind): AlertPriority {
   return kind === "cpa" || kind === "ais-cpa" ? "alarm" : "warning";

@@ -79,6 +79,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     s.manualSpeedKn = Math.min(40, Math.max(0, num("arpaManSpd", 0)));
     $("arpaManSpd").closest<HTMLElement>(".row")!.style.display = s.logMode === "manual" ? "" : "none";
     s.graphics = $<HTMLSelectElement>("arpaGraphics").value as typeof s.graphics;
+    s.vectorSuppress = inp("arpaVecSup").checked;
     s.showData = inp("arpaShow").checked;
     s.brilliance = num("arpaBrill", 100);
     $("arpaBrillV").textContent = String(s.brilliance);
@@ -130,6 +131,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     const s = app.arpa.settings;
     // Keep the student's display choices; reset what belongs to the scenario.
     s.autoAcquire = inp("arpaAuto").checked;
+    inp("arpaVecSup").checked = s.vectorSuppress;
     inp("trialOn").checked = false;
     inp("trialCourse").value = String(Math.round(measuredHeading(app.world)));
     inp("trialSpeed").value = String(app.world.own.speedThroughWater);
@@ -158,7 +160,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
   };
 
   const ids = [
-    "arpaAuto", "arpaVec", "arpaVecT", "gyroFail", "logFail", "hmErr", "vrmErr", "perf", "arpaShow", "arpaBrill", "arpaLogMode", "arpaManSpd", "arpaGraphics", "pastMode", "pastPts", "pastInt", "arpaSound", "arpaCpaLim", "arpaTcpaLim", "trialOn", "trialCourse", "trialSpeed", "trialDelay",
+    "arpaAuto", "arpaVec", "arpaVecT", "gyroFail", "logFail", "hmErr", "vrmErr", "perf", "arpaShow", "arpaBrill", "arpaLogMode", "arpaManSpd", "arpaGraphics", "arpaVecSup", "pastMode", "pastPts", "pastInt", "arpaSound", "arpaCpaLim", "arpaTcpaLim", "trialOn", "trialCourse", "trialSpeed", "trialDelay",
     "gyroErr", "logErr", "arpaTruth", ...ZONES.flatMap((z) => ["on", "in", "out", "from", "to"].map((f) => `z_${z.key}_${f}`)),
   ];
   for (const id of ids) {
@@ -253,6 +255,15 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     acknowledge(api.getApp(), key);
     alarmSig = "";
   });
+  $("anchorSet").addEventListener("click", () => {
+    const app = api.getApp();
+    if (app.arpaSelected === null) app.arpa.message = { text: "Anchor watch: select a tracked target first.", time: app.world.time };
+    else app.arpa.setAnchorWatch(app.world, app.arpaSelected, num("anchorLim", 0.1));
+  });
+  $("anchorOff").addEventListener("click", () => {
+    const app = api.getApp();
+    app.arpa.clearAnchorWatch(app.world);
+  });
   $("arpaRows").addEventListener("pointerdown", (ev) => {
     const id = (ev.target as HTMLElement).closest("tr")?.dataset["id"];
     if (id) api.getApp().arpaSelected = Number(id);
@@ -296,6 +307,10 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
         ? `Ground stabilised on target ${a.groundRefId}${a.effectiveStab() === "ground" ? "" : " (reference poor: sea values shown)"}.`
         : "Sea stabilised (through the water).";
     $("arpaMsg").textContent = a.message && w.time - a.message.time < 20 ? a.message.text : "";
+    const aw = a.settings.anchorWatch;
+    const moved = a.anchorWatchMovedNm();
+    const awText = aw.trackId === null ? "Anchor watch is off." : `Anchor watch on target ${aw.trackId}: moved ${moved === null ? "---" : moved.toFixed(2)} NM, warning at ${aw.limitNm.toFixed(2)} NM.`;
+    if ($("anchorInfo").textContent !== awText) $("anchorInfo").textContent = awText;
 
     // AIS panel.
     const lim = { cpaNm: a.settings.cpaLimitNm, tcpaMin: a.settings.tcpaLimitMin };

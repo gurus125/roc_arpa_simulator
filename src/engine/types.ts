@@ -119,6 +119,11 @@ export interface Environment {
   seaState: number;
   /** Abnormal propagation: extends the detection horizon. */
   ducting: boolean;
+  /**
+   * Refraction of the radar beam when there is no duct: standard, sub-refraction (shorter
+   * detection ranges) or super-refraction (longer). Left out means standard.
+   */
+  refraction?: Refraction;
   rain: RainZone[];
   /**
    * Tidal stream, added to the steady current: it runs towards `floodSet` on the flood and the
@@ -229,6 +234,9 @@ export interface Sensors {
   /** Ramp rates: degrees per minute and knots per minute. Placeholder values. */
   rampPerMin: { gyroDeg: number; logKn: number };
 }
+
+/** Atmospheric refraction other than ducting (Bole and Dineley 3.8.1 to 3.8.3). */
+export type Refraction = "standard" | "sub" | "super";
 
 export interface World {
   /** Simulation time, seconds. */

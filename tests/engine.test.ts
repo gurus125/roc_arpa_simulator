@@ -198,8 +198,9 @@ describe("receiver controls", () => {
     expect(seaClutter(0.5, 0)).toBe(0);
   });
   it("radar horizon and ducting", () => {
-    expect(radarHorizonNm(18, 3, false)).toBeCloseTo(13.13, 1);
-    expect(radarHorizonNm(18, 3, true)).toBeCloseTo(26.26, 1);
+    // 2.21 x (sqrt 18 + sqrt 3) = 2.21 x 5.9747 = 13.204; ducting doubles it (placeholder factor).
+    expect(radarHorizonNm(18, 3, false)).toBeCloseTo(13.204, 2);
+    expect(radarHorizonNm(18, 3, true)).toBeCloseTo(26.408, 2);
     const w = lone("buoy", 0.5, 3, 0, 14);
     const s = { rcs: 0.5, height: 3, rangeNm: 14, relBearing: 0, pos: w.targets[0]!.pos };
     expect(effectiveSignal(w, s)).toBe(0);

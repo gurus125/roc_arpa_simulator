@@ -73,6 +73,8 @@ Each control is a bar: click or drag along it. The figure beside it is the setti
 
 - **GAIN**: receiver gain. Too low loses weak echoes; too high fills the picture with noise.
 - **SEA**: sea clutter control. It works close to the ship. Too much removes small targets nearby.
+  Sea clutter reaches further on the side the wind and sea come from (to windward) than on the
+  other side. A shorter pulse length (under **RADAR**) returns less clutter.
 - **RAIN**: rain clutter control. Too much weakens all echoes.
 - **TUNE**: tune for the highest METER reading.
 - **AUTO**: the set chooses the setting. Like a real automatic control it is a compromise.
@@ -121,6 +123,19 @@ announced again every 5 minutes if it is left. Alerts are acknowledged one at a 
 Other ARPA keys: **PAST POS** (past positions), **GUARD** (guard zones and exclusion areas),
 **TRIAL** (trial manoeuvre with delay), **TGT LIST** (all tracked targets), **AIS LIST**
 (AIS targets), **ARPA** (standby, self-test, speed input: log, bottom track, GNSS or manual).
+
+Three more ARPA aids:
+
+- **Trial alarm.** While the trial manoeuvre is on, a warning names each target that the manoeuvre
+  being tried would not clear by the CPA and TCPA limits. Change the trial until it goes.
+- **Vectors of dangerous targets only** (under PAST POS): a target that does not violate the limits
+  is still tracked but shows no vector, which makes a crowded picture easier to read. Its vector
+  comes back, with the alarm, when it violates the limits. Switch this off before planning a
+  manoeuvre: a "safe" target may not be safe after you alter.
+- **Anchor watch** (under CPA/ALARM): at anchor, select a tracked target that you know cannot move
+  (a small isolated mark), set a distance and press "On, selected target". A warning is given
+  when the mark has moved further than that from where it was, which means your ship (or the
+  target) is dragging.
 
 Remember what the ARPA cannot do: it needs time after acquisition and after a target alters;
 it can lose a weak target and can swap two close targets; with a wrong gyro or log input the
@@ -176,7 +191,9 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
 
 - **VHF/SIGNAL**: typed VHF messages to the instructor and other stations; whistle signals of the
   collision regulations, and an automatic fog signal.
-- **WEATHER**: sea state, rain, abnormal propagation, interference, wind, current and tide.
+- **WEATHER**: sea state, rain, abnormal propagation (ducting), refraction, interference, wind,
+  current and tide. Refraction changes how far the radar sees: in sub-refraction targets are
+  detected at about 80% of the usual range, in super-refraction at up to about 140%.
 - **SCENARIO**: free-practice scenarios (one has 100 ships at once; one is on the real coastline
   of the approaches to Mumbai); show target names (a study aid).
 - **SETTINGS**: day or night display; telemotor 2 (faster rudder); own ship data.
@@ -196,6 +213,13 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
 
 For the manual plotting exercises the ARPA is off: take ranges and bearings with EBL 1 and
 VRM 1 at regular times, plot them on a plotting sheet, and manoeuvre at 12 minutes.
+
+The ROC plotting exercise asks for the full report of the plot: relative course and speed, true
+course and speed, CPA, TCPA and the target's **aspect**. Aspect is the angle between the target's
+course and the line from the target to your ship, as seen from the target: **Red** when your ship
+is on its port side, **Green** when on its starboard side, from 0° (you are right ahead of it) to
+180° (right astern). A target steering 270° that bears 050° from you has you bearing 230° from
+it, 40° to the left of its course: Red 40°.
 
 ## 10. Limits of this simulator
 

@@ -118,6 +118,7 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
       current: sc.env.current ?? { set: 0, drift: 0 },
       seaState: sc.env.seaState ?? 3,
       ducting: sc.env.ducting ?? false,
+      refraction: sc.env.refraction ?? "standard",
       rain: sc.env.rain ? sc.env.rain.map((r) => ({ ...r })) : [],
       interference: sc.env.interference ?? false,
       ...(sc.env.tidal ? { tidal: { ...sc.env.tidal } } : {}),

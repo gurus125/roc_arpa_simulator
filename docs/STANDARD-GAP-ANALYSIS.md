@@ -13,6 +13,8 @@ Date: 11 Nov 2026. Training and study use only; nothing here is a claim of appro
   ARI is certified to), IEC 62388 (radar tests), IEC 62288 / SN.1/Circ.243 (symbols),
   MSC.302(87) (alert management), any maker's radar operator manual. Statements about these
   below come from general knowledge and must be checked against the documents themselves.
+  (The textbook "Radar and ARPA Manual", Bole and Dineley, 1990, was compared with the simulator
+  on 13 Nov 2026: see `BOOK-CHECK-RADAR-ARPA-MANUAL.md`.)
   (Read since then, see the later sections: the DG Shipping order, STCW B-I/12, DNV-ST-0033,
   SN.1/Circ.243/Rev.2 and MSC.302(87). Still not read: IEC 62388 and IEC 62288, which are sold,
   not free.)
@@ -159,7 +161,7 @@ Weak, in order of how much they matter for a standard simulator:
 | 2 | Own ship behaviour | BUILT: six ship types on a manoeuvring model with rudder and engine orders, turning circle, speed loss in a turn, stopping, wind and current. Three types are fitted to published turning figures; the other three are estimates | Ship models with rudder and engine orders, turning circle, speed loss in a turn, stopping distance, wind and current effect; several ship types |
 | 3 | Target behaviour | BUILT: 28 catalogue types with size and aspect-dependent echo, gradual turns and speed changes, programmed tracks. Figures are estimates | Many ship types with size, aspect-dependent echo, realistic manoeuvres |
 | 4 | Symbols and alerts | BUILT 12 Nov 2026 as far as the two IMO documents go: symbols follow SN.1/Circ.243/Rev.2; alerts follow MSC.302(87) (alarm and warning priorities, acknowledged one at a time, 30-second silence, an unacknowledged warning repeated after 5 minutes). IEC 62288 and IEC 62388 have not been read, and the priority given to each alert is the project's own judgement. Not done: AIS turn indicator, AIS true-scale outline, alert history list | Symbols to IEC 62288 / SN.1/Circ.243; alerts by priority (alarm, warning, caution) with standard acknowledgement |
-| 5 | Regression safety | 427 unit tests; 217 checks of the built page at three screen sizes (`npm run test:screen`); 15 checks of five linked displays (`npm run test:link`) | Every release checked on the real screen. The last layout change hid controls and no test caught it |
+| 5 | Regression safety | 441 unit tests; 222 checks of the built page at three screen sizes (`npm run test:screen`); 15 checks of five linked displays (`npm run test:link`) | Every release checked on the real screen. The last layout change hid controls and no test caught it |
 | 6 | Exercises and marking | 9 ARPA + 2 radar + ROC exercises, placeholder tolerances, no pass mark | The academy's exercise sheets and marking scheme |
 | 7 | Stations | Proved 12 Nov 2026 with an instructor and four student displays in separate browsers through the server on one machine (`npm run test:link`), including the server stopping and coming back. Not tried on separate PCs | Instructor + 4 student stations proven on the academy network |
 | 8 | Controls | Mouse and keyboard. Since 12 Nov 2026 every radar function has a key that can be changed, and a knob box that acts as a game controller is read (SETTINGS, Control panel). No real panel has been plugged in | Usually a radar keyboard/trackball panel (optional by class) |
@@ -274,8 +276,8 @@ Documents DNV asks for (Table 1-6, 1.8, 1.9, Appendix A)
 - Simulation objectives (STCW competence against exercises), operating capabilities including the
   limits and possible errors of real equipment, variety of conditions: partly, in COMPLIANCE-MATRIX.md
   and the manual.
-- Test programmes with acceptance criteria and their justification: not written. The 427 unit tests,
-  217 screen checks, 15 link checks and the exercise self-test are evidence, not a test programme in DNV's sense.
+- Test programmes with acceptance criteria and their justification: not written. The 441 unit tests,
+  222 screen checks, 15 link checks and the exercise self-test are evidence, not a test programme in DNV's sense.
 - Change-log: git history only.
 - Appendix A, for each own-ship model: ship particulars, speed data (telegraph table, tactical
   diameter, crash stop), engine, propeller, rudder and autopilot data, all "modelled, documented and

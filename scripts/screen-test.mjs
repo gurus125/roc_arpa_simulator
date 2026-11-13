@@ -280,6 +280,21 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.click("#pnReset");
     await p.keyboard.press("KeyA");
 
+    // Items added from the Radar and ARPA Manual: refraction, safe limit vector suppression, anchor watch, aspect.
+    await key("env");
+    await p.selectOption("#refr", "sub");
+    check(`${tag} refraction can be set to sub-refraction`, (await p.evaluate(() => window.__simTest.refraction())) === "sub");
+    await p.selectOption("#refr", "standard");
+    await key("past");
+    await p.check("#arpaVecSup");
+    check(`${tag} safe limit vector suppression can be switched on`, (await p.evaluate(() => window.__simTest.vectorSuppress())) === true);
+    await p.uncheck("#arpaVecSup");
+    await key("alarm");
+    await p.click("#anchorSet");
+    check(`${tag} anchor watch needs a selected target`, /off/i.test(await text("#anchorInfo")), await text("#anchorInfo"));
+    check(`${tag} anchor watch keys are shown`, (await p.locator("#anchorSet").isVisible()) && (await p.locator("#anchorOff").isVisible()) && (await p.locator("#anchorLim").isVisible()));
+    check(`${tag} the plot report asks for the aspect`, (await p.locator("#ansAsp").count()) === 1 && (await p.locator("#ansAspSide option").count()) === 2);
+
     // Alerts are acknowledged one at a time; sound can be silenced.
     check(`${tag} alert keys: acknowledge next and silence`, (await p.locator("#arpaAckNext").count()) === 1 && (await p.locator("#arpaSilence").count()) === 1);
 

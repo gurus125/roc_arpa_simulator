@@ -152,7 +152,22 @@ export interface ArpaSettings {
   brilliance: number;
   /** Past positions: mode, number of dots shown and the time between them, minutes. */
   past: { mode: "off" | "relative" | "true"; points: number; intervalMin: number };
+  /**
+   * Safe limit vector suppression (Bole and Dineley 5.2.7): the vectors of targets that do not
+   * violate the CPA and TCPA limits are not drawn. They are still tracked, and a vector comes back
+   * with the alarm as soon as its target violates the limits.
+   */
+  vectorSuppress: boolean;
+  /**
+   * Anchor watch (Bole and Dineley 5.2.3): a tracked target known to be stationary is marked; a
+   * warning is given when it has moved more than `limitNm` from the marked position, which means
+   * that own ship, or the target, is dragging. `trackId` null: off.
+   */
+  anchorWatch: { trackId: number | null; limitNm: number };
 }
+
+/** Anchor watch distance offered at first, NM (this simulator's choice: about one cable). */
+export const ANCHOR_WATCH_DEFAULT_NM = 0.1;
 
 /** Time between past positions the operator can choose, minutes (placeholder). */
 export const PAST_INTERVALS_MIN = [0.5, 1, 2, 3, 6] as const;
@@ -187,5 +202,7 @@ export function defaultArpaSettings(ownCourse: number, ownSpeed: number): ArpaSe
     showData: true,
     brilliance: 100,
     past: { mode: "off", points: 5, intervalMin: 1 },
+    vectorSuppress: false,
+    anchorWatch: { trackId: null, limitNm: ANCHOR_WATCH_DEFAULT_NM },
   };
 }
