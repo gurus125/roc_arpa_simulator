@@ -96,6 +96,8 @@ export interface AppState {
   arpa: ArpaSystem;
   /** Track selected for the data readout. */
   arpaSelected: number | null;
+  /** Targets whose data label is shown beside them on the picture: "t:<track id>" or "a:<AIS id>" (a click toggles it). */
+  tgtLabels: Set<string>;
   /** ARPA exercise in progress, if any (the ARPA keeps running). */
   arpaEx: ArpaExSession | null;
   /** Records the session for the debrief replay, when an exercise is running. */
@@ -131,6 +133,7 @@ export function rewind(app: AppState, seconds: number): number | null {
   app.ais.settings = oldAis.settings;
   app.ais.shoreRepeat = { ...oldAis.shoreRepeat };
   app.arpaSelected = null;
+  app.tgtLabels.clear();
   app.hits = [];
   app.trails.clear();
   recentreTrueMotion(app.world, app.display);
@@ -186,6 +189,7 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     onRocFinish: null,
     arpa: new ArpaSystem(world),
     arpaSelected: null,
+    tgtLabels: new Set<string>(),
     arpaEx: null,
     recorder: null,
     pictures: [],

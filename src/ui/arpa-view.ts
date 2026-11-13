@@ -1,4 +1,4 @@
-import { G } from "./palette";
+import { G, K } from "./palette";
 import { Vec2, add, length, normalizeDeg, scale, sub, velocityOf } from "../core/vec";
 import { ZoneSetting, arpaAvailableOnScale } from "../arpa/index";
 import { collisionPoints, dangerAreas } from "../core/pad";
@@ -11,19 +11,51 @@ import { shipTypeById } from "../core/shipmodel";
 type Ctx = CanvasRenderingContext2D;
 type P = { x: number; y: number };
 
+// Symbols as in IMO SN.1/Circ.243/Rev.2, in the institute's colours: tracked targets green, dangerous red,
+// lost orange, AIS teal, own ship's vector cyan.
 const COL_BASE = {
-  track: "#7fe0ff",
-  acquiring: "#7fe0ff",
-  danger: "#ff5a4a",
-  lost: "#ffb347",
+  track: "#20d98a",
+  acquiring: "#20d98a",
+  danger: "#ff3b4e",
+  lost: "#ff9f1c",
   trial: "#ff9cf0",
-  own: "#e0ffe8",
-  guard: "rgba(255,210,74,0.75)",
+  own: "#00bfff",
+  guard: "rgba(0,214,201,0.75)",
   excl: "rgba(170,170,170,0.55)",
-  ais: "#b6f27a",
+  ais: "#00d6c9",
 };
+/** Colours whose meaning is kept exactly by day (dimmed at night); the others follow the palette. */
+const KEEP = new Set<string>(["track", "acquiring", "danger", "lost", "own", "guard", "ais"]);
 /** The base colours in the palette in use (day or night). */
-const COL = new Proxy(COL_BASE, { get: (t, k) => G(t[k as keyof typeof COL_BASE]) });
+const COL = new Proxy(COL_BASE, { get: (t, k) => (KEEP.has(k as string) ? K : G)(t[k as keyof typeof COL_BASE]) });
+
+/**
+ * A target's data label beside its symbol (shown when the target is clicked, IEC 62288 6.1.5: a temporary
+ * overlay the user puts on and takes off): its name or number, range, and course and speed.
+ */
+function drawLabel(ctx: Ctx, p: P, lines: string[], colour: string, size: number): void {
+  const fs = Math.max(11, Math.min(14, Math.round(size / 78)));
+  const lh = Math.round(fs * 1.2);
+  // Placed on the side towards the middle of the picture, so that it stays inside the circle.
+  const left = p.x > size * 0.62;
+  const below = p.y < size * 0.3;
+  const x = left ? p.x - 15 : p.x + 15;
+  const y0 = below ? p.y + 18 + fs : p.y - 12 - (lines.length - 1) * lh;
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.font = `600 ${fs}px Consolas, "DejaVu Sans Mono", ui-monospace, monospace`;
+  ctx.textAlign = left ? "right" : "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(4,12,28,0.85)";
+  ctx.fillStyle = colour;
+  lines.forEach((t, i) => {
+    ctx.strokeText(t, x, y0 + i * lh);
+    ctx.fillText(t, x, y0 + i * lh);
+  });
+  ctx.restore();
+}
+const p3 = (x: number): string => String(Math.round(normalizeDeg(x)) % 360).padStart(3, "0");
 
 /**
  * ARPA overlay on the PPI: zones, target symbols, vectors, trial manoeuvre and alarm banner.
@@ -282,7 +314,10 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
       ctx.lineTo(e.x, e.y);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillText(v.report.name + (v.associatedTrack !== null ? ` = R${v.associatedTrack}` : ""), p.x + 10, p.y - 8);
+      if (!app.tgtLabels.has(`a:${v.report.id}`)) ctx.fillText(v.report.name + (v.associatedTrack !== null ? ` = R${v.associatedTrack}` : ""), p.x + 10, p.y - 8);
+    }
+    if (app.tgtLabels.has(`a:${v.report.id}`)) {
+      drawLabel(ctx, p, [`AIS ${v.report.name}`.slice(0, 18), `${v.range.toFixed(1)} NM`, `${p3(v.report.cog)}° ${v.report.sog.toFixed(0)} kn`], col, size);
     }
     if (app.ais.selected === v.report.id) {
       // Selected: a square shown by its corners.
@@ -425,8 +460,19 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
       }
       ctx.stroke();
     }
-    ctx.fillStyle = t.state === "lost" ? COL.lost : COL.track;
-    ctx.fillText(a.groundRefId === t.id ? `${t.id} R` : String(t.id), p.x + 10, p.y + 14);
+    const tag = a.groundRefId === t.id ? `${t.id} R` : String(t.id);
+    if (app.tgtLabels.has(`t:${t.id}`)) {
+      // The label: number, range, and the true course and speed once the ARPA has them ("?" while preliminary).
+      const est = t.est && t.quality !== "acquiring" && t.state !== "lost" ? t.est : null;
+      const q = t.quality === "prelim" ? "?" : "";
+      const lines = [`TGT ${String(t.id).padStart(3, "0")}${a.groundRefId === t.id ? " R" : ""}`, `${length(rel).toFixed(1)} NM`,
+        t.state === "lost" ? "LOST" : est ? `${p3(est.trueCS.course)}° ${est.trueCS.speed.toFixed(0)} kn${q}` : "ACQ"];
+      const lc = t.state === "lost" ? COL.lost : t.dangerous ? COL.danger : COL.track;
+      drawLabel(ctx, p, lines, lc, size);
+    } else {
+      ctx.fillStyle = t.state === "lost" ? COL.lost : COL.track;
+      ctx.fillText(tag, p.x + 10, p.y + 14);
+    }
     ctx.globalAlpha = B;
   }
 

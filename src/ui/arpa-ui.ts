@@ -462,9 +462,25 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     const w = app.world;
     const a = app.arpa;
     if (app.roc) return;
+    /** A click on a target shows its data label beside it on the picture; a second click on the selected target hides it. */
+    const label = (key: string, wasSelected: boolean): void => {
+      if (wasSelected && app.tgtLabels.has(key)) app.tgtLabels.delete(key);
+      else app.tgtLabels.add(key);
+    };
     if (mode === "acquire") {
+      // A click on a target that is already tracked selects it (the ARPA would not acquire it twice).
+      const near = a.trackNear(w, rel, a.cfg.manualAcqGateNm);
+      if (near && near.state === "tracking") {
+        const was = app.arpaSelected === near.id;
+        app.arpaSelected = near.id;
+        label(`t:${near.id}`, was);
+        return;
+      }
       const t = a.acquire(w, rel);
-      if (t) app.arpaSelected = t.id;
+      if (t) {
+        app.arpaSelected = t.id;
+        app.tgtLabels.add(`t:${t.id}`);
+      }
     } else {
       const t = a.trackNear(w, rel, radiusNm);
       if (!t && mode === "select") {
@@ -472,7 +488,12 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
         const v = app.ais.targets(w, a, { cpaNm: a.settings.cpaLimitNm, tcpaMin: a.settings.tcpaLimitMin })
           .find((x) => length(sub(fromPolar(x.bearing, x.range), rel)) <= radiusNm);
         if (v) {
-          if (app.ais.activate(v.report.id, w)) app.ais.selected = v.report.id;
+          const was = app.ais.selected === v.report.id && app.arpaSelected === null;
+          if (app.ais.activate(v.report.id, w)) {
+            app.ais.selected = v.report.id;
+            app.arpaSelected = null;
+            label(`a:${v.report.id}`, was);
+          }
           return;
         }
       }
@@ -480,9 +501,13 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
         a.wrongOrder(w, mode === "select" ? "no target at that position to select." : "no target at that position to cancel.");
         return;
       }
-      if (mode === "select") app.arpaSelected = t.id;
-      else {
+      if (mode === "select") {
+        const was = app.arpaSelected === t.id;
+        app.arpaSelected = t.id;
+        label(`t:${t.id}`, was);
+      } else {
         a.cancel(w, t.id);
+        app.tgtLabels.delete(`t:${t.id}`);
         if (app.arpaSelected === t.id) app.arpaSelected = null;
       }
     }

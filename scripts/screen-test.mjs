@@ -67,7 +67,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
       };
     });
     check(`${tag} picture in the middle, data panels left and right of it`, lay.colL.right <= lay.ppi.left + 1 && lay.colR.left >= lay.ppi.right - 1, JSON.stringify({ ppi: lay.ppi, l: lay.colL.right, r: lay.colR.left }));
-    check(`${tag} picture as tall as the window allows`, lay.ppi.height >= lay.h - 60, `${lay.ppi.height} of ${lay.h}`);
+    check(`${tag} picture as tall as the window allows`, lay.ppi.height >= lay.h - 100, `${lay.ppi.height} of ${lay.h}`);
     check(`${tag} left: picture, gain and clutter, EBL and cursor; right: own ship, target data, VRM and ARPA`, lay.left.join() === "bDisp,bGain,bCur" && lay.right.join() === "bOwn,bTd,bArpa", `${lay.left} | ${lay.right}`);
     check(`${tag} every data panel fits, no page scroll`, lay.overflow.length === 0 && !lay.pageScroll, lay.overflow.join());
     check(`${tag} nothing written over the picture, menu closed`, lay.onPicture === 0 && !lay.menuShown);
@@ -79,6 +79,24 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     check(`${tag} Esc closes the menu`, !(await menuOpen()));
     await rawClick("#piMapKey");
     check(`${tag} PI / MAP key opens the menu at the PI lines and maps`, (await menuOpen()) && /PI/.test(await p.$eval("#menuTitle", (e) => e.textContent)), await p.$eval("#menuTitle", (e) => e.textContent));
+    await closeMenu();
+    // The header: RADAR, ARPA and EXERCISE tabs (no ECDIS), the ship's clock, the state of the alerts.
+    const hdr = await p.evaluate(() => ({
+      tabs: [...document.querySelectorAll("#topTabs button")].map((b) => b.textContent.trim()).join(","),
+      time: document.getElementById("hdrTime").textContent, alarm: document.getElementById("hdrAlarm").textContent.trim(),
+      foot: document.querySelector("footer#legend").innerText.replace(/\s+/g, " "),
+    }));
+    check(`${tag} header: RADAR, ARPA and EXERCISE tabs, clock, alert state`, hdr.tabs === "RADAR,ARPA,EXERCISE" && /^\d\d:\d\d:\d\d$/.test(hdr.time) && hdr.alarm === "No Alarms", JSON.stringify(hdr));
+    check(`${tag} foot: symbol legend, and "not type approved, not for navigation"`, /not type approved/.test(hdr.foot) && /not for navigation/.test(hdr.foot) && /Tracked target/.test(hdr.foot) && /AIS target/.test(hdr.foot) && !/DGS/.test(hdr.foot), hdr.foot);
+    const title = () => p.$eval("#menuTitle", (e) => e.textContent);
+    await rawClick('#topTabs button[data-top="arpa"]');
+    const tArpa = (await menuOpen()) && (await title()) === "ARPA";
+    await rawClick('#topTabs button[data-top="exercise"]');
+    const tEx = (await menuOpen()) && (await title()) === "ARPA EX";
+    await rawClick('#topTabs button[data-top="radar"]');
+    const tRadar = (await menuOpen()) && (await title()) === "RADAR";
+    await rawClick('#topTabs button[data-top="radar"]');
+    check(`${tag} tabs open the ARPA, exercise and radar menus; the lit tab again closes it`, tArpa && tEx && tRadar && !(await menuOpen()), JSON.stringify({ tArpa, tEx, tRadar }));
   }
   // Every menu key shows at least one section, none squashed, and its first control can be reached.
   await openMenu();
@@ -118,7 +136,10 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   check(`${tag} hand steering: autopilot course does not move and shows OFF`, (await p.$eval("#ordCourse", (e) => e.value)) === apBefore && (await text("#ordCourseV")) === "OFF", await text("#ordCourseV"));
   await p.click("#steerAuto");
   await p.click("#telegraph button[data-k=ST]");
-  check(`${tag} menu keys are at the bottom of the panel`, (await topY("#cMenu")) > (await topY("#menuBody")) && (await topY("#cMenu")) > H - 90);
+  {
+    const mb = await p.evaluate(() => ({ menu: document.getElementById("cMenu").getBoundingClientRect().bottom, body: document.getElementById("menuBody").getBoundingClientRect().top, side: document.getElementById("side").getBoundingClientRect().bottom }));
+    check(`${tag} menu keys are at the bottom of the menu`, mb.menu > mb.body && mb.menu >= mb.side - 20, JSON.stringify(mb));
+  }
   check(`${tag} no engine order slider on screen`, !(await p.locator("#ordSpeed").isVisible()));
   check(`${tag} telegraph STOP sets the engine order`, (await p.$eval("#ordSpeed", (e) => e.value)) === "0");
   check(`${tag} ship types offered`, (await p.$$eval("#shipType option", (o) => o.length)) >= 3);
@@ -183,7 +204,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   // Clutter auto, vectors, danger graphics.
   await p.check("#autoSea");
   check(`${tag} auto sea sets the control`, (await p.$eval("#stc", (e) => e.value)) !== "0");
-  await p.selectOption("#arpaVec", "true");
+  await p.click('#vecSeg button[data-v="true"]');
   await p.selectOption("#vecTimeSel", "12");
   check(`${tag} vector keys in the ARPA panel`, (await p.$eval("#arpaVecT", (e) => e.value)) === "12" && (await p.evaluate(() => !!document.getElementById("vecTimeSel").closest("#bArpa"))));
   await p.selectOption("#arpaGraphics", "pad");
@@ -201,6 +222,18 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.waitForTimeout(600);
     check(`${tag} acquire shows target data`, (await text("#cTd")).includes("TGT"), await text("#cTd"));
     check(`${tag} target data has bearing and range with units, and is marked as a tracked target`, /BRG \d{3}(\.\d)? ?°T/.test(await text("#cTd")) && /RNG [\d.]+ ?NM/.test(await text("#cTd")) && (await text("#cTgtKind")) === "TT", `${await text("#cTd")} | ${await text("#cTgtKind")}`);
+    // The tracked target is in the list, and its data label is shown on the picture; a click on it hides the label,
+    // another shows it again.
+    const labels = () => p.evaluate(() => window.__simTest.labels().join(","));
+    const listed = await p.$$eval("#tdRows tr", (r) => r.length);
+    const l1 = await labels();
+    await p.mouse.click(c.x + tgt.x, c.y + tgt.y);
+    await p.waitForTimeout(300);
+    const l2 = await labels();
+    await p.mouse.click(c.x + tgt.x, c.y + tgt.y);
+    await p.waitForTimeout(300);
+    const l3 = await labels();
+    check(`${tag} target list and data label: shown, hidden by a click, shown again`, listed === 1 && /^t:\d+$/.test(l1) && l2 === "" && l3 === l1, JSON.stringify({ listed, l1, l2, l3 }));
   }
 
   // Manual speed row appears with the manual input.
@@ -226,7 +259,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   check(`${tag} manual plotting exercise: ARPA in standby`, /STANDBY|STBY/.test(await text("#cTgtN")), await text("#cTgtN"));
   await p.click("#ringsKey");
   await p.waitForTimeout(200);
-  check(`${tag} rings off`, (await text("#ringsKey")) === "RINGS OFF");
+  check(`${tag} rings off`, (await text("#ringsKey")) === "OFF");
   await p.click("#ringsKey");
   // Sound signals.
   await key("comm");
@@ -467,7 +500,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
       vec: document.getElementById("arpaVec").value, ebl: document.getElementById("eblOn").checked, rings: document.getElementById("ringsKey").textContent,
       vrm: document.getElementById("m_vrm").textContent, trails: document.getElementById("trails").value, band: document.getElementById("band").value,
     }));
-    check(`${tag} default settings`, def.range === "6" && def.orient === "north-up" && def.motion === "true" && def.stab === "ground" && def.cpa === "2" && def.tcpa === "12" && def.vec === "relative" && def.ebl && def.rings === "RINGS OFF" && def.vrm === "0.25 NM" && def.trails === "true" && def.band === "X", JSON.stringify(def));
+    check(`${tag} default settings`, def.range === "6" && def.orient === "north-up" && def.motion === "true" && def.stab === "ground" && def.cpa === "2" && def.tcpa === "12" && def.vec === "relative" && def.ebl && def.rings === "OFF" && def.vrm === "0.25 NM" && def.trails === "true" && def.band === "X", JSON.stringify(def));
     // Parallel index lines: one put parallel to the heading, all switched off together.
     await key("meas");
     await p.click('#piGrid button[data-pihdg="1"]');

@@ -1,4 +1,4 @@
-import { G, bgOuter, bgPpi, echoColour } from "./palette";
+import { G, K, bgOuter, echoColour, landEchoColour, pic, ppiGradient } from "./palette";
 import { fromPolar, normalizeDeg } from "../core/vec";
 import { rangeBearing } from "../core/nav";
 import { pulseFor, radarPower, warmUpLeftSec, ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead } from "../engine/index";
@@ -115,7 +115,14 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.restore();
     return;
   }
-  ctx.fillStyle = bgPpi();
+  const PC = pic();
+  {
+    const [inner, outer] = ppiGradient();
+    const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    gr.addColorStop(0, inner);
+    gr.addColorStop(1, outer);
+    ctx.fillStyle = gr;
+  }
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
   ctx.fill();
@@ -127,9 +134,9 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
 
   // Range rings
   const step = ringInterval(c.rangeNm);
-  ctx.strokeStyle = G("#1f6b3a");
+  ctx.strokeStyle = PC.ring;
   ctx.lineWidth = 1;
-  ctx.fillStyle = G("#4fa56d");
+  ctx.fillStyle = PC.ringText;
   ctx.font = "11px monospace";
   // While the "graphics off" key is held, everything drawn over the radar video is left out, so that only the
   // video and the trails remain (IEC 62288 6.2.2.1; IEC 62388 8.2.3.1 lets the heading line go with the rest).
@@ -159,7 +166,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
 
   // Trails
   if (app.trailMode !== "off") {
-    ctx.fillStyle = G("#c8ffd4");
+    ctx.fillStyle = PC.trail;
     const ctr = centreRef(w, ds);
     for (const t of w.targets) {
       const dots = app.trails.recent(t.id, w.time, app.trailMinutes);
@@ -183,12 +190,14 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   const named = new Map<number, { x: number; y: number }>();
   for (const lh of app.hits) {
     const age = app.wall - lh.born;
-    const a = Math.min(1, lh.hit.strength * brill * Math.exp(-age / (ECHO_LIFETIME_S * 0.38)));
+    // Land is painted dimmer than other echoes, so that the coast does not glare (the institute's choice).
+    const land = lh.hit.kind === "coast";
+    const a = Math.min(land ? 0.8 : 1, lh.hit.strength * brill * Math.exp(-age / (ECHO_LIFETIME_S * 0.38)));
     if (a < 0.03) continue;
     const p = px(worldToDisplayNm(w, ds, lh.hit.pos));
     const s = lh.hit.size;
     ctx.globalAlpha = a;
-    const colour = echoColour(KIND_COLOUR[lh.hit.kind]);
+    const colour = land ? landEchoColour(KIND_COLOUR[lh.hit.kind]) : echoColour(KIND_COLOUR[lh.hit.kind]);
     const h = lh.hit;
     if (h.arcDeg !== undefined && h.depthNm !== undefined) {
       // Painted as the radar would: an arc as wide as the beam (plus the target), as deep as the pulse (plus the target).
@@ -258,7 +267,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.setLineDash([]);
   }
   if (!app.hlOff) {
-    ctx.strokeStyle = G("#e0ffe8");
+    ctx.strokeStyle = PC.heading;
     ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.moveTo(own.x, own.y);
@@ -277,8 +286,8 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   }
 
   if (gfx) {
-  // EBL and VRM
-  ctx.strokeStyle = G("#ffd24a");
+  // EBL and VRM: EBL 1 and VRM 1 in teal, EBL 2 and VRM 2 in light blue (clear of the amber echoes and the alarm colours).
+  ctx.strokeStyle = K("#00d6c9");
   ctx.lineWidth = 1;
   ctx.setLineDash([6, 4]);
   if (app.ebl.on) {
@@ -298,7 +307,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.arc(own.x, own.y, app.vrm.range * vrmK * k, 0, Math.PI * 2);
     ctx.stroke();
   }
-  ctx.strokeStyle = G("#ffa64a");
+  ctx.strokeStyle = K("#8fb8ff");
   ctx.setLineDash([2, 4]);
   if (app.ebl2.on) {
     const d = dirOf(app.ebl2.bearing - orientM);
@@ -382,9 +391,9 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   // Own ship, as on a radar display (IEC 62288 Annex A, symbols 1.1a, 1.1c and 1.4): the minimised symbol, which
   // is the heading line with a beam line across it through the reference point; and, when the range scale is
   // short enough for the ship's beam to show, the ship's outline to scale. No circle is drawn round own ship.
-  ctx.strokeStyle = G("#e0ffe8");
-  ctx.fillStyle = G("#e0ffe8");
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = PC.own;
+  ctx.fillStyle = PC.own;
+  ctx.lineWidth = 1.4;
   const beamHalf = ownShipSymbol.beamLineHalfPx;
   ctx.beginPath();
   ctx.moveTo(own.x - hd.dy * beamHalf, own.y + hd.dx * beamHalf);
@@ -438,7 +447,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   const sweepScreen = w.own.heading - orient + app.sweep;
   const toCanvasRad = (screenDeg: number): number => ((screenDeg - 90) * Math.PI) / 180;
   for (let i = 0; i < 16; i++) {
-    ctx.fillStyle = G(`rgba(110,255,150,${0.13 * (1 - i / 16)})`);
+    ctx.fillStyle = PC.sweep(0.13 * (1 - i / 16));
     ctx.beginPath();
     ctx.moveTo(own.x, own.y);
     ctx.arc(own.x, own.y, R * 2, toCanvasRad(sweepScreen - (i + 1) * 2), toCanvasRad(sweepScreen - i * 2));
@@ -446,7 +455,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.fill();
   }
   const sd = dirOf(sweepScreen);
-  ctx.strokeStyle = G("rgba(140,255,170,0.8)");
+  ctx.strokeStyle = PC.sweepLine;
   ctx.lineWidth = 1.4;
   ctx.beginPath();
   ctx.moveTo(own.x, own.y);
@@ -455,15 +464,22 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   ctx.restore();
 
   // Bearing scale (outside the clip)
-  ctx.strokeStyle = G("#2f8f4e");
-  ctx.fillStyle = G("#6dcf88");
-  ctx.lineWidth = 1;
-  ctx.font = "11px monospace";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
+  // The edge of the picture: by day a cyan ring with a soft glow.
+  ctx.strokeStyle = PC.edge;
+  ctx.lineWidth = 1.5;
+  ctx.save();
+  ctx.shadowColor = PC.edge;
+  ctx.shadowBlur = 8;
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
   ctx.stroke();
+  ctx.restore();
+  ctx.strokeStyle = PC.tick;
+  ctx.fillStyle = PC.scaleText;
+  ctx.lineWidth = 1;
+  ctx.font = `600 ${Math.max(11, Math.min(14, Math.round(size / 80)))}px "Segoe UI", system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
   // Numbered every 30 degrees, with a mark every 5 degrees; the 5 and 10 degree marks differ in length
   // (IEC 62388 9.10.2.1, IEC 62288 5.9.4.1).
   for (let sa = 0; sa < 360; sa += 5) {
@@ -480,7 +496,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     }
   }
   const hm = dirOf(w.own.heading - orient);
-  ctx.fillStyle = G("#e0ffe8");
+  ctx.fillStyle = PC.own;
   ctx.beginPath();
   ctx.moveTo(cx + hm.dx * (R + 1), cy + hm.dy * (R + 1));
   ctx.lineTo(cx + hm.dx * (R + 11) - hm.dy * 5, cy + hm.dy * (R + 11) + hm.dx * 5);

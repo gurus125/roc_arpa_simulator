@@ -58,6 +58,23 @@ const KEYS: Key[] = [
   { key: "instr", label: "INSTR", sections: [], tab: "instr" },
 ];
 
+/** Small line icons for the panel headings and the page header: simple shapes of our own. */
+const svg = (body: string, vb = "0 0 24 24"): string => `<svg viewBox="${vb}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+export const ICON = {
+  radar: svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12 18.4 5.6"/>'),
+  gain: svg('<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="currentColor"/><circle cx="15" cy="12" r="2" fill="currentColor"/><circle cx="7" cy="17" r="2" fill="currentColor"/>'),
+  ebl: svg('<circle cx="12" cy="12" r="8"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>'),
+  ship: svg('<path d="M3 15h18l-3 5H6z"/><path d="M6 15V10h12v5M9 10V6h6v4M12 3v3"/>'),
+  target: svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/>'),
+  arpa: svg('<path d="M12 21V9"/><path d="M8 21h8"/><path d="M7.5 6.5a6.4 6.4 0 0 1 9 0M5 4a10 10 0 0 1 14 0"/><circle cx="12" cy="9" r="1.4" fill="currentColor"/>'),
+  menu: svg('<path d="M4 7h16M4 12h16M4 17h16"/>'),
+  clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'),
+  help: svg('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.6v.6"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>'),
+  user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+  logo: svg('<path d="M2 17h20l-3.5 4h-13z"/><path d="M5 17v-4h14v4M8 13V9h8v4M11 9V5h2v4M12 2v3"/><path d="M1 22.5c2 0 2-1 4-1s2 1 4 1 2-1 4-1 2 1 4 1 2-1 4-1"/>'),
+};
+
 const VECTOR_TIMES = [1, 2, 3, 6, 12, 15, 20, 30, 45, 60];
 
 /** Text of the RADAR key: the radar's power state, with the warm-up countdown. */
@@ -97,40 +114,47 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   panel.id = "console";
   panel.innerHTML = `
     <div id="colL" class="ccolumn">
-    <div class="cbox" id="bDisp"><h3>PICTURE <span id="cTopSb"></span></h3>
-      <div class="crow"><span class="cl">RANGE</span><button id="rngDn" class="pm" title="Range scale down">−</button><span id="rngHold"></span><button id="rngUp" class="pm" title="Range scale up">+</button><button id="ringsKey" title="Range rings on / off">RINGS</button></div>
-      <div class="crow"><span class="cl">BAND</span><span id="bandKeys" class="cbtns" style="margin:0"><button data-b="X">X BAND</button><button data-b="S">S BAND</button></span><button id="aisKey" title="AIS targets on the picture: on / off (a primary control, IEC 62388 13.3.1)">AIS</button></div>
-      <div class="crow"><span class="cl">MODE</span><span id="hOrient"></span><span id="hMotion"></span><span id="hStab"></span></div>
-      <div class="crow"><span class="cl">RESET</span><span id="hReset"></span></div>
+    <div class="cbox" id="bDisp"><h3><i class="ico">${ICON.radar}</i><span class="ttl">PICTURE &amp; RADAR<span class="long"> CONTROL</span></span><span id="cTopSb"></span></h3>
+      <div class="crow"><span class="cl">Range</span><button id="rngDn" class="pm" title="Range scale down">−</button><span id="rngHold"></span><button id="rngUp" class="pm" title="Range scale up">+</button></div>
+      <div class="crow"><span class="cl">Band</span><span id="bandKeys" class="seg"><button data-b="X" title="X band (3 cm)">X</button><button data-b="S" title="S band (10 cm)">S</button></span><span class="seg one"><button id="aisKey" title="AIS targets on the picture: on / off (a primary control, IEC 62388 13.3.1)">AIS</button></span></div>
+      <div class="crow"><span class="cl">Mode</span><span id="hOrient"></span><span id="hMotion"></span><span id="hStab"></span></div>
+      <div class="crow"><span class="cl">Rings</span><span class="seg one"><button id="ringsKey" title="Fixed range rings on / off, and their interval">RINGS</button></span><span id="ringNote" class="note"></span></div>
+      <div class="crow"><span class="cl">Pulse</span><span id="pulseSeg" class="seg"></span></div>
+      <div class="crow"><span class="cl">Reset</span><span id="hReset" class="seg"></span></div>
       <div id="cPicSt" class="cst"></div>
     </div>
-    <div class="cbox" id="bGain"><h3>GAIN / CLUTTER <span id="cProc" title="Signal processing in use: IR interference rejection, ENH echo stretch, SC/SC scan-to-scan correlation, MON performance monitor"></span></h3><div id="cGain"></div>
-      <div class="crow"><span class="cl">TRAILS</span><span id="hTrails"></span><span id="hTrailMin"></span></div>
+    <div class="cbox" id="bGain"><h3><i class="ico">${ICON.gain}</i><span class="ttl">GAIN / CLUTTER</span><span id="cProc" title="Signal processing in use: IR interference rejection, ENH echo stretch, SC/SC scan-to-scan correlation, MON performance monitor"></span></h3><div id="cGain"></div>
+      <div class="crow"><span class="cl">Trails</span><span id="hTrails"></span><span id="hTrailMin"></span></div>
     </div>
-    <div class="cbox" id="bCur"><h3>EBL / CURSOR</h3><div id="cEbl"></div><div id="cCur"></div>
+    <div class="cbox" id="bCur"><h3><i class="ico">${ICON.ebl}</i><span class="ttl">EBL / CURSOR</span></h3><div id="cEbl"></div><div id="cCur"></div>
       <div class="cbtns"><button id="piMapKey" title="Parallel index lines, offset EBL, off-centre, navigation lines and marks">PI / MAP</button></div>
     </div>
     </div>
     <div id="colR" class="ccolumn">
-    <div class="cbox" id="bOwn"><h3>OWN SHIP <span id="cTime"></span></h3><div id="cOwn"></div></div>
-    <div class="cbox" id="bTd"><h3>TARGET DATA <span id="cTgtKind"></span><span id="cTgtN"></span><button id="cAisMore" hidden title="Further AIS data: class, IMO number, ship type, destination, ETA, draught, size, position accuracy">MORE</button></h3><div id="cTd"></div></div>
-    <div class="cbox" id="bArpa"><h3>VRM / ARPA</h3><div id="cVrm"></div>
-      <div class="crow"><span class="cl">VECTOR</span><span id="hVec"></span><span id="hVecT"><select id="vecTimeSel" title="Vector time">${VECTOR_TIMES.map((t) => `<option value="${t}">${t} min</option>`).join("")}</select></span></div>
-      <div class="crow"><span class="cl">DANGER</span><span id="hGfx"></span></div>
+    <div class="cbox" id="bOwn"><h3><i class="ico">${ICON.ship}</i><span class="ttl">OWN SHIP DATA</span><span id="cTime"></span></h3><div id="cOwn"></div></div>
+    <div class="cbox" id="bTd"><h3><i class="ico">${ICON.target}</i><span class="ttl">TARGET DATA</span><span id="cTgtKind"></span><span id="cTgtN"></span><button id="cAisMore" hidden title="Further AIS data: class, IMO number, ship type, destination, ETA, draught, size, position accuracy">MORE</button></h3>
+      <div id="tdList" hidden><table><thead><tr><th>No.</th><th>BRG<u>°</u></th><th>RNG<u>NM</u></th><th>CPA<u>NM</u></th><th>TCPA<u>min</u></th><th id="tdCrsH">CRS<u>°</u></th><th id="tdSpdH">SPD<u>kn</u></th><th></th></tr></thead><tbody id="tdRows"></tbody></table></div>
+      <div id="cTd"></div></div>
+    <div class="cbox" id="bArpa"><h3><i class="ico">${ICON.arpa}</i><span class="ttl">VRM / ARPA</span><span id="cArpaChip"></span></h3><div id="cVrm"></div>
+      <div class="crow"><span class="cl">Vector</span><span id="vecSeg" class="seg"></span><span id="hVecT"><select id="vecTimeSel" title="Vector time">${VECTOR_TIMES.map((t) => `<option value="${t}">${t} min</option>`).join("")}</select></span><span id="hVec" hidden></span></div>
+      <div class="crow"><span class="cl">Danger</span><span id="hGfx"></span></div>
       <div id="cVecInfo"></div>
       <div id="cArpaSt" class="cst"></div>
       <div id="cTop"><button id="ackKey" title="Acknowledge the alert shown (one at a time: alarms first)">ALARM ACK</button><span id="cTopAlarm"></span></div>
       <div id="cTgt"></div>
-      <div class="cbtns cmenu"><button id="menuKey" title="All other controls: ARPA, AIS, radar, display, scenario, settings ...">MENU</button></div>
-      <div class="cfoot">TRAINING USE ONLY · NOT FOR NAVIGATION</div>
+      <div class="cbtns cmenu"><button id="menuKey" title="All other controls: ARPA, AIS, radar, display, scenario, settings ..."><i class="ico">${ICON.menu}</i>MENU</button></div>
     </div>
     </div>
     `;
   // The keys that work the simulator, not the radar, sit in the strip at the top of the page.
   const runBar = document.createElement("div");
   runBar.id = "cRun";
-  const pageHeader = document.querySelector("header");
-  if (pageHeader) pageHeader.insertBefore(runBar, pageHeader.lastElementChild);
+  for (const [id, icon] of [["hdrLogo", ICON.logo], ["hdrClockIco", ICON.clock], ["hdrSet", ICON.gear], ["whoChange", ICON.user]] as const) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = icon;
+  }
+  const hdrRight = document.getElementById("hdrRight");
+  if (hdrRight) hdrRight.prepend(runBar);
   else panel.appendChild(runBar);
   const menu = document.createElement("div");
   menu.id = "cMenu";
@@ -213,6 +237,12 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   $("hGfx").appendChild($("arpaGraphics"));
   relabel("arpaVec", { relative: "REL", true: "TRUE" }, "Vectors: REL relative, TRUE true");
   relabel("arpaGraphics", { off: "OFF", ppc: "PPC", pad: "PAD" }, "Danger graphics: PPC points of possible collision, PAD predicted areas of danger");
+  // Target data: the tracked targets in a short list; a row pressed selects that target.
+  let appRef: AppState | null = null;
+  $("tdRows").addEventListener("pointerdown", (ev) => {
+    const id = (ev.target as HTMLElement).closest<HTMLElement>("tr")?.dataset["id"];
+    if (id && appRef) appRef.arpaSelected = Number(id);
+  });
   $("vecTimeSel").addEventListener("change", () => {
     const el = $<HTMLInputElement>("arpaVecT");
     el.value = $<HTMLSelectElement>("vecTimeSel").value;
@@ -229,6 +259,23 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   $("tmReset").textContent = "TM RST";
   $("tmReset").title = "True motion reset: put own ship back to the start of its run across the screen";
   $("hReset").append($("cuReset"), $("tmReset"));
+  /** Keys for each setting of a select, the one in use lit; the select stays the control (moved out of sight). */
+  const segs: { sel: HTMLSelectElement; holder: HTMLElement }[] = [];
+  const segment = (holder: string, selectId: string, names: Record<string, string>, titles: Record<string, string>): void => {
+    const sel = $<HTMLSelectElement>(selectId);
+    const h = $(holder);
+    h.innerHTML = [...sel.options].map((o) => `<button data-v="${o.value}" title="${titles[o.value] ?? ""}">${names[o.value] ?? o.textContent}</button>`).join("");
+    h.addEventListener("click", (ev) => {
+      const v = (ev.target as HTMLElement).closest<HTMLElement>("button")?.dataset["v"];
+      if (v === undefined || sel.value === v) return;
+      sel.value = v;
+      fire(sel);
+    });
+    segs.push({ sel, holder: h });
+  };
+  segment("vecSeg", "arpaVec", { relative: "REL", true: "TRUE" }, { relative: "Relative vectors", true: "True vectors" });
+  segment("pulseSeg", "pulse", { auto: "AUTO", short: "SHORT", medium: "MED", long: "LONG" },
+    { auto: "Pulse length chosen by the range scale", short: "Short pulse", medium: "Medium pulse", long: "Long pulse" });
 
   // Gain, sea, rain, tune with the automatic controls beside them.
   // Display brilliance is a primary control (IEC 62388 13.3.1), so it sits with gain and the clutter controls.
@@ -279,12 +326,16 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   $("ackKey").addEventListener("click", () => $("arpaAckNext").click());
   const help = document.createElement("button");
   help.id = "cHelp";
-  help.textContent = "HELP";
+  help.className = "ico";
+  help.innerHTML = ICON.help;
+  help.title = "Help: a short explanation under every control (press again to hide)";
   help.addEventListener("click", () => {
     document.body.classList.toggle("help");
     help.classList.toggle("on", document.body.classList.contains("help"));
   });
-  $("cRun").appendChild(help);
+  const hdrIcons = document.getElementById("hdrIcons");
+  if (hdrIcons) hdrIcons.insertBefore(help, document.getElementById("whoChange"));
+  else $("cRun").appendChild(help);
   $("cMenu").innerHTML = KEYS.map((k) => `<button data-key="${k.key}" class="${k.instructor ? "instr-only" : ""}">${k.label}</button>`).join("");
 
   const night = document.createElement("button");
@@ -295,13 +346,21 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     const now = document.body.dataset["mode"] === "night" ? "night" : "day";
     document.querySelector<HTMLElement>(`#modeKeys button[data-m="${now === "night" ? "day" : "night"}"]`)?.click();
   });
-  $("cRun").insertBefore(night, help);
+  $("cRun").appendChild(night);
 
   let current = "own";
+  /** The tabs at the top of the page: RADAR (the radar screen and its menu), ARPA, EXERCISE. */
+  const TOP_OF: Record<string, string> = { arpa: "arpa", acq: "arpa", alarm: "arpa", past: "arpa", guard: "arpa", trial: "arpa", ais: "arpa", fault: "arpa", ex: "exercise", roc: "exercise" };
+  const syncTabs = (): void => {
+    const open = document.body.classList.contains("menu-open");
+    const on = open ? (TOP_OF[current] ?? "radar") : "radar";
+    for (const b of document.querySelectorAll<HTMLElement>("#topTabs button")) b.classList.toggle("on", b.dataset["top"] === on);
+  };
   /** Open or close the menu drawer. */
   const openMenu = (open: boolean): void => {
     document.body.classList.toggle("menu-open", open);
     $("menuKey").classList.toggle("on", open);
+    syncTabs();
   };
   const setMenu = (key: string, open = true): void => {
     const k = KEYS.find((x) => x.key === key) ?? KEYS[0]!;
@@ -319,7 +378,25 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
       faultBox.style.display = k.key === "fault" ? "" : "none";
       if (k.key === "fault") faultBox.open = true;
     }
+    syncTabs();
   };
+  // RADAR opens the radar's own menu, ARPA the ARPA's, EXERCISE the list of exercises; the lit tab pressed
+  // again while its menu is open closes the menu. The gear opens SETTINGS.
+  const TAB_KEY: Record<string, string> = { radar: "gain", arpa: "arpa", exercise: "ex" };
+  document.getElementById("topTabs")?.addEventListener("click", (ev) => {
+    const top = (ev.target as HTMLElement).closest<HTMLElement>("button")?.dataset["top"];
+    if (!top) return;
+    const open = document.body.classList.contains("menu-open");
+    if (open && (TOP_OF[current] ?? "radar") === top) openMenu(false);
+    else {
+      setMenu(TAB_KEY[top] ?? "gain");
+      body.scrollTop = 0;
+    }
+  });
+  document.getElementById("hdrSet")?.addEventListener("click", () => {
+    setMenu("set");
+    body.scrollTop = 0;
+  });
   $("cMenu").addEventListener("click", (ev) => {
     const key = (ev.target as HTMLElement).closest("button")?.dataset["key"];
     if (!key) return;
@@ -366,6 +443,8 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     const side1 = (x: number, dead: number, f: (a: number) => string, zero: string): string => (Math.abs(x) < dead ? zero : `${x > 0 ? "S" : "P"} ${f(Math.abs(x))}`);
     for (const b of $("bandKeys").querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset["b"] === w.radar.band);
     put("nightKey", document.body.dataset["mode"] === "night" ? "NIGHT" : "DAY");
+    appRef = app;
+    for (const g of segs) for (const b of g.holder.querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset["v"] === g.sel.value);
     app.ringsOn = ringsOn;
     // Heading input lost: the picture goes to unstabilised head-up, relative motion, and only relative bearings
     // can be measured (IEC 62388 16.2.2.1: automatically, within a minute, with an indication).
@@ -383,7 +462,8 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     app.headingLost = headingLost;
     app.eblRelative = eblRelative || headingLost;
     $("ringsKey").classList.toggle("on", ringsOn);
-    put("ringsKey", ringsOn ? `RINGS ${ringInterval(c.rangeNm)}` : "RINGS OFF");
+    put("ringsKey", ringsOn ? "ON" : "OFF");
+    put("ringNote", ringsOn ? `every ${ringInterval(c.rangeNm)} NM` : "");
     const rows = alertRows(app);
     const pending = rows.filter((x) => !x.acked && x.priority !== "caution");
     const caution = rows.find((x) => x.priority === "caution");
@@ -393,6 +473,18 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     // The alert box is filled red for an alarm and orange for a warning; a caution is yellow, steady and silent.
     const alertClass = nextAlert ? nextAlert.priority : caution ? "caution" : "";
     if ($("cTopAlarm").className !== alertClass) $("cTopAlarm").className = alertClass;
+    // The page header: the ship's clock (UTC, date and time) and the state of the alerts.
+    const hdrTime = document.getElementById("hdrTime");
+    if (hdrTime) {
+      const utc = new Date(app.startUtcMs + w.time * 1000);
+      const hh = (n: number): string => String(n).padStart(2, "0");
+      put("hdrTime", `${hh(utc.getUTCHours())}:${hh(utc.getUTCMinutes())}:${hh(utc.getUTCSeconds())}`);
+      put("hdrDate", `${utc.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][utc.getUTCMonth()]} ${utc.getUTCFullYear()} UTC`);
+      const st = nextAlert ? (nextAlert.priority === "alarm" ? "alarm" : "warning") : caution ? "caution" : "ok";
+      const word = st === "ok" ? "No Alarms" : `${pending.length > 1 ? `${pending.length} ` : ""}${st === "alarm" ? "ALARM" : st === "warning" ? "WARNING" : "CAUTION"}`;
+      put("hdrAlarm", `<i class="dot"></i><span>${word}</span>`);
+      if ($("hdrAlarm").className !== st) $("hdrAlarm").className = st;
+    }
     $("radarSb").classList.toggle("stby", app.radarStandby);
     put("radarSb", radarKeyLabel(w));
     // Screen brilliance sets the brightness of the whole picture (Bole, Wall and Norris 6.2.3), from dim at 10 to full at 100.
@@ -415,7 +507,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
           `<div class="nav pos"><span class="cl">LAT</span><b>${formatLatLon(pos.lat, "lat", 3)}</b></div><div class="nav pos"><span class="cl">LON</span><b>${formatLatLon(pos.lon, "lon", 3)}</b></div>`) +
       `<div class="navrow">` +
       pair("RUD", mo ? side1(mo.motion.rudder, 0.5, (x) => `${x.toFixed(0)}°`, "MID") : "---") + pair("ROT", mo ? side1(mo.motion.r * 60, 0.5, (x) => `${x.toFixed(0)}°/min`, "0") : "---") +
-      pair("STEER", w.own.anchor ? "ANCHORED" : mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : "---") +
+      pair("STEER", w.own.anchor ? "ANCHORED" : mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : "---", "pill") +
       pair("WIND", rw ? `R${String(Math.round(rw.fromRel) % 360).padStart(3, "0")} ${rw.speedKn.toFixed(0)} kn` : "CALM") +
       `</div>`);
     // The exercise clock, in the heading of the own ship panel.
@@ -458,6 +550,29 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     }
 
     put("cTgtN", arpaOn ? `${a.activeCount()} / ${a.cfg.maxTracks}` : app.roc ? "ARPA OFF" : "STANDBY");
+    put("cArpaChip", app.roc ? "ARPA OFF" : s.standby ? "STANDBY" : "ARPA ON");
+    $("cArpaChip").className = app.roc ? "off" : s.standby ? "stby" : "on";
+    {
+      // The list of tracked targets: number, bearing, range, CPA, TCPA, course and speed (through the water or over the
+      // ground, as the ARPA is stabilised), and a status light: green steady, orange acquiring, preliminary or lost, red dangerous.
+      const gnd = a.stabLabel().startsWith("GND");
+      put("tdCrsH", `${gnd ? "COG" : "CTW"}<u>°</u>`);
+      put("tdSpdH", `${gnd ? "SOG" : "STW"}<u>kn</u>`);
+      const list = arpaOn ? a.tracks : [];
+      $("tdList").hidden = list.length === 0;
+      const p1 = (x: number): string => String(Math.round(normalizeDeg(x)) % 360).padStart(3, "0");
+      put("tdRows", list.map((t, i) => {
+        const rel = t.est?.rel ?? a.predictRel(t, w.time);
+        const est = t.est && t.quality !== "acquiring" && t.state !== "lost" ? t.est : null;
+        const q = t.quality === "prelim" ? "?" : "";
+        const cp = est?.cpa;
+        const st = t.state === "lost" ? "wn" : t.dangerous ? "no" : t.quality === "steady" ? "ok" : "wn";
+        const cls = `${app.arpaSelected === t.id ? "sel " : ""}${t.dangerous ? "danger" : ""}`;
+        return `<tr data-id="${t.id}" class="${cls}"><td><i>${i + 1}</i>${String(t.id).padStart(3, "0")}</td><td>${p1(Math.atan2(rel.e, rel.n) * 180 / Math.PI)}</td><td>${Math.hypot(rel.e, rel.n).toFixed(1)}</td>` +
+          `<td>${cp ? (cp.opening ? "open" : `${cp.cpa.toFixed(1)}${q}`) : dash}</td><td>${cp && cp.tcpaMinutes !== null && !cp.opening ? `${cp.tcpaMinutes.toFixed(1)}${q}` : dash}</td>` +
+          `<td>${est ? p1(est.trueCS.course) : dash}</td><td>${est ? est.trueCS.speed.toFixed(1) : dash}</td><td><i class="dot ${st}"></i></td></tr>`;
+      }).join(""));
+    }
     // Pulse length in use, and the heading failure, under the picture settings; the ARPA's state in the ARPA panel.
     const pl = pulseFor(c.rangeNm, c.pulse);
     put("cPicSt", `<span class="pair"><span class="cl">PULSE</span> <b>${pl.name === "short" ? "SP" : pl.name === "medium" ? "MP" : "LP"} ${pl.microseconds} µs</b></span>` +
@@ -516,7 +631,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
           // Identification, navigational status and reported position (IEC 62288 5.5.11.1); on request, the further data.
           // What the report does not carry is shown as MISSING.
           (aisMore ? moreLine(v.report) : `<div class="tp none"><span class="pair"><span class="cl">MMSI</span> <b>${v.report.mmsi || "MISSING"}</b></span><span class="pair"><span class="cl">C/S</span> <b>${v.report.callSign || "MISSING"}</b></span><span class="pair"><b class="${v.report.navStatus ? "" : "wn"}">${(v.report.navStatus || "STATUS MISSING").replace(/</g, "&lt;").toUpperCase()}</b></span><span class="pair"><span class="cl">POSN</span> <b>${formatLatLon(latLonOf(w.origin, v.report.pos).lat, "lat", 3)} ${formatLatLon(latLonOf(w.origin, v.report.pos).lon, "lon", 3)}</b></span></div>`)
-        : `<div class="tp none"><span class="cl">NO TARGET SELECTED &nbsp; acquire or select a target</span></div>`);
+        : `<div class="tp none nosel"><i class="ico">${ICON.target}</i><span><b>NO TARGET SELECTED</b><span class="cl">Acquire or select a target, or press a row of the list</span></span></div>`);
   };
 
   /** The further data of an AIS report, one line; MISSING where the report carries none. */

@@ -1259,7 +1259,17 @@ window.addEventListener("beforeunload", () => store.save());
   },
   aisFilterLabel: (): string => aisFilterLabel(app.ais.settings.sleepFilter),
   headingLost: (): boolean => app.headingLost,
+  /** Targets whose data label is shown on the picture. */
+  labels: (): string[] => [...app.tgtLabels],
   lostWarning: (): boolean => app.arpa.settings.lostWarning,
+  /** Where every target's echo is on the picture, CSS pixels. */
+  targetsScreen: (): { x: number; y: number }[] => {
+    const g = radarGeometry(cssSize, app.world.radar.controls.rangeNm);
+    return app.world.targets.map((t) => {
+      const d = worldToDisplayNm(app.world, app.display, t.pos);
+      return { x: g.cx + d.x * g.k, y: g.cy - d.y * g.k };
+    });
+  },
   firstTargetScreen: (): { x: number; y: number } | null => {
     const t = app.world.targets[0];
     if (!t) return null;

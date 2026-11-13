@@ -21,9 +21,15 @@ control with AUTO, the automatic settings being placeholders; brilliance; trails
 cursor's bearing, range and position; the PI / MAP key). Right: OWN SHIP, TARGET DATA (the selected
 ARPA target, or the selected AIS target) and VRM / ARPA (VRMs, vectors, PPC / PAD, CPA / TCPA
 limits, the ARPA's status, ALARM ACK and the alert, Acquire / Select / Cancel / Measure, MENU).
-Nothing is written over the picture (IEC 62288 4.3.3, 5.5.14). MENU opens a drawer over the
+No settings are written over the picture (IEC 62288 4.3.3, 5.5.14); a target's data label appears beside
+it only when the target is clicked, and goes when it is clicked again. MENU opens a drawer over the
 right-hand side with a grid of menu keys; only the controls of the chosen key are shown, and
-CLOSE or Esc closes it.
+CLOSE or Esc closes it. The page header has the RADAR / ARPA / EXERCISE tabs (they open those menus), the
+simulator keys (pause, speed, day / night), the ship's clock (UTC), the state of the alerts, settings,
+help and change students; the foot has a legend of the symbols and "training simulator, not type
+approved, not for navigation". Colours (the institute's scheme of 13 Nov 2026): navy #061329 / #0A1D3A,
+borders #24466F, cyan #00BFFF for what is selected or on, teal #00D6C9, amber echoes #FFC928 (land dimmer),
+green #20D98A normal, orange #FF9F1C warning, red #FF3B4E alarm, text #EAF2FF / #91A8C5. The IMO symbols are kept.
 PPC / PAD keys in the VRM / ARPA panel draw potential points of collision or predicted areas of danger for
 steady tracks (the PAD is a simplified hexagon; makers' shapes differ). ARPA > Speed log input
 has "Manual speed". Own ship has a manoeuvring model (`src/core/shipmodel.ts`): four ship types, autopilot or hand
@@ -122,7 +128,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 539 tests
+    npm test            # 541 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

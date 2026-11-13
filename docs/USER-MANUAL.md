@@ -13,21 +13,40 @@ not a copy of any one maker's screen):
 
 | Left | Right |
 |---|---|
-| PICTURE: range, rings, band, AIS, mode, pulse length (top) | OWN SHIP (top) |
-| GAIN / CLUTTER, brilliance and trails (middle) | TARGET DATA of the selected target (middle) |
+| PICTURE & RADAR CONTROL: range, band, AIS, mode, rings, pulse, resets (top) | OWN SHIP DATA (top) |
+| GAIN / CLUTTER, brilliance and trails (middle) | TARGET DATA: the list of tracked targets, and the selected target (middle) |
 | EBL / CURSOR, and the PI / MAP key (bottom) | VRM / ARPA: VRMs, vectors, alarms, target keys and MENU (bottom) |
 
-Nothing is written on the picture itself. The **MENU** key at the bottom right opens the menu over
-the right-hand side of the screen, with its keys along the bottom; **CLOSE**, MENU again or Esc
-closes it. The strip at the very top of the page holds the keys
-that work the simulator and not the radar: PAUSE / RUN, the speed of the clock, DAY / NIGHT and
-HELP. HELP shows a short explanation under every control; press it again to hide them.
+No settings are written on the picture itself; the only text on it is the data label of a target you
+have clicked (see section 6). The **MENU** key at the bottom right opens the menu over the
+right-hand side of the screen, with its keys along the bottom; **CLOSE**, MENU again or Esc closes it.
+
+The header along the top of the page has:
+
+- the tabs **RADAR** (the radar's menu: pulse, echo processing and the rest), **ARPA** (the ARPA's
+  menu) and **EXERCISE** (choose and run an exercise). The lit tab pressed again closes the menu.
+  With the menu closed RADAR is lit;
+- the keys that work the simulator and not the radar: PAUSE / RUN, the speed of the clock and
+  DAY / NIGHT;
+- the ship's clock (UTC) with the date;
+- the state of the alerts: a green light and "No Alarms", or the number of alerts waiting, orange
+  for a warning and red (flashing) for an alarm;
+- the gear (SETTINGS), **?** (help: a short explanation under every control; press it again to hide
+  them) and the person (change students).
+
+The foot of the page explains the symbols on the picture, and says that this is a training
+simulator: not type approved and not for navigation.
+
+The colours: deep navy panels; light blue for whatever is selected or switched on; green for a
+normal state (a steady tracked target, a working sensor); orange for a warning; red for an alarm or a
+dangerous target; amber for radar echoes. Land is painted in a deeper, dimmer amber than other
+echoes so that the coast does not glare.
 
 ## 2. RADAR key, alarms and own ship
 
 | Control | What it does |
 |---|---|
-| RADAR key (top left, in the heading of the PICTURE panel) | Switches the radar on from cold (RADAR: OFF), and between standby and transmit. Switched on from cold it warms up first (WARM UP and a countdown; about one and a half minutes here, never more than 4 minutes on a real set), then waits in STANDBY: press again to transmit. In standby there is no picture. SETTINGS, RADAR POWER OFF switches it off. |
+| RADAR key (top left, in the heading of the PICTURE & RADAR CONTROL panel) | Switches the radar on from cold (RADAR: OFF), and between standby and transmit. Switched on from cold it warms up first (WARM UP and a countdown; about one and a half minutes here, never more than 4 minutes on a real set), then waits in STANDBY: press again to transmit. In standby there is no picture. SETTINGS, RADAR POWER OFF switches it off. |
 | ALARM ACK (VRM / ARPA panel, bottom right) | Acknowledges the alert shown beside it, one at a time: alarms first, then the oldest warning. It flashes while an alert is waiting. The alert box beside it is red for an alarm, orange for a warning and yellow for a caution. |
 | PAUSE / RUN, 1x-10x (top strip) | Stops and starts the exercise clock, and sets how fast it runs. |
 | DAY / NIGHT (top strip) | Display colours for day or for a dark bridge (also under SETTINGS). |
@@ -60,14 +79,17 @@ length in use (SP short, MP medium, LP long); the VRM / ARPA panel shows the vec
 the CPA / TCPA limits, the past positions setting, and the ARPA's status lines (its stabilisation
 and speed input, ARPA STANDBY, LOST TGT WARNING OFF, AIS FILTER, ANCHOR WATCH, TRIAL).
 
-## 3. PICTURE panel (top left)
+## 3. PICTURE & RADAR CONTROL panel (top left)
 
 The settings are boxes that are clicked; each shows the setting in use by its standard abbreviation.
 
-- **RANGE − / +**: range scale, 0.25 to 96 NM. **RINGS**: fixed range rings on or off.
-- **X BAND / S BAND**: the 3 cm or 10 cm radar. S band sees through rain better; X band gives a
+- **RANGE − / +**: range scale, 0.25 to 96 NM.
+- **BAND X / S**: the 3 cm or 10 cm radar. S band sees through rain better; X band gives a
   sharper picture and is the only band a SART answers. **AIS ON / OFF** beside them shows or hides
   the AIS targets.
+- **RINGS**: fixed range rings ON or OFF; the interval between them is written beside the key.
+- **PULSE**: AUTO (chosen by the range scale), SHORT, MED or LONG. The pulse in use is written at the
+  foot of the panel (SP, MP or LP and its length in microseconds).
 - **MODE**, three boxes: orientation **N UP** (north-up), **H UP** (head-up, unstabilised: bearings
   are relative) or **C UP** (course-up); motion **RM** (relative motion, own ship fixed) or **TM**
   (true motion, own ship moves across the screen); stabilisation of the picture **GND** (ground) or
@@ -121,6 +143,7 @@ performance monitor.
 ## 6. ARPA: tracking targets
 
 The target keys are in the VRM / ARPA panel at the bottom right, under ALARM ACK and the alert box.
+The heading of that panel says whether the ARPA is ON, in STANDBY or OFF (during an ROC exercise).
 The same panel has **VECTOR** (REL or TRUE vectors of tracked targets, and the vector time) and
 **DANGER** (PPC, points of possible collision, or PAD, predicted areas of danger).
 
@@ -137,11 +160,23 @@ The same panel has **VECTOR** (REL or TRUE vectors of tracked targets, and the v
    panel shows the CPA and TCPA limits, the past positions setting and the ARPA's speed input.
 4. **Cancel** drops one target; **Cancel all** drops them all. **Auto** acquires targets that
    enter a guard zone.
+5. **The list of tracked targets** at the top of TARGET DATA gives each target's number, bearing,
+   range, CPA, TCPA, course and speed (CTW and STW, or COG and SOG, as above) and a status light:
+   green for a steady track, orange while acquiring, preliminary or lost, red for a dangerous
+   target. Press a row to select that target.
+6. **Data label on the picture.** Clicking a target (with Acquire or Select) puts a small label beside
+   it: TGT and its number, its range, and its course and speed (an AIS target: its name, range, COG
+   and SOG). Click the same target again to take the label off. Several targets can have labels at
+   once. A target you acquire gets its label at once. The label is in the target's colour: green,
+   red when dangerous, orange when lost, light green-blue (teal) for AIS.
 
 A target inside both the CPA limit and the TCPA limit is DANGEROUS: its symbol turns red and bold
 and an alarm sounds. Limits are set under **CPA/ALARM**.
 
 Symbols (as in IMO circular SN.1/Circ.243/Rev.2):
+
+Colours: tracked targets green, dangerous targets red, lost targets orange, AIS targets teal, own
+ship and its vector light blue, echoes amber.
 
 | Symbol | Meaning |
 |--------|---------|

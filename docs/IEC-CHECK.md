@@ -199,7 +199,12 @@ Read for this round: IEC 62288 Annex A symbols 1.2 to 1.5, IEC 62388 11.5.3.1 an
 | 62288 4.3.3 | The operational display area (the radar picture) kept separate from the user dialogue area | The picture in the middle of the screen, as tall as the window allows; three data panels down each side; the menu in a drawer over the right-hand side that is opened (MENU) and closed (CLOSE, MENU, Esc) by the user. Ship control, the exercise and the instructor pages are still in the menu: they move to their own window and page in the next steps |
 | 62288 5.5.14, 6.1.5 | Text must not hide the picture; anything laid over it is temporary and can be moved or taken off | No text is written over the picture any more: range, mode, pulse, heading failure, ARPA status, AIS filter and the rest are in the panels beside it. Only the menu drawer covers part of the picture, and only while it is open |
 
-The arrangement is our own and generic, not a copy of any maker's screen. On a window as wide as it
+| 62288 6.1.5 | Overlays are temporary and the user can take them off | A target's data label (number, range, course and speed) is put beside it by clicking the target and taken off by clicking it again |
+| SN.1/Circ.243/Rev.2 | Symbols | Kept as the circular draws them (circle for a tracked target, triangle for AIS, heading line and beam line for own ship); only their colours follow the institute's scheme: tracked green, dangerous red, lost orange, AIS teal, own ship cyan |
+
+The arrangement is our own and generic, not a copy of any maker's screen. The look (navy panels, header
+with tabs, legend at the foot) follows a design picture the institute supplied; the colours are the
+institute's. On a window as wide as it
 is high or narrower (5:4, 4:3), the side panels take room from the picture: at 1280 x 1024 pixels the
 picture is 712 pixels across.
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatLatLon, latLonOf } from "../src/core/nav";
-import { G, echoColour, setDisplayPalette } from "../src/ui/palette";
+import { G, K, echoColour, landEchoColour, setDisplayPalette } from "../src/ui/palette";
 
 describe("ship position as latitude and longitude", () => {
   const origin = { lat: 18 + 50 / 60, lon: 72 + 30 / 60 };
@@ -32,11 +32,12 @@ describe("ship position as latitude and longitude", () => {
 describe("day and night palettes", () => {
   const hue = (c: string): number => Number(/hsla\((\d+)/.exec(c)![1]);
   const light = (c: string): number => Number(/hsla\(\d+,\d+%,(\d+)%/.exec(c)![1]);
-  it("day: echoes are yellow, green graphics become near-white, red danger stays red", () => {
+  it("day: echoes are amber, green graphics become a light blue-white, red danger stays red", () => {
     setDisplayPalette("day");
-    expect(hue(echoColour("#9dffb0"))).toBe(54);
+    // The institute's amber #FFC928: hue 60 x (201 - 40) / (255 - 40) = 44.9, so 45 degrees.
+    expect(hue(echoColour("#9dffb0"))).toBe(45);
     expect(light(G("#1f6b3a"))).toBeGreaterThan(40);
-    expect(hue(G("#1f6b3a"))).toBe(215);
+    expect(hue(G("#1f6b3a"))).toBe(214);
     expect(hue(G("#ff5a4a"))).toBeLessThan(10);
   });
   it("night: everything is dimmer than by day and the danger colour is still red", () => {
@@ -47,6 +48,21 @@ describe("day and night palettes", () => {
     expect(light(echoColour("#9dffb0"))).toBeLessThan(dayEcho);
     expect(light(G("#ff5a4a"))).toBeLessThan(dayRed);
     expect(hue(G("#ff5a4a"))).toBeLessThan(10);
+    setDisplayPalette("day");
+  });
+  it("land echoes are painted dimmer than other echoes, by day and by night", () => {
+    for (const m of ["day", "night"] as const) {
+      setDisplayPalette(m);
+      expect(light(landEchoColour("#7dff9f"))).toBeLessThan(light(echoColour("#7dff9f")));
+    }
+    setDisplayPalette("day");
+  });
+  it("the scheme's status colours are kept exactly by day and dimmed at night", () => {
+    setDisplayPalette("day");
+    for (const c of ["#20d98a", "#ff3b4e", "#ff9f1c", "#00d6c9", "#00bfff"]) expect(K(c)).toBe(c);
+    setDisplayPalette("night");
+    // #20d98a has lightness (217 + 32) / 2 / 255 = 49%; at night 0.55 of that, 27%.
+    expect(light(K("#20d98a"))).toBe(27);
     setDisplayPalette("day");
   });
 });
