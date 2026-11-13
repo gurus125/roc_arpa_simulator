@@ -1,8 +1,37 @@
 import { G, bgOuter, bgPpi, echoColour } from "./palette";
 import { fromPolar, normalizeDeg } from "../core/vec";
 import { rangeBearing } from "../core/nav";
-import { pulseFor, ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead } from "../engine/index";
+import { pulseFor, radarPower, warmUpLeftSec, ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead } from "../engine/index";
 import { AppState, ECHO_LIFETIME_S } from "./app";
+import { ShipType, shipTypeById } from "../core/shipmodel";
+
+/**
+ * Sizes of own ship's symbol. IEC 62288 gives them in millimetres at a viewing distance of 1 m;
+ * they are taken here at 96 pixels to the inch (3.78 pixels to the millimetre), the size a CSS
+ * pixel is defined to be.
+ */
+export const ownShipSymbol = {
+  /** Beam line: at least 5 mm each side of the reference point (symbol 1.4). */
+  beamLineHalfPx: 19,
+  /** The outline is not used when the ship's beam would be less than 3 mm on the screen (symbol 1.1a). */
+  minBeamPx: 11.3,
+};
+
+/**
+ * Own ship's outline to the scale of the picture, as points in pixels (x to starboard, y ahead)
+ * round the middle of the ship, or null when the ship's beam would show smaller than 3 mm or the
+ * ship's size is not known. `pxPerNm` is the scale of the picture.
+ */
+export function ownOutline(type: Pick<ShipType, "lengthM" | "beamM"> | null, pxPerNm: number): { x: number; y: number }[] | null {
+  if (!type) return null;
+  const L = (type.lengthM / 1852) * pxPerNm;
+  const B = (type.beamM / 1852) * pxPerNm;
+  if (B < ownShipSymbol.minBeamPx) return null;
+  // A ship's plan: square stern, parallel sides, the bow tapering over the forward fifth of the length.
+  return [
+    { x: -B / 2, y: -L / 2 }, { x: -B / 2, y: L * 0.3 }, { x: 0, y: L / 2 }, { x: B / 2, y: L * 0.3 }, { x: B / 2, y: -L / 2 },
+  ];
+}
 import { drawArpa, drawArpaHud, hudText } from "./arpa-view";
 import { HitKind } from "../engine/scan";
 
@@ -60,6 +89,21 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   ctx.save();
   ctx.fillStyle = bgOuter();
   ctx.fillRect(0, 0, size, size);
+  // Switched off, or warming up: the display shows nothing but the state of the radar.
+  const pwr = radarPower(w);
+  if (pwr === "off" || pwr === "warming") {
+    const hudM = hudText(size);
+    ctx.textAlign = "center";
+    ctx.fillStyle = G("#ffb347");
+    ctx.font = `bold ${hudM.big}px monospace`;
+    const left = Math.ceil(warmUpLeftSec(w));
+    ctx.fillText(pwr === "off" ? "RADAR OFF" : `WARMING UP ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`, size / 2, size / 2);
+    ctx.font = `${hudM.fs}px monospace`;
+    ctx.fillStyle = G("#8fd9a6");
+    ctx.fillText(pwr === "off" ? "Press the RADAR key to switch on" : "Then STANDBY: press the RADAR key to transmit", size / 2, size / 2 + 2 * hudM.lh);
+    ctx.restore();
+    return;
+  }
   ctx.fillStyle = bgPpi();
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
@@ -76,8 +120,11 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   ctx.lineWidth = 1;
   ctx.fillStyle = G("#4fa56d");
   ctx.font = "11px monospace";
+  // While the "graphics off" key is held, everything drawn over the radar video is left out, so that only the
+  // video and the trails remain (IEC 62288 6.2.2.1; IEC 62388 8.2.3.1 lets the heading line go with the rest).
+  const gfx = !app.hlOff;
   // Rings are centred on own ship, so they follow it when the picture is off-centred or in true motion.
-  for (let r = step; app.ringsOn && r <= c.rangeNm * 2 + 1e-9; r += step) {
+  for (let r = step; gfx && app.ringsOn && r <= c.rangeNm * 2 + 1e-9; r += step) {
     ctx.beginPath();
     ctx.arc(own.x, own.y, r * k, 0, Math.PI * 2);
     ctx.stroke();
@@ -169,7 +216,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   // Nav marks (radar map symbols), fixed to the ground.
   ctx.strokeStyle = G("#ff9cf0");
   ctx.lineWidth = 1.4;
-  for (const m of app.navMarks) {
+  for (const m of gfx ? app.navMarks : []) {
     const s2 = px(worldToDisplayNm(w, ds, m));
     ctx.beginPath();
     ctx.moveTo(s2.x, s2.y - 7);
@@ -208,6 +255,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.stroke();
   }
 
+  if (gfx) {
   // EBL and VRM
   ctx.strokeStyle = G("#ffd24a");
   ctx.lineWidth = 1;
@@ -296,9 +344,12 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     const d = dirOf(p.bearing - orientM);
     const nx = -d.dy, ny = d.dx; // starboard side of the line's direction, on the screen
     const cxp = own.x + nx * p.range * k, cyp = own.y + ny * p.range * k;
+    // A truncated line runs only the set distances from the point abeam of own ship.
+    const fwd = p.ahead === null ? R * 3 : p.ahead * k;
+    const back = p.astern === null ? R * 3 : p.astern * k;
     ctx.beginPath();
-    ctx.moveTo(cxp - d.dx * R * 3, cyp - d.dy * R * 3);
-    ctx.lineTo(cxp + d.dx * R * 3, cyp + d.dy * R * 3);
+    ctx.moveTo(cxp - d.dx * back, cyp - d.dy * back);
+    ctx.lineTo(cxp + d.dx * fwd, cyp + d.dy * fwd);
     ctx.stroke();
     ctx.fillText(`PI${i + 1}`, cxp + 4, cyp - 4);
   });
@@ -307,19 +358,31 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   // ARPA symbols, vectors and zones
   drawArpa(ctx, app, px, ownNm, k, size);
 
-  // Own ship
+  // Own ship, as on a radar display (IEC 62288 Annex A, symbols 1.1a, 1.1c and 1.4): the minimised symbol, which
+  // is the heading line with a beam line across it through the reference point; and, when the range scale is
+  // short enough for the ship's beam to show, the ship's outline to scale. No circle is drawn round own ship.
   ctx.strokeStyle = G("#e0ffe8");
   ctx.fillStyle = G("#e0ffe8");
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1;
+  const beamHalf = ownShipSymbol.beamLineHalfPx;
   ctx.beginPath();
-  ctx.arc(own.x, own.y, 4, 0, Math.PI * 2);
+  ctx.moveTo(own.x - hd.dy * beamHalf, own.y + hd.dx * beamHalf);
+  ctx.lineTo(own.x + hd.dy * beamHalf, own.y - hd.dx * beamHalf);
   ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(own.x - 7, own.y);
-  ctx.lineTo(own.x + 7, own.y);
-  ctx.moveTo(own.x, own.y - 7);
-  ctx.lineTo(own.x, own.y + 7);
-  ctx.stroke();
+  const shape = ownOutline(w.own.model ? shipTypeById(w.own.model.typeId) : null, k);
+  if (shape) {
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    shape.forEach((q, i) => {
+      // q.x to starboard, q.y ahead, pixels; hd is the direction of the ship's head on the screen.
+      const sx = own.x + hd.dx * q.y - hd.dy * q.x;
+      const sy = own.y + hd.dy * q.y + hd.dx * q.x;
+      if (i === 0) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    });
+    ctx.closePath();
+    ctx.stroke();
+  }
 
   // Cursor
   if (app.cursor) {
@@ -332,6 +395,8 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.moveTo(p.x, p.y - 8);
     ctx.lineTo(p.x, p.y + 8);
     ctx.stroke();
+  }
+
   }
 
   // Sweep line with a smooth fading tail
@@ -364,10 +429,12 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   ctx.beginPath();
   ctx.arc(cx, cy, R, 0, Math.PI * 2);
   ctx.stroke();
-  for (let sa = 0; sa < 360; sa += 10) {
+  // Numbered every 30 degrees, with a mark every 5 degrees; the 5 and 10 degree marks differ in length
+  // (IEC 62388 9.10.2.1, IEC 62288 5.9.4.1).
+  for (let sa = 0; sa < 360; sa += 5) {
     const d = dirOf(sa);
     const major = sa % 30 === 0;
-    const len = major ? 9 : 5;
+    const len = major ? 10 : sa % 10 === 0 ? 7 : 3;
     ctx.beginPath();
     ctx.moveTo(cx + d.dx * R, cy + d.dy * R);
     ctx.lineTo(cx + d.dx * (R + len), cy + d.dy * (R + len));
@@ -388,6 +455,15 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
 
   drawArpaHud(ctx, app, size);
 
+  // In standby the graphics stay, with no echoes: say so in the middle of the picture.
+  if (pwr === "standby") {
+    const hudM = hudText(size);
+    ctx.textAlign = "center";
+    ctx.fillStyle = G("#ffb347");
+    ctx.font = `bold ${hudM.big}px monospace`;
+    ctx.fillText("STANDBY", size / 2, size / 2 - 3 * hudM.lh);
+  }
+
   // Corner readouts, as on a radar screen: the range scale in large figures, the rings and the presentation
   // mode at the top left; band and pulse length at the top right, with the ARPA's lines under it (drawArpaHud).
   // The lines are short because the corners are the only room outside the circle.
@@ -406,6 +482,15 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   ctx.textAlign = "right";
   const pulse = pulseFor(c.rangeNm, c.pulse).name;
   ctx.fillText(`${w.radar.band}-BAND  ${pulse === "short" ? "SP" : pulse === "medium" ? "MP" : "LP"}`, size - 8, hud.lh);
+  if (app.headingLost) {
+    // Steady, in the colour of a warning (the failure itself is alerted by the ARPA): two short lines under the
+    // presentation mode at the top left.
+    ctx.textAlign = "left";
+    ctx.fillStyle = G("#ffb347");
+    ctx.fillText("HDG FAIL: UNSTAB", 8, hud.big + 4 * hud.lh);
+    ctx.fillText("REL BRG ONLY", 8, hud.big + 5 * hud.lh);
+    ctx.textAlign = "right";
+  }
   ctx.fillStyle = G("#58a56f");
   ctx.fillText("TRAINING USE ONLY", size - 8, size - 8);
   ctx.restore();

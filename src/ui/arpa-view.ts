@@ -4,6 +4,9 @@ import { ZoneSetting, arpaAvailableOnScale } from "../arpa/index";
 import { collisionPoints, dangerAreas } from "../core/pad";
 import { measuredHeading, measuredRotation, ownGroundVelocity, toScreenNm } from "../engine/index";
 import { AppState } from "./app";
+import { AIS_TURNING_ROT, aisFilterLabel, aisFilterOn, aisFilteredOut } from "../ais/index";
+import { ownShipSymbol } from "./view";
+import { shipTypeById } from "../core/shipmodel";
 
 type Ctx = CanvasRenderingContext2D;
 type P = { x: number; y: number };
@@ -181,10 +184,24 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
       if (app.ais.settings.associatedShows === "radar") continue;
       hideTrack.add(v.associatedTrack);
     }
+    // Sleeping targets the filter excludes are left off the picture; activated, dangerous and lost ones never are.
+    if (aisFilteredOut(v, app.ais.settings.sleepFilter, app.ais.selected)) continue;
     const rel = sub(v.pos, w.own.pos);
     const p = at(rel);
-    const col = v.lost ? COL.lost : v.dangerous ? COL.danger : COL.ais;
     const active = v.state === "activated";
+    // While the trial manoeuvre is on, an activated target is drawn in the trial colour, red if the trial would not clear it.
+    const trialDanger = trialOn && active && !!v.trial?.dangerous;
+    const col = v.lost ? COL.lost : v.dangerous || trialDanger ? COL.danger : trialOn && active ? COL.trial : COL.ais;
+    // Past positions of an activated target (IEC 62288 5.5.7.1), as for tracked radar targets: small dots.
+    if (active && !v.lost && s.past.mode !== "off") {
+      ctx.fillStyle = col;
+      for (const q of app.ais.pastPositions(w, v.report.id, s.past.mode, Math.min(s.past.points, a.cfg.pastMaxPoints), s.past.intervalMin)) {
+        const pp = at(q);
+        ctx.beginPath();
+        ctx.arc(pp.x, pp.y, 1.9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     // Symbols as in IMO SN.1/Circ.243/Rev.2: an isosceles triangle with the reported position at its centre,
     // pointing along the heading; smaller when sleeping; bold and red when dangerous, flashing until acknowledged;
     // a lost target carries a bold cross that does not turn with the triangle, and no vector or heading line.
@@ -212,7 +229,30 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
       ctx.beginPath();
       ctx.moveTo(0, -h);
       ctx.lineTo(0, -h - 4 * h);
+      // Turn indicator (IEC 62288 Annex A, 2.7b): a short line across the end of the heading line, towards the turn.
+      const rot = v.report.rot;
+      if (rot !== null && Math.abs(rot) >= AIS_TURNING_ROT) {
+        ctx.moveTo(0, -h - 4 * h);
+        ctx.lineTo(Math.sign(rot) * 6, -h - 4 * h);
+      }
       ctx.stroke();
+      // The ship's outline to scale, round the triangle, when own ship is drawn to scale and the target's beam
+      // shows 3 mm or more (IEC 62288 Annex A, 2.5b). Its heading is the reported one; it is centred on the position.
+      const L = v.report.lengthM, B = v.report.beamM;
+      const ownType = w.own.model ? shipTypeById(w.own.model.typeId) : null;
+      const ownOutlineShown = !!ownType && (ownType.beamM / 1852) * k >= ownShipSymbol.minBeamPx;
+      if (L !== null && B !== null && ownOutlineShown && (B / 1852) * k >= ownShipSymbol.minBeamPx) {
+        const l = (L / 1852) * k, b = (B / 1852) * k;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-b / 2, l / 2);
+        ctx.lineTo(-b / 2, -l * 0.3);
+        ctx.lineTo(0, -l / 2);
+        ctx.lineTo(b / 2, -l * 0.3);
+        ctx.lineTo(b / 2, l / 2);
+        ctx.closePath();
+        ctx.stroke();
+      }
     }
     ctx.restore();
     if (v.lost) {
@@ -437,6 +477,9 @@ export function drawArpaHud(ctx: Ctx, app: AppState, size: number): void {
     line(a.stabLabel());
     line(`CPA ${s.cpaLimitNm} NM  TCPA ${s.tcpaLimitMin} MIN`);
     if (s.past.mode !== "off") line(`PAST ${s.past.mode === "true" ? "TRUE" : "REL"} ${s.past.points} x ${s.past.intervalMin} MIN`);
+    if (!s.lostWarning) line("LOST TGT WARNING OFF");
+    if (!app.ais.settings.lostAlarm) line("AIS LOST WARNING OFF");
+    if (app.ais.settings.on && aisFilterOn(app.ais.settings.sleepFilter)) line(`AIS FILTER ${aisFilterLabel(app.ais.settings.sleepFilter)}`);
     if (s.vectorSuppress) line("SAFE VECTORS OFF");
     if (s.anchorWatch.trackId !== null) line(`ANCHOR WATCH ${s.anchorWatch.trackId}`);
     if (!s.showData) line("ARPA DATA OFF");
@@ -445,12 +488,13 @@ export function drawArpaHud(ctx: Ctx, app: AppState, size: number): void {
     ctx.fillStyle = COL.trial;
     ctx.font = "bold 22px monospace";
     ctx.textAlign = "center";
-    if (flash) ctx.fillText("TRIAL", size / 2, 58);
+    // Steady, not flashing: flashing is kept for alerts that have not been acknowledged (IEC 62288 4.7.4).
+    ctx.fillText("TRIAL", size / 2, 58);
     // A large T, steady, low on the picture (IMO SN.1/Circ.243: trial manoeuvre shown by a large T on screen).
     ctx.font = "bold 44px monospace";
     ctx.fillText("T", size / 2, size - 52);
   }
-  const alarm = a.alarms.find((x) => !x.acked);
+  const alarm = a.alarms.find((x) => !x.acked && x.kind !== "capacity-near");
   if (alarm && flash) {
     ctx.font = "bold 13px monospace";
     ctx.textAlign = "center";

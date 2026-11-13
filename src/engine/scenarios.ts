@@ -16,10 +16,12 @@ export const OPEN_SEA: Scenario = {
     {
       id: 1, name: "Cargo ship A", kind: "ship", pos: fromPolar(45, 6.0), course: 270, speed: 10,
       rcs: 1.0, height: 20, events: [{ atSeconds: 1500, course: 300 }],
+      aisStatic: { destination: "SINGAPORE", eta: "16 NOV 0600 UTC", draughtM: 8.6, shipType: "Cargo" },
     },
-    { id: 2, name: "Tanker B", kind: "ship", pos: { e: 0.4, n: 9 }, course: 185, speed: 11, rcs: 1.2, height: 25, events: [] },
+    { id: 2, name: "Tanker B", kind: "ship", pos: { e: 0.4, n: 9 }, course: 185, speed: 11, rcs: 1.2, height: 25, events: [], aisStatic: { destination: "FUJAIRAH", eta: "15 NOV 2200 UTC", draughtM: 12.1, shipType: "Tanker" } },
     { id: 3, name: "Ferry C", kind: "ship", pos: { e: -0.9, n: -3.0 }, course: 0, speed: 16, rcs: 0.8, height: 18, events: [] },
-    { id: 4, name: "Fishing boat D", kind: "small-craft", pos: fromPolar(300, 3.5), course: 20, speed: 4, rcs: 0.05, height: 5, events: [] },
+    // The fishing boat carries a Class B AIS: fewer reports, and no status, rate of turn or voyage data.
+    { id: 4, name: "Fishing boat D", kind: "small-craft", pos: fromPolar(300, 3.5), course: 20, speed: 4, rcs: 0.05, height: 5, events: [], ais: true, aisStatic: { shipType: "Fishing" } },
     { id: 5, name: "Buoy E", kind: "buoy", pos: fromPolar(80, 2.2), course: 0, speed: 0, rcs: 0.015, height: 3, events: [] },
     { id: 6, name: "Yacht F", kind: "small-craft", pos: fromPolar(330, 1.6), course: 90, speed: 5, rcs: 0.02, height: 8, events: [] },
   ],
@@ -199,8 +201,8 @@ export const MUMBAI_APPROACH: Scenario = {
   env: { seaState: 3, wind: { from: 250, speedKn: 14 }, current: { set: 10, drift: 0.8 } },
   coasts: MUMBAI_COAST,
   targets: [
-    { id: 1, name: "Outbound container ship", ...typed("container-pp"), pos: { e: 14, n: 2.4 }, course: 262, speed: 14, events: [] },
-    { id: 2, name: "Inbound tanker", ...typed("product-tanker"), pos: { e: -4, n: -6 }, course: 62, speed: 11, events: [] },
+    { id: 1, name: "Outbound container ship", ...typed("container-pp"), pos: { e: 14, n: 2.4 }, course: 262, speed: 14, events: [], aisStatic: { destination: "COLOMBO", eta: "16 NOV 0400 UTC", draughtM: 11.8 } },
+    { id: 2, name: "Inbound tanker", ...typed("product-tanker"), pos: { e: -4, n: -6 }, course: 62, speed: 11, events: [], aisStatic: { destination: "MUMBAI", eta: "13 NOV 1800 UTC", draughtM: 10.2 } },
     { id: 3, name: "Bulk carrier at anchor", ...typed("bulk-handy"), pos: { e: 12.5, n: -1.5 }, course: 250, speed: 0, events: [] },
     { id: 4, name: "Coaster", ...typed("coaster"), pos: { e: 9, n: -12 }, course: 2, speed: 10, events: [] },
     { id: 5, name: "Fishing boat", ...typed("fishing-boat"), pos: { e: 6, n: 4 }, course: 190, speed: 5, events: [] },

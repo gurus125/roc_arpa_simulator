@@ -52,6 +52,28 @@ export interface Target {
   raconBand?: "X" | "S" | "both";
   /** False when the vessel's AIS is switched off or it carries none. Ships transmit AIS by default. */
   ais?: boolean;
+  /**
+   * AIS class: "A" (ships; the default) or class B, "B-CS" (carrier sense; the default for small craft
+   * whose `ais` is true) or "B-SO" (self-organised). Class B reports less often and sends no
+   * navigational status, rate of turn, IMO number or voyage data (IEC 62388 Table 27).
+   */
+  aisClass?: "A" | "B-CS" | "B-SO";
+  /**
+   * What the vessel's AIS sends besides its position report, where the scenario sets it; anything
+   * left out takes the simulator's default (see ais/index.ts), and null means it is not sent, so the
+   * display shows it as MISSING.
+   */
+  aisStatic?: {
+    imo?: string | null;
+    shipType?: string | null;
+    destination?: string | null;
+    draughtM?: number | null;
+    /** As sent, for example "14 NOV 1530 UTC". */
+    eta?: string | null;
+    navStatus?: string | null;
+    /** Position accuracy flag: "high" better than 10 m (differential), "low" worse. */
+    posAccuracy?: "high" | "low";
+  };
   /** Catalogue type (engine/targets.ts). A moving target of a catalogue type is given `motion`. */
   typeId?: string;
   /**
@@ -67,6 +89,12 @@ export interface Target {
     /** What carried the vessel off its heading in the last step: current plus leeway, knots east/north. Set by the engine. */
     drift?: Vec2;
   };
+  /**
+   * A fading target: the share of scans on which it is painted, spread evenly (0.5: every other
+   * scan, so 5 out of any 10 consecutive scans; IEC 62388 11.3.9 and TT scenario 5, target 6). Left
+   * out: painted whenever its echo is strong enough. Applies to the tracker's plots.
+   */
+  paint?: number;
   /** Programmed route, if any. A timed course order (an event with a course) ends it. */
   route?: TargetRoute;
 }
@@ -198,6 +226,10 @@ export interface RadarSet {
   band: "X" | "S";
   /** Transmitter and receiver performance, 1 = as new. Set lower by the instructor (ageing magnetron, water in the waveguide). */
   performance?: number;
+  /** Power state (see engine/power.ts). Left out: switched on and transmitting. */
+  power?: "off" | "warming" | "standby" | "transmit";
+  /** Exercise time at which the warm-up ends, while warming up. */
+  warmUntil?: number;
 }
 
 export interface CoastEdge {

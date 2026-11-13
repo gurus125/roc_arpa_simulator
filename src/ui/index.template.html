@@ -6,8 +6,8 @@
 <title>ROC / ARPA radar simulator</title>
 <style>
   /* DAY palette (default): dark blue with white text and yellow highlights. NIGHT: black with dim amber, to keep night vision. */
-  :root { color-scheme: dark; --bg:#071033; --panel:#0d1c50; --box:#0a1643; --line:#2b3f8a; --text:#eef2ff; --muted:#a7b4e4; --accent:#ffd84a; --onaccent:#1a1400; --bright:#ffffff; --btn:#17286b; --btnline:#3a52ad; --btnhover:#1f3488; --btnon:#27409e; --warn:#ffd24a; --bad:#ff7a6b; }
-  body[data-mode=night] { --bg:#000000; --panel:#070503; --box:#050302; --line:#2a1b0c; --text:#b5823c; --muted:#6b4f27; --accent:#9a6a1c; --onaccent:#000000; --bright:#d59a48; --btn:#120b05; --btnline:#3a2610; --btnhover:#1c1108; --btnon:#2a1a0a; --warn:#8f6a18; --bad:#8a2f25; }
+  :root { color-scheme: dark; --bg:#071033; --panel:#0d1c50; --box:#0a1643; --line:#2b3f8a; --text:#eef2ff; --muted:#a7b4e4; --accent:#ffd84a; --onaccent:#1a1400; --bright:#ffffff; --btn:#17286b; --btnline:#3a52ad; --btnhover:#1f3488; --btnon:#27409e; --warn:#ffa62b; --caution:#ffe14a; --bad:#ff7a6b; }
+  body[data-mode=night] { --bg:#000000; --panel:#070503; --box:#050302; --line:#2a1b0c; --text:#b5823c; --muted:#6b4f27; --accent:#9a6a1c; --onaccent:#000000; --bright:#d59a48; --btn:#120b05; --btnline:#3a2610; --btnhover:#1c1108; --btnon:#2a1a0a; --warn:#8a5514; --caution:#8f7a18; --bad:#8a2f25; }
   body[data-mode=night] #console #radarSb { background:#0a1a0e; border-color:#1f5a30; color:#5f9a6c; }
   body[data-mode=night] #console #radarSb.stby { background:#1c1503; border-color:#6a5210; color:#8f7a40; }
   body[data-mode=night] #console #ackKey.alarm { background:#3a0a0a; border-color:#8a2f25; color:#c9645a; }
@@ -56,7 +56,7 @@
   table.obs, table.res { width:100%; border-collapse:collapse; font:12px ui-monospace, Consolas, monospace; margin-top:8px; }
   table.obs th, table.res th { text-align:left; color:var(--muted); font-weight:500; padding:3px 4px; border-bottom:1px solid var(--line); }
   table.obs td, table.res td { padding:3px 4px; border-bottom:1px solid var(--line); }
-  .ok { color:var(--accent); } .no { color:var(--bad); } .wn { color:var(--warn); } .in { color:#9ec9ff; }
+  .ok { color:var(--accent); } .no { color:var(--bad); } .wn { color:var(--warn); } .cau { color:var(--caution); } .in { color:#9ec9ff; }
   ul.msgs { margin:6px 0 0; padding-left:18px; font-size:12px; }
   ul.msgs li { margin:3px 0; }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; }
@@ -227,6 +227,8 @@
   #cTopAlarm.alarm { background:var(--alarmbg); border-color:var(--bad); }
   #cTopAlarm.alarm .no { color:#ffd9d4; }
   #cTopAlarm.warning { background:var(--warnbg); border-color:var(--warn); }
+  #cTopAlarm.caution { border-color:var(--caution); }
+  #console .cbox b.cau { color:var(--caution); }
   /* Own ship: heading and speed large; course and speed over the ground; position; rudder, rate of turn, steering, wind, time. */
   #console #bOwn { padding-top:2px; }
   #cOwn { display:grid; grid-template-columns:1fr 1fr; column-gap:18px; align-items:baseline; }
@@ -270,6 +272,15 @@
   #cGain .meter { height:6px; border-radius:0; border-color:var(--cline); background:transparent; }
   /* Cursor and target data. */
   #cCur .cline { display:flex; justify-content:space-between; align-items:baseline; gap:6px; line-height:17px; }
+  #console #bCur { padding-top:1px; }
+  #console #cProc { margin-left:auto; display:flex; gap:5px; letter-spacing:.04em; }
+  #console #cProc i { font-style:normal; color:var(--cline); }
+  #console #cProc i.on { color:var(--src); }
+  #console #aisKey { flex:none; padding:1px 5px; }
+  #console #cAisMore { margin-left:10px; padding:0 6px; font-size:10px; line-height:14px; }
+  #cTd .tp.none.more { flex-wrap:wrap; justify-content:flex-start; column-gap:12px; }
+  #ppiCorner .mref { display:flex; justify-content:space-between; align-items:center; gap:0.4em; margin-top:0.15em; border-top:1px dotted var(--cline); padding-top:0.15em; }
+  #ppiCorner .mref button { font:600 .9em ui-monospace, Consolas, monospace; padding:0 0.5em; border-radius:0; min-width:4.2em; }
   #cCur .cpos { display:flex; gap:10px; align-items:baseline; }
   #cCur .cpos b { font-weight:600; }
   #console .cbox b.big { font-size:15px; }
@@ -279,7 +290,8 @@
   #cTd .tp { display:flex; justify-content:space-between; align-items:baseline; gap:4px; min-width:0; line-height:17px; }
   #cTd .tp b { text-align:right; overflow:hidden; text-overflow:ellipsis; font-weight:600; }
   #cTd .tp.span2 { grid-column:span 2; }
-  #cTd .tp.none { grid-column:1 / -1; }
+  #cTd .tp.none { grid-column:1 / -1; flex-wrap:wrap; column-gap:12px; }
+  #cTd .tp.none .pair b { font-size:12px; }
   #console .q { font-style:normal; color:var(--warn); margin-left:1px; }
   #cVecInfo { display:flex; flex-wrap:wrap; gap:0 16px; border-top:1px dotted var(--cline); margin-top:2px; padding-top:1px; }
   #console #arpaMsg { margin:1px 0 0; }
@@ -351,6 +363,12 @@
     </section>
     <section>
       <h2>Settings</h2>
+      <div class="btns setrow"><span class="small">Power</span><button id="radarOff" title="Switch the radar off. Switched on again with the RADAR key, it warms up before it can transmit">RADAR POWER OFF</button></div>
+      <div class="btns setrow"><span class="small">Radar</span><button id="radarDefault" title="Put the radar and ARPA controls to the standard default settings of IEC 62388, Table 35">DEFAULT SETTINGS</button><span class="small" id="radarDefaultMsg"></span></div>
+      <p class="hint">DEFAULT SETTINGS puts the controls in the known starting state every radar offers: X band, 6 NM, rings off, one EBL and one VRM (0.25 NM) on, true motion north-up, ground stabilised, trails 6 min, relative vectors of 6 min, automatic acquisition off, AIS on, CPA limit 2 NM and TCPA limit 12 min. Gain, clutter and tuning are left as they are.</p>
+      <div class="btns setrow"><span class="small">User setting 1</span><button data-us-save="0">Store</button><button data-us-load="0">Recall</button><span class="small" id="usInfo0"></span></div>
+      <div class="btns setrow"><span class="small">User setting 2</span><button data-us-save="1">Store</button><button data-us-load="1">Recall</button><span class="small" id="usInfo1"></span></div>
+      <p class="hint">Store keeps the present settings of the radar and ARPA controls (range, band, presentation, trails, vectors, gain and clutter, pulse, processing, alarm limits, AIS) under that number, on this computer. Recall puts them back. Both ask you to confirm.</p>
       <div class="btns setrow" id="modeKeys"><span class="small">Display</span><button data-m="day">DAY</button><button data-m="night">NIGHT</button></div>
       <div class="btns setrow" id="teleKeys"><span class="small">Steering gear</span><button data-u="1" class="on" title="The primary unit: always running">TELEMOTOR 1</button><button data-u="2" title="Start or stop the second unit">TELEMOTOR 2</button><span class="small" id="teleInfo"></span></div>
       <div class="btns setrow"><span class="small">Ship</span><button id="osToggle">OWN SHIP DATA</button></div>
@@ -405,15 +423,17 @@
       <div class="row"><label for="eblBrg">EBL bearing</label><input type="range" id="eblBrg" min="0" max="359.9" step="0.1" value="0"><span class="val" id="eblBrgV">000.0</span></div>
       <div class="check"><input type="checkbox" id="vrmOn"><label for="vrmOn">VRM (variable range marker)</label></div>
       <div class="row"><label for="vrmRng">VRM range (NM)</label><input type="range" id="vrmRng" min="0.05" max="24" step="0.01" value="3"><span class="val" id="vrmRngV">3.00</span></div>
-      <div class="btns"><button id="eblMove">Move EBL</button><button id="vrmMove">Move VRM</button><button id="eblOrg">EBL origin: own ship</button></div>
+      <div class="btns"><button id="eblMove">Move EBL</button><button id="vrmMove">Move VRM</button><button id="eblOrg">EBL origin: own ship</button><button id="eblCarry" title="An offset EBL origin can stay fixed to the ground or be carried along with own ship">Offset origin: fixed to ground</button></div>
       <details style="margin-top:6px"><summary class="small" style="cursor:pointer">More tools: EBL 2, VRM 2, parallel index lines, heading line, off-centre, band</summary>
         <div class="check"><input type="checkbox" id="ebl2On"><label for="ebl2On">EBL 2</label></div>
         <div class="row"><label for="ebl2Brg">EBL 2 bearing</label><input type="range" id="ebl2Brg" min="0" max="359.9" step="0.1" value="90"><span class="val" id="ebl2BrgV">090.0</span></div>
         <div class="check"><input type="checkbox" id="vrm2On"><label for="vrm2On">VRM 2</label></div>
         <div class="row"><label for="vrm2Rng">VRM 2 range (NM)</label><input type="range" id="vrm2Rng" min="0.05" max="24" step="0.01" value="1"><span class="val" id="vrm2RngV">1.00</span></div>
         <div class="small" style="margin-top:6px">Parallel index lines (true bearing of the line; distance off, + to starboard of that bearing)</div>
-        <div class="zone" id="piGrid" style="grid-template-columns:auto 1fr 1fr"></div>
-        <div class="btns"><button id="hlOff">Hold: heading line off</button><button id="offC">Off-centre: click a point</button><button id="offReset">Centre</button></div>
+        <div class="zone" id="piGrid" style="grid-template-columns:auto 1fr 1fr 1fr 1fr auto"></div>
+        <div class="btns"><button id="piAllOn">All PI lines on</button><button id="piAllOff">All PI lines off</button></div>
+        <p class="hint">Ahead and astern cut a line short: how far it runs from the point abeam of own ship, along the line and back. Leave them blank for a full line. HDG puts that line parallel to the ship's heading.</p>
+        <div class="btns"><button id="hlOff" title="While held: the heading line and every other graphic are taken off, leaving only the radar echoes and trails">Hold: graphics off</button><button id="offC">Off-centre: click a point</button><button id="offReset">Centre</button></div>
         <div class="btns"><button id="navDraw">Nav lines: draw</button><button id="navMark">Nav mark: place</button><button id="navClear">Clear lines and marks</button></div>
         <div class="btns"><input type="text" id="navName" placeholder="Map name" style="flex:1"><button id="navSave">Save map</button><select id="navLoad" style="width:auto"></select></div>
         <div class="row two"><label for="band">Radar band</label><select id="band"><option value="X">X band (3 cm)</option><option value="S">S band (10 cm)</option></select></div>
@@ -522,10 +542,22 @@
         <h2>AIS targets</h2>
         <div class="check"><input type="checkbox" id="aisOn" checked><label for="aisOn">Show AIS reported targets</label></div>
         <div class="check"><input type="checkbox" id="aisLost" checked><label for="aisLost">Lost AIS target alarm</label></div>
+        <div class="row two"><label for="aisAutoAct">Activate automatically</label><select id="aisAutoAct"><option value="">Off (by hand only)</option><option value="3">Within 3 NM</option><option value="6">Within 6 NM</option><option value="12">Within 12 NM</option></select></div>
+        <p class="hint">Sleeping AIS targets closer than the range chosen are activated by themselves. With automatic acquisition on, an AIS target in an acquisition zone is activated too, with a NEW AIS TARGET warning. A dangerous target is always activated. At most 20 targets can be activated: a caution comes at 19, and a further activation is refused with a warning.</p>
+        <p class="small"><b>Filter for sleeping targets</b></p>
+        <div class="row two"><label for="aisFilter">Hide beyond</label><select id="aisFilter"><option value="">Off</option><option value="3">3 NM</option><option value="6">6 NM</option><option value="12">12 NM</option></select></div>
+        <div class="row two"><label for="aisFiltCpa">Hide passing wider than</label><select id="aisFiltCpa"><option value="">Off</option><option value="1">CPA 1 NM</option><option value="2">CPA 2 NM</option><option value="3">CPA 3 NM</option></select></div>
+        <div class="row two"><label for="aisFiltTcpa">Hide CPA further ahead than</label><select id="aisFiltTcpa"><option value="">Off</option><option value="12">TCPA 12 min</option><option value="20">TCPA 20 min</option><option value="30">TCPA 30 min</option></select></div>
+        <div class="row two"><label for="aisFiltSog">Hide slower than</label><select id="aisFiltSog"><option value="">Off</option><option value="0.5">SOG 0.5 kn</option><option value="2">SOG 2 kn</option><option value="5">SOG 5 kn</option></select></div>
+        <div class="row two"><label for="aisFiltCls">Apply to</label><select id="aisFiltCls"><option value="all">Class A and B</option><option value="B">Class B only</option></select></div>
+        <p class="small" id="aisFiltNow">Filter off: every sleeping target is drawn.</p>
+        <p class="hint">The filter thins out a crowded picture: a sleeping AIS target is not drawn when any criterion that is set says it is of no interest (further off, passing wide or opening, its CPA far ahead, or slow). A class on its own does not filter: it narrows the other criteria. Activated, dangerous and lost targets and the selected target are always drawn, and no single target can be taken off the picture; the list below still shows every target. While a filter is on, "AIS FILTER" and the criteria are written at the top right of the picture, and the AIS key reads AIS FILT.</p>
         <div class="row two"><label for="aisAssoc">Associated target shows</label><select id="aisAssoc"><option value="ais">AIS symbol</option><option value="radar">Radar symbol</option></select></div>
         <div class="btns"><button id="aisActAll">Activate all</button><button id="aisSleepAll">Sleep all</button></div>
         <table class="trk"><thead><tr><th>Name</th><th>BRG</th><th>RNG</th><th>CPA</th><th>TCPA</th><th>COG</th><th>SOG</th><th>State</th></tr></thead><tbody id="aisRows"></tbody></table>
         <p class="small" id="aisData"></p>
+        <div class="btns"><button id="aisOwnKey">Own ship AIS data</button></div>
+        <p class="small" id="aisOwn"></p>
         <p class="hint">Sleeping targets are small triangles. Click a row to activate a target (vector and heading line) and see its data; click again to put it to sleep. A dangerous target is activated automatically. "= R3" means the AIS target and radar track 3 are judged to be the same ship. AIS data is what the other ship transmits: it can be late, wrong or missing, and small craft and buoys have none.</p>
       </section>
       <section>
@@ -552,6 +584,7 @@
           <div><label for="arpaTcpaLim">TCPA limit (min)</label><input type="number" id="arpaTcpaLim" min="1" max="60" step="1" value="12"></div>
         </div>
         <div class="btns"><button id="arpaAckNext">Acknowledge next</button><button id="arpaSilence">Silence sound 30 s</button></div>
+        <div class="check"><input type="checkbox" id="arpaLostWarn" checked><label for="arpaLostWarn">Lost target warning (tracked targets)</label></div>
         <div class="btns"><span class="small">Anchor watch</span><input type="number" id="anchorLim" min="0.02" max="1" step="0.01" value="0.1" style="width:70px" title="Distance the marked target may move before the warning, NM"><span class="small">NM</span><button id="anchorSet">On, selected target</button><button id="anchorOff">Off</button></div>
         <p class="small" id="anchorInfo"></p>
         <p class="hint">Anchor watch: at anchor, select a tracked target that you know is stationary (a small isolated mark) and press "On, selected target". A warning is given when it has moved more than the distance set from where it was: own ship, or the target, is dragging.</p>
@@ -560,7 +593,7 @@
       </section>
       <section>
         <h2>Target data</h2>
-        <table class="trk"><thead><tr><th>ID</th><th>BRG</th><th>RNG</th><th>CPA</th><th>TCPA</th><th>CSE</th><th>SPD</th><th>BCR/BCT</th><th>State</th></tr></thead><tbody id="arpaRows"></tbody></table>
+        <table class="trk"><thead><tr><th>ID</th><th>BRG</th><th>RNG</th><th>CPA</th><th>TCPA</th><th>CRS</th><th>SPD</th><th>BCR/BCT</th><th>State</th></tr></thead><tbody id="arpaRows"></tbody></table>
         <p class="small" id="arpaRefNote"></p><p class="hint">Bearings from the gyro. BCR/BCT: range (NM) and time (min) at which the target will cross ahead of own ship, if it does. CSE/SPD are the target's true course and speed in the selected stabilisation. Click a row to select.</p>
       </section>
       <section>
@@ -593,7 +626,7 @@
           <p class="small" id="faultNow"></p>
           <p class="hint">Positive = the instrument reads high. The ship's real motion is unchanged; the radar picture, heading, log speed and ARPA all use the wrong values. Not shown to the student anywhere else. The error changes gradually; while it is changing the ARPA vectors are disturbed, so allow one tracking window (3 min) after it stops before judging the effect.</p>
           <div class="check"><input type="checkbox" id="arpaTruth"><label for="arpaTruth">Show truth (real target, real CPA and course/speed)</label></div>
-          <table class="trk" id="truthTable" hidden><thead><tr><th>ID</th><th>Real target</th><th>CPA</th><th>TCPA</th><th>CSE</th><th>SPD</th><th>Swaps</th></tr></thead><tbody id="truthRows"></tbody></table>
+          <table class="trk" id="truthTable" hidden><thead><tr><th>ID</th><th>Real target</th><th>CPA</th><th>TCPA</th><th>CRS</th><th>SPD</th><th>Swaps</th></tr></thead><tbody id="truthRows"></tbody></table>
           <div class="log" id="arpaLog"></div>
         </section>
       </details>

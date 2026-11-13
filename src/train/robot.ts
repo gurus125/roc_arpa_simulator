@@ -1,7 +1,7 @@
 import { ArpaSystem } from "../arpa/index";
 import { courseToSteer } from "../core/current";
 import { bearingOf, length, normalizeDeg, rotateVec, sub } from "../core/vec";
-import { World, createWorld, setShipModel, stepWorld } from "../engine/index";
+import { World, createWorld, setShipModel, stepWorld, RADAR_WARM_UP_SEC, setRadarTransmit, switchRadarOn } from "../engine/index";
 import { ARPA_EXERCISES } from "./arpa-exercises";
 import { PLOTTING_EXERCISES } from "./plotting-exercises";
 import { RADAR_EXERCISES } from "./radar-exercises";
@@ -45,7 +45,7 @@ interface Kit {
   acquire: (targetId: number) => void;
   trackOf: (targetId: number) => number | null;
   /** Parallel index lines and navigation lines "set on the screen". */
-  ui: { pi: { on: boolean; bearing: number; range: number }[]; navLines: number };
+  ui: { pi: { on: boolean; bearing: number; range: number }[]; navLines: number; pmOn?: boolean };
 }
 interface Plan {
   steps: { at: number; run: (k: Kit) => void }[];
@@ -116,6 +116,26 @@ const PLANS: Record<string, Plan> = {
     },
     finishAt: 4200,
     done: (k) => k.s.obs.trackDone,
+  },
+  "radar-22": {
+    // Switch on, wait for the warm-up, then set up in the order of the briefing.
+    steps: [
+      { at: 0, run: (k) => switchRadarOn(k.w) },
+      { at: RADAR_WARM_UP_SEC + 5, run: (k) => {
+        setRadarTransmit(k.w, true);
+        const c = k.w.radar.controls;
+        c.brilliance = 70;
+        Object.assign(c, { stc: 0, ftc: 0, echoStretch: false, echoAverage: false, interferenceRejection: false, rangeNm: 12 });
+        c.tuning = k.w.radar.tuningOptimum;
+        c.gain = 56; // a light speckle of noise at the best tuning
+      } },
+      { at: RADAR_WARM_UP_SEC + 25, run: (k) => void (k.ui.pmOn = true) },
+      { at: RADAR_WARM_UP_SEC + 45, run: (k) => {
+        k.ui.pmOn = false;
+        k.w.radar.controls.stc = 20;
+      } },
+    ],
+    finishAt: RADAR_WARM_UP_SEC + 90,
   },
   "radar-11": {
     // Home on the survival craft (the first dot), slowing down in good time.

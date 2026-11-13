@@ -2,7 +2,7 @@ import { CourseSpeed, Vec2, angleDiffDeg, bearingOf, courseSpeedOf, length, norm
 import { CpaResult, computeCpa } from "../core/cpa";
 import { rule19Check } from "../core/colreg";
 import { alongTrack, crossTrackError } from "../core/nav";
-import { Scenario, Target, World, currentVelocity, ownGroundVelocity } from "../engine/index";
+import { Scenario, Target, World, currentVelocity, ownGroundVelocity, radarTransmitting } from "../engine/index";
 import { ArpaSystem } from "../arpa/index";
 
 /**
@@ -20,7 +20,29 @@ export interface ScoringConfig {
   /** Rule 8(b) "large enough to be readily apparent": textbook guidance used as a placeholder. */
   substantialTurnDeg: number;
   substantialSpeedCut: number;
+  /** Limits for the setting-up exercise (radar 22); left out: SETUP_LIMITS. */
+  setup?: SetupLimits;
 }
+
+export interface SetupLimits {
+  /** Noise speckle (0 none to 1 the whole picture) that counts as "a light, even speckle". */
+  speckleMin: number;
+  speckleMax: number;
+  /** Largest acceptable difference from the best tuning, on the 0 to 100 tuning scale. */
+  tuningTol: number;
+  /** Brilliance at or above which the picture can be seen (10 to 100). */
+  minBrilliance: number;
+  /** Sea and rain clutter at or below this count as at zero effect. */
+  clutterZero: number;
+}
+
+/**
+ * Limits for the setting-up exercise. PLACEHOLDERS: the books describe how to judge each setting
+ * (a light, even background speckle for the gain; the greatest extent of clutter, rain or land
+ * echoes, or the performance monitor, for the tuning), not a figure. The instructor can change
+ * them with the scoring settings.
+ */
+export const SETUP_LIMITS: SetupLimits = { speckleMin: 0.02, speckleMax: 0.25, tuningTol: 6, minBrilliance: 40, clutterZero: 5 };
 
 export const PLACEHOLDER_SCORING: ScoringConfig = {
   // Sized so that data read from a settled track (which carries the ARPA's own noise) is accepted.
@@ -61,6 +83,8 @@ export interface Observed {
   /** Parallel index lines the student has set (latest), and navigation lines drawn (most at any time). */
   pi: { on: boolean; bearing: number; range: number }[];
   navLines: number;
+  /** The performance monitor was looked at while the radar was transmitting. */
+  pmUsed: boolean;
   /** Largest distance off the exercise's planned track while abeam of it, NM, and whether its end was passed. */
   maxXte: number;
   trackDone: boolean;
@@ -135,6 +159,8 @@ export interface ArpaExercise {
   group?: "ARPA" | "Radar" | "Plotting";
   /** Own ship with fixed rates of turn and speed change (the exercise states them), instead of a ship model. */
   ownRates?: { turnDegPerMin: number; speedKnPerMin: number };
+  /** The exercise starts with the radar switched off and its controls set by `setup`: the screen shows them as set, with the automatic controls off. */
+  startsSwitchedOff?: boolean;
 }
 
 export interface ResultItem {
@@ -230,7 +256,7 @@ export class ArpaExSession {
       tracked: new Set(), autoAcqUsed: false, guardUsed: false, exclusionUsed: false, trialUsed: false, vecTrueUsed: false,
       vecRelUsed: false, pastUsed: false, groundRef: null, acks: 0, tests: 0, cpaLimit: a.settings.cpaLimitNm,
       tcpaLimit: a.settings.tcpaLimitMin, minRange: {}, manoeuvre: null, maxTurnDeg: 0, minSpeedRatio: 1,
-      pi: [], navLines: 0, maxXte: 0, trackDone: false, closeSpeed: {},
+      pi: [], navLines: 0, pmUsed: false, maxXte: 0, trackDone: false, closeSpeed: {},
     };
     def.setup?.(a, w);
   }
@@ -240,11 +266,12 @@ export class ArpaExSession {
   }
 
   /** Call after every simulation step. */
-  step(w: World, a: ArpaSystem, ui?: { pi: { on: boolean; bearing: number; range: number }[]; navLines: number }): void {
+  step(w: World, a: ArpaSystem, ui?: { pi: { on: boolean; bearing: number; range: number }[]; navLines: number; pmOn?: boolean }): void {
     if (this.finished) return;
     if (ui) {
       this.obs.pi = ui.pi.map((p) => ({ ...p }));
       this.obs.navLines = Math.max(this.obs.navLines, ui.navLines);
+      if (ui.pmOn && radarTransmitting(w)) this.obs.pmUsed = true;
     }
     const tr = this.def.track;
     if (tr) {

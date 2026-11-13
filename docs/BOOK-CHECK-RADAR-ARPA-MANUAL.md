@@ -150,7 +150,7 @@ or outside ROC and ARPA).
 | Section | Simulator |
 |---------|-----------|
 | 9.2, 9.3 The four test scenarios and the accuracy required | Yes, tested against the IMO scenarios (the present standard's figures) |
-| 9.5 Sensor errors: glint, bearing and range errors, gyro and log errors | Partly: glint, random bearing and range errors, gyro and log errors. Errors from rolling (antenna tilt, parallax) and quantisation are not separate items |
+| 9.5 Sensor errors: glint, bearing and range errors, gyro and log errors | Yes since 13 Nov 2026: glint, random bearing and range errors (quantisation included, sized from IEC 62388 Annex E), gyro and log errors, and the bearing error from the antenna tilting as the ship rolls and pitches. Parallax (the antenna moving sideways as she rolls) is not modelled |
 | 9.6 Errors in the data: target swop, lag after a manoeuvre, effect of wrong heading or speed input on true and relative vectors and on the PPC | Yes (ARPA exercise 8) |
 | 9.7 Errors of interpretation | Yes, as debrief questions |
 
@@ -162,12 +162,33 @@ records, replay and marking; linked displays; ship handling models; fog and mano
 signals. Nothing in the simulator was found that has no place in ROC or ARPA training, so nothing
 was removed.
 
+## The third edition (2014) and Pub. 1310
+
+Supplied by the user on 13 Nov 2026 after the check above.
+
+**Radar and ARPA Manual, third edition** (Bole, Wall and Norris, 2014, 531 pages). Compared by its
+list of sections only, not read through. Against the 1990 edition it adds: solid-state radar
+(2.9); radar processing and the modern display and its controls (2.7, 2.8); a whole chapter on AIS
+(chapter 5: what a ship transmits, message types, usability, AIS compared with radar for collision
+avoidance); setting up a modern radar display (6.2) and AIS controls (6.10); and chapters on
+satellite positioning, ECDIS and integrated systems (chapter 10, outside ROC and ARPA), with the
+present IMO radar standard reprinted (11.2). The chapters shared with the 1990 edition keep the
+same subjects, so the comparison above stands. Still to be used from it: section 6.2 for the
+setting-up exercise, and chapter 5 for the AIS functions listed as not met in `IEC-CHECK.md`.
+
+**Pub. 1310, Radar Navigation and Maneuvering Board Manual**, seventh edition (a United States
+government publication, 413 pages). Its worked plotting examples are a source of independent
+answers. Example 1 of chapter 3 (closest point of approach) is now a test
+(`tests/pub1310.test.ts`): the simulator's plot gives the book's direction and speed of relative
+movement, CPA and time to CPA within plotting accuracy. The other examples (course and speed of a
+contact, course to pass at a given CPA, the manoeuvring board problems) have not been used yet.
+
 ## Still to do from this book
 
-1. **Setting up the radar (chapter 6)**: an exercise that starts with the radar switched off or
-   badly set, makes the trainee switch on, wait for the transmitter, and set brilliance, gain,
-   tuning, sea and rain controls in the right order, then make the performance check, and marks
-   the result. This is the largest gap against the book.
+1. ~~Setting up the radar (chapter 6)~~: BUILT 13 Nov 2026 as radar exercise 22, from section 6.2 of
+   the third edition (see `IEC-CHECK.md`). Its limits are placeholders.
 2. Wheel-over position on the parallel index (8.4.3.4) as a tool and a marked step.
 3. Antenna height in the extent of sea clutter (3.6.1.4); racon side-lobe clutter (3.5.3.4).
-4. Errors of bearing and range from rolling as separate items (9.5.2, 9.5.3).
+4. ~~Errors of bearing and range from rolling as separate items (9.5.2, 9.5.3)~~: BUILT 13 Nov 2026,
+   the antenna tilt error of IEC 62388 Annex E.2.2, applied whenever own ship rolls or pitches (see
+   `IEC-CHECK.md`). Parallax from the rolling is still not modelled.

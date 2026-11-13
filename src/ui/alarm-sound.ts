@@ -1,8 +1,10 @@
+import { alarmToneOn, warningToneOn } from "../arpa/index";
+
 /**
- * Audible alarm for the ARPA, made with the browser's Web Audio. A fast high beep for danger
- * (CPA/TCPA, lost target, equipment malfunction) and a slow lower beep for other alarms, until the
- * alarm is acknowledged. Browsers only allow sound after the user has clicked or pressed a key
- * on the page, so it stays silent until then.
+ * Audible alert signals, made with the browser's Web Audio, in the patterns of IEC 62288:2014
+ * Table 2: an alarm ("danger" here) gives three short signals, repeated every few seconds until it
+ * is acknowledged or silenced; a warning gives two short signals each time it is due. Browsers only
+ * allow sound after the user has clicked or pressed a key on the page, so it stays silent until then.
  */
 export type Urgency = "none" | "warning" | "danger";
 
@@ -17,6 +19,10 @@ export function createAlarmSound(): AlarmSound {
   let osc: OscillatorNode | null = null;
   let enabled = true;
   let unlocked = false;
+  /** Wall-clock time at which the alarm signal began, and at which the last warning signal began. */
+  let alarmStart: number | null = null;
+  let warnStart: number | null = null;
+  let lastUrgency: Urgency = "none";
   const unlock = (): void => {
     unlocked = true;
   };
@@ -47,16 +53,22 @@ export function createAlarmSound(): AlarmSound {
       enabled = on;
     },
     update: (urgency, wall) => {
-      if (!unlocked || !enabled || urgency === "none") {
+      // An alarm's pattern runs from the moment the alarm signal begins; a warning's two signals are
+      // played once each time a warning becomes due, and are finished even if the call ends early.
+      if (urgency === "danger") alarmStart = alarmStart ?? wall;
+      else alarmStart = null;
+      if (urgency === "warning" && lastUrgency !== "warning") warnStart = wall;
+      lastUrgency = urgency;
+      const alarmOn = alarmStart !== null && alarmToneOn(wall - alarmStart);
+      const warnOn = alarmStart === null && warnStart !== null && warningToneOn(wall - warnStart);
+      if (!unlocked || !enabled || (!alarmOn && !warnOn)) {
         if (gain) gain.gain.value = 0;
         return;
       }
       if (!ensure() || !ctx || !gain || !osc) return;
       if (ctx.state === "suspended") void ctx.resume();
-      const period = urgency === "danger" ? 0.3 : 1.5;
-      const onTime = urgency === "danger" ? 0.15 : 0.3;
-      osc.frequency.value = urgency === "danger" ? 880 : 520;
-      gain.gain.value = wall % period < onTime ? 0.06 : 0;
+      osc.frequency.value = alarmOn ? 880 : 520;
+      gain.gain.value = 0.06;
     },
   };
 }

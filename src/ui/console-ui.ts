@@ -1,8 +1,9 @@
 import { nextToAcknowledge } from "../arpa/index";
+import { AisReport, aisFilterOn } from "../ais/index";
 import { alertRows } from "./alerts-view";
 import { formatLatLon, latLonOf } from "../core/nav";
-import { normalizeDeg } from "../core/vec";
-import { displayNmToWorld, logSpeed, measuredHeading, ownCogSog, relativeWind, ringInterval } from "../engine/index";
+import { courseSpeedOf, normalizeDeg, sub, velocityOf } from "../core/vec";
+import { displayNmToWorld, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, radarPower, relativeWind, ringInterval, warmUpLeftSec } from "../engine/index";
 import { AppState, SCENARIO_ORIGIN } from "./app";
 import { $ } from "./dom";
 import { readoutAt } from "./view";
@@ -58,6 +59,13 @@ const KEYS: Key[] = [
 
 const VECTOR_TIMES = [1, 2, 3, 6, 12, 15, 20, 30, 45, 60];
 
+/** Text of the RADAR key: the radar's power state, with the warm-up countdown. */
+export function radarKeyLabel(w: Parameters<typeof radarPower>[0]): string {
+  const pw = radarPower(w);
+  const left = Math.ceil(warmUpLeftSec(w));
+  return pw === "off" ? "RADAR: OFF" : pw === "warming" ? `WARM UP ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : pw === "standby" ? "RADAR: STANDBY" : "RADAR: ON";
+}
+
 export interface ConsoleUi {
   tick: (app: AppState) => void;
   setMenu: (key: string) => void;
@@ -69,6 +77,8 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   const side = $("side");
   /** Range rings shown (kept here so the choice survives a change of scenario). */
   let ringsOn = true;
+  /** EBL readouts relative to the ship's head (kept here for the same reason). */
+  let eblRelative = false;
   // Tag every static section with its heading so a menu key can show or hide it.
   const tagged: { el: HTMLElement; title: string; pane: Tab | "top" }[] = [];
   for (const sec of side.querySelectorAll<HTMLElement>("section")) {
@@ -88,7 +98,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     <div class="ccol">
     <div class="cbox" id="bDisp"><h3>DISPLAY</h3>
       <div class="crow"><span class="cl">RANGE</span><button id="rngDn" class="pm" title="Range scale down">−</button><span id="rngHold"></span><button id="rngUp" class="pm" title="Range scale up">+</button><button id="ringsKey" title="Range rings on / off">RINGS</button></div>
-      <div class="crow"><span class="cl">BAND</span><span id="bandKeys" class="cbtns" style="margin:0"><button data-b="X">X BAND</button><button data-b="S">S BAND</button></span></div>
+      <div class="crow"><span class="cl">BAND</span><span id="bandKeys" class="cbtns" style="margin:0"><button data-b="X">X BAND</button><button data-b="S">S BAND</button></span><button id="aisKey" title="AIS targets on the picture: on / off (a primary control, IEC 62388 13.3.1)">AIS</button></div>
       <div class="crow"><span class="cl">MODE</span><span id="hOrient"></span><span id="hMotion"></span><span id="hStab"></span></div>
       <div class="crow"><span class="cl">TRAILS</span><span id="hTrails"></span><span id="hTrailMin"></span></div>
       <div class="crow"><span class="cl">VECTOR</span><span id="hVec"></span><span id="hVecT"><select id="vecTimeSel" title="Vector time">${VECTOR_TIMES.map((t) => `<option value="${t}">${t} min</option>`).join("")}</select></span></div>
@@ -96,10 +106,10 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     </div>
     </div>
     <div class="ccol">
-    <div class="cbox" id="bGain"><h3>GAIN / CLUTTER</h3><div id="cGain"></div></div>
-    <div class="cbox" id="bCur"><h3>CURSOR</h3><div id="cCur"></div></div>
+    <div class="cbox" id="bGain"><h3>GAIN / CLUTTER <span id="cProc" title="Signal processing in use: IR interference rejection, ENH echo stretch, SC/SC scan-to-scan correlation, MON performance monitor"></span></h3><div id="cGain"></div></div>
+    <div class="cbox" id="bCur"><div id="cCur"></div></div>
     </div>
-    <div class="cbox wide" id="bTd"><h3>TARGET DATA <span id="cTgtKind"></span><span id="cTgtN"></span></h3><div id="cTd"></div><div id="cVecInfo"></div></div>
+    <div class="cbox wide" id="bTd"><h3>TARGET DATA <span id="cTgtKind"></span><span id="cTgtN"></span><button id="cAisMore" hidden title="Further AIS data: class, IMO number, ship type, destination, ETA, draught, size, position accuracy">MORE</button></h3><div id="cTd"></div><div id="cVecInfo"></div></div>
     `;
   // The keys that work the simulator, not the radar, sit in the strip at the top of the page.
   const runBar = document.createElement("div");
@@ -152,6 +162,9 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   $("ringsKey").addEventListener("click", () => {
     ringsOn = !ringsOn;
   });
+  side.ownerDocument.addEventListener("click", (ev) => {
+    if ((ev.target as HTMLElement).id === "eblRef") eblRelative = !eblRelative;
+  });
   $("rngDn").addEventListener("click", () => stepSelect("range", -1));
   $("rngUp").addEventListener("click", () => stepSelect("range", 1));
 
@@ -178,6 +191,8 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     $("cMeas").appendChild(rowEl);
   }
 
+  // EBL bearings can be read true or relative to the ship's head; the reference is shown in every readout.
+  $("cMeas").insertAdjacentHTML("beforeend", `<div class="mref"><span class="cl">EBL BRG</span><button id="eblRef" title="EBL bearings true (T) or relative to the ship's head (R)">TRUE</button></div>`);
   for (const id of ["eblBrg", "vrmRng", "ebl2Brg", "vrm2Rng", "arpaVec", "arpaVecT", "arpaGraphics"]) $(id).closest<HTMLElement>(".row")!.style.display = "none";
   // Vectors and danger graphics sit under Trails, in the same form: the same selects, moved.
   $("hVec").appendChild($("arpaVec"));
@@ -202,9 +217,17 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   $("hReset").append($("cuReset"), $("tmReset"));
 
   // Gain, sea, rain, tune with the automatic controls beside them.
-  const short: Record<string, string> = { gain: "GAIN", stc: "SEA", ftc: "RAIN", tuning: "TUNE" };
+  // Display brilliance is a primary control (IEC 62388 13.3.1), so it sits with gain and the clutter controls.
+  const short: Record<string, string> = { gain: "GAIN", stc: "SEA", ftc: "RAIN", tuning: "TUNE", brill: "BRILL" };
   const autoOf: Record<string, string> = { stc: "autoSea", ftc: "autoRain", tuning: "autoTune" };
-  for (const id of ["gain", "stc", "ftc", "tuning"]) {
+  $("aisKey").addEventListener("click", () => $("aisOn").click());
+  // Further data of the selected AIS target, on request (IEC 62388 11.6.1: shown on request, with an
+  // indication in the data field that it is there).
+  let aisMore = false;
+  $("cAisMore").addEventListener("click", () => {
+    aisMore = !aisMore;
+  });
+  for (const id of ["gain", "stc", "ftc", "tuning", "brill"]) {
     const r = $(id).closest<HTMLElement>(".row")!;
     r.querySelector("label")!.textContent = short[id]!;
     const a = autoOf[id];
@@ -290,7 +313,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   const unit = (u: string): string => `<u>${u}</u>`;
   const dash = "---";
   /** The controls drawn as bars. */
-  const BAR_IDS = ["gain", "stc", "ftc", "tuning"];
+  const BAR_IDS = ["gain", "stc", "ftc", "tuning", "brill"];
   const p3 = (x: number): string => normalizeDeg(x).toFixed(1).padStart(5, "0");
   const put = (id: string, html: string): void => {
     const el = $(id);
@@ -313,17 +336,38 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     for (const b of $("bandKeys").querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset["b"] === w.radar.band);
     put("nightKey", document.body.dataset["mode"] === "night" ? "NIGHT" : "DAY");
     app.ringsOn = ringsOn;
+    // Heading input lost: the picture goes to unstabilised head-up, relative motion, and only relative bearings
+    // can be measured (IEC 62388 16.2.2.1: automatically, within a minute, with an indication).
+    const headingLost = !app.roc && a.gyroFailed;
+    if (headingLost) {
+      for (const [id, v] of [["orient", "head-up"], ["motion", "relative"]] as const) {
+        const el = $<HTMLSelectElement>(id);
+        if (el.value !== v) {
+          el.value = v;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      }
+    }
+    app.headingLost = headingLost;
+    app.eblRelative = eblRelative || headingLost;
     $("ringsKey").classList.toggle("on", ringsOn);
     put("ringsKey", ringsOn ? `RINGS ${ringInterval(c.rangeNm)}` : "RINGS OFF");
     const rows = alertRows(app);
-    const pending = rows.filter((x) => !x.acked);
+    const pending = rows.filter((x) => !x.acked && x.priority !== "caution");
+    const caution = rows.find((x) => x.priority === "caution");
     const nextAlert = nextToAcknowledge(rows);
     $("ackKey").classList.toggle("alarm", pending.length > 0);
-    put("cTopAlarm", nextAlert ? `<span class="${nextAlert.priority === "alarm" ? "no" : "wn"}">${pending.length > 1 ? `${pending.length} ALERTS: ` : ""}${nextAlert.priority.toUpperCase()}: ${nextAlert.text.replace(/</g, "&lt;")}</span>` : `<span class="cl">NO ALARM</span>`);
-    // The alert box is filled red for an alarm and amber for a warning.
-    const alertClass = nextAlert ? nextAlert.priority : "";
+    put("cTopAlarm", nextAlert ? `<span class="${nextAlert.priority === "alarm" ? "no" : "wn"}">${pending.length > 1 ? `${pending.length} ALERTS: ` : ""}${nextAlert.priority.toUpperCase()}: ${nextAlert.text.replace(/</g, "&lt;")}</span>` : `${caution ? `<span class="cau">CAUTION: ${caution.text.replace(/</g, "&lt;")}</span>` : `<span class="cl">NO ALARM</span>`}`);
+    // The alert box is filled red for an alarm and orange for a warning; a caution is yellow, steady and silent.
+    const alertClass = nextAlert ? nextAlert.priority : caution ? "caution" : "";
     if ($("cTopAlarm").className !== alertClass) $("cTopAlarm").className = alertClass;
     $("radarSb").classList.toggle("stby", app.radarStandby);
+    put("radarSb", radarKeyLabel(w));
+    // Screen brilliance sets the brightness of the whole picture (Bole, Wall and Norris 6.2.3), from dim at 10 to full at 100.
+    const bright = `brightness(${(0.15 + 0.85 * Math.min(1, Math.max(0, (w.radar.controls.brilliance - 10) / 60))).toFixed(2)})`;
+    const ppiEl = $("ppi");
+    if (ppiEl.style.filter !== bright) ppiEl.style.filter = bright;
     // Own ship: heading and speed in large figures, each value with the sensor it comes from
     // (red when the instructor has failed that sensor, as the ARPA's own alarm already says).
     const pos = latLonOf(SCENARIO_ORIGIN, w.own.pos);
@@ -345,7 +389,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     const curPos = cur ? latLonOf(SCENARIO_ORIGIN, { e: w.own.pos.e + cur.range * Math.sin((cur.trueBearing * Math.PI) / 180), n: w.own.pos.n + cur.range * Math.cos((cur.trueBearing * Math.PI) / 180) }) : null;
     put("cCur",
       `<div class="cline">` + pair("BRG", cur ? `${p3(cur.trueBearing)}${unit("°T")}` : dash, "big") + pair("REL", cur ? `${p3(cur.relBearing)}${unit("°")}` : dash) + pair("RNG", cur ? `${cur.range.toFixed(2)}${unit("NM")}` : dash, "big") + `</div>` +
-      `<div class="cpos"><span class="cl">+</span><b>${curPos ? formatLatLon(curPos.lat, "lat", 3) : "--°--.---'"}</b><b>${curPos ? formatLatLon(curPos.lon, "lon", 3) : "---°--.---'"}</b></div>`);
+      `<div class="cpos"><span class="cl">CURS</span><b>${curPos ? formatLatLon(curPos.lat, "lat", 3) : "--°--.---'"}</b><b>${curPos ? formatLatLon(curPos.lon, "lon", 3) : "---°--.---'"}</b></div>`);
 
     // Gain and clutter bars: how far each bar is filled.
     for (const id of BAR_IDS) {
@@ -355,12 +399,20 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     }
 
     const free = freeLines();
+    const eblText = (trueBearing: number): string => (app.eblRelative ? `${p3(trueBearing - measuredHeading(w))}° R` : `${p3(trueBearing)}° T`);
     const val: Record<Line, string> = {
-      ebl: app.ebl.on ? `${p3(app.ebl.bearing)}° T` : "OFF",
+      ebl: app.ebl.on ? eblText(app.ebl.bearing) : "OFF",
       vrm: app.vrm.on ? `${app.vrm.range.toFixed(2)} NM` : "OFF",
-      ebl2: app.ebl2.on ? `${p3(app.ebl2.bearing)}° T` : "OFF",
+      ebl2: app.ebl2.on ? eblText(app.ebl2.bearing) : "OFF",
       vrm2: app.vrm2.on ? `${app.vrm2.range.toFixed(2)} NM` : "OFF",
     };
+    put("eblRef", app.eblRelative ? "REL" : "TRUE");
+    // AIS on / off, and the signal processing in use, are always in view.
+    const aisOn = $<HTMLInputElement>("aisOn").checked;
+    $("aisKey").classList.toggle("on", aisOn);
+    // The filter for sleeping targets is shown here as well as on the picture while it is on.
+    put("aisKey", aisOn ? (aisFilterOn(app.ais.settings.sleepFilter) ? "AIS FILT" : "AIS ON") : "AIS OFF");
+    put("cProc", [[c.interferenceRejection, "IR"], [c.echoStretch, "ENH"], [c.echoAverage, "SC/SC"], [app.pmOn, "MON"]].map(([on, name]) => `<i class="${on ? "on" : ""}">${name}</i>`).join(""));
     for (const l of lines) {
       put(`m_${l.line}`, val[l.line]);
       put(`ms_${l.line}`, val[l.line] === "OFF" ? "" : free[l.line] ? "MOVE" : "LOCK");
@@ -391,15 +443,44 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     /** One field of the target data: label at the left of its column, value at the right. */
     const field = (label: string, value: string, cls = "", span = ""): string => `<div class="tp ${span}"><span class="cl">${label}</span> <b class="${cls}">${value}</b></div>`;
     put("cTgtKind", td ? "TT" : v ? "AIS" : "");
+    const moreKey = $<HTMLButtonElement>("cAisMore");
+    moreKey.hidden = !v;
+    moreKey.classList.toggle("on", !!v && aisMore);
+    put("cAisMore", aisMore ? "LESS" : "MORE");
+    // A tracked target's course and speed are through the water when the ARPA is sea stabilised (CTW, STW)
+    // and over the ground when it is ground stabilised (COG, SOG): IEC 62288 5.5.10.1.
+    const ground = a.stabLabel().startsWith("GND");
+    // With the sea stabilised, an AIS target's course and speed are given through the water (CTW, STW: IEC 62388
+    // 11.6.1): its reported course and speed over the ground less the set and drift that own ship is experiencing.
+    const aisWater = (() => {
+      if (!v || ground) return null;
+      const ownWater = velocityOf({ course: measuredHeading(w), speed: logSpeed(w) });
+      const setDrift = sub(ownGroundVelocity(w), ownWater);
+      return courseSpeedOf(sub(velocityOf({ course: v.report.cog, speed: v.report.sog }), setDrift));
+    })();
     put("cTd", td
       ? field("TGT", td[0] ?? dash, "big") + field("BRG", withUnit(td[1], "°T"), "big") + field("RNG", withUnit(td[2], "NM"), "big") + field("STATE", td[8] ?? dash, /DANGER/.test(td[8] ?? "") ? "no" : /LOST|PRELIM|FADE/.test(td[8] ?? "") ? "wn" : "") +
-        field("CSE", withUnit(td[5], "°T"), "big") + field("SPD", withUnit(td[6], "kn"), "big") + field("CPA", withUnit(td[3], "NM"), "big") + field("TCPA", withUnit(td[4], "min"), "big") +
+        field(ground ? "COG" : "CTW", withUnit(td[5], "°T"), "big") + field(ground ? "SOG" : "STW", withUnit(td[6], "kn"), "big") + field("CPA", withUnit(td[3], "NM"), "big") + field("TCPA", withUnit(td[4], "min"), "big") +
         field("BCR", withUnit(bcr, "NM")) + field("BCT", withUnit(bct, "min"))
       : v
         ? field("AIS", v.report.name.replace(/</g, "&lt;"), "big", "span2") + field("BRG", `${p3(v.bearing)}${unit("°T")}`, "big") + field("RNG", `${v.range.toFixed(2)}${unit("NM")}`, "big") +
-          field("COG", `${p3(v.report.cog)}${unit("°T")}`, "big") + field("SOG", `${v.report.sog.toFixed(1)}${unit("kn")}`, "big") + field("CPA", v.cpa.opening ? "open" : `${v.cpa.cpa.toFixed(2)}${unit("NM")}`, "big") + field("TCPA", v.cpa.tcpaMinutes === null ? dash : `${v.cpa.tcpaMinutes.toFixed(1)}${unit("min")}`, "big") +
-          field("STATE", v.lost ? "LOST" : v.dangerous ? "DANGER" : "ACTIVE", v.lost || v.dangerous ? "no" : "") + field("AGE", `${Math.round(v.ageSec)}${unit("s")}`)
+          (aisWater
+            ? field("CTW", `${p3(aisWater.course)}${unit("°T")}`, "big") + field("STW", `${aisWater.speed.toFixed(1)}${unit("kn")}`, "big")
+            : field("COG", `${p3(v.report.cog)}${unit("°T")}`, "big") + field("SOG", `${v.report.sog.toFixed(1)}${unit("kn")}`, "big")) + field("CPA", v.cpa.opening ? "open" : `${v.cpa.cpa.toFixed(2)}${unit("NM")}`, "big") + field("TCPA", v.cpa.tcpaMinutes === null ? dash : `${v.cpa.tcpaMinutes.toFixed(1)}${unit("min")}`, "big") +
+          field("HDG", `${p3(v.report.heading)}${unit("°")}`) + field("ROT", v.report.rot === null ? "MISSING" : `${Math.abs(v.report.rot) < 0.5 ? "0" : `${v.report.rot > 0 ? "S" : "P"} ${Math.abs(v.report.rot).toFixed(0)}`}${unit("°/min")}`, v.report.rot === null ? "wn" : "") +
+          field("STATE", v.lost ? "LOST" : v.dangerous ? "DANGER" : v.state === "activated" ? "ACTIVE" : "SLEEP", v.dangerous ? "no" : v.lost ? "wn" : "") + field("AGE", `${Math.round(v.ageSec)}${unit("s")}`) +
+          // Identification, navigational status and reported position (IEC 62288 5.5.11.1); on request, the further data.
+          // What the report does not carry is shown as MISSING.
+          (aisMore ? moreLine(v.report) : `<div class="tp none"><span class="pair"><span class="cl">MMSI</span> <b>${v.report.mmsi || "MISSING"}</b></span><span class="pair"><span class="cl">C/S</span> <b>${v.report.callSign || "MISSING"}</b></span><span class="pair"><b class="${v.report.navStatus ? "" : "wn"}">${(v.report.navStatus || "STATUS MISSING").replace(/</g, "&lt;").toUpperCase()}</b></span><span class="pair"><span class="cl">POSN</span> <b>${formatLatLon(latLonOf(SCENARIO_ORIGIN, v.report.pos).lat, "lat", 3)} ${formatLatLon(latLonOf(SCENARIO_ORIGIN, v.report.pos).lon, "lon", 3)}</b></span></div>`)
         : `<div class="tp none"><span class="cl">NO TARGET SELECTED &nbsp; acquire or select a target</span></div>`);
+  };
+
+  /** The further data of an AIS report, one line; MISSING where the report carries none. */
+  const moreLine = (r: AisReport): string => {
+    const pair = (label: string, value: string | null): string =>
+      `<span class="pair"><span class="cl">${label}</span> <b class="${value === null ? "wn" : ""}">${value === null ? "MISSING" : value.replace(/</g, "&lt;").toUpperCase()}</b></span>`;
+    const size = r.lengthM === null ? null : `${Math.round(r.lengthM)}x${Math.round(r.beamM ?? 0)} m`;
+    return `<div class="tp none more">${pair("CLASS", r.cls === "A" ? "A" : `B ${r.cls.slice(2)}`)}${pair("IMO", r.imo)}${pair("TYPE", r.shipType)}${pair("DEST", r.destination)}${pair("ETA", r.eta)}${pair("DRAUGHT", r.draughtM === null ? null : `${r.draughtM.toFixed(1)} m`)}${pair("SIZE", size)}${pair("POS ACC", r.posAccuracy === "high" ? "HIGH" : "LOW")}</div>`;
   };
 
   return {

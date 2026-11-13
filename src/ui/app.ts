@@ -5,7 +5,7 @@ import { AisSystem } from "../ais/index";
 import { Vec2 } from "../core/vec";
 import {
   DisplayState, Hit, Scenario, TrailStore, World, createWorld, newDisplayState, recentreTrueMotion, scanWedge,
-  stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading, MUMBAI_ORIGIN,
+  stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading, MUMBAI_ORIGIN, radarTransmitting,
 } from "../engine/index";
 
 /** Latitude and longitude of the scenarios' 0,0: the same point the real Mumbai coastline is laid out from. */
@@ -37,8 +37,18 @@ export interface AppState {
   vrm2: { on: boolean; range: number };
   /** Origin of EBL 1 when it is moved off own ship: a fixed position (NM), or null for own ship. */
   eblOrigin: Vec2 | null;
+  /**
+   * An offset EBL origin is either fixed to the ground or carried along with own ship (IEC 62388 9.6.3.1).
+   * When carried, `eblOriginOffset` is where it lies from own ship, and the origin is moved with her.
+   */
+  eblOriginCarried: boolean;
+  eblOriginOffset: Vec2 | null;
   /** Four parallel index lines: true bearing of the line and its distance from own ship (+ starboard side of that bearing). */
-  pi: { on: boolean; bearing: number; range: number }[];
+  /**
+   * Parallel index lines. `ahead` and `astern` cut the line short: how far it runs from the point abeam
+   * of own ship in the line's direction and the other way, NM; null runs it to the edge of the picture.
+   */
+  pi: { on: boolean; bearing: number; range: number; ahead: number | null; astern: number | null }[];
   /** Radar map: navigation lines drawn by the user, fixed to the ground (NM). */
   navLines: Vec2[][];
   /** World states kept every minute so the instructor can take the exercise back in time. */
@@ -55,6 +65,10 @@ export interface AppState {
   pmOn: boolean;
   /** Heading line temporarily suppressed (while the button is held). */
   hlOff: boolean;
+  /** EBL readouts given relative to the ship's head instead of true (IEC 62388 9.6.2.1: both, with the reference shown). */
+  eblRelative: boolean;
+  /** The heading input has failed: the display is held in unstabilised head-up and bearings are relative only. */
+  headingLost: boolean;
   /** AIS reported targets shown on the radar. */
   ais: AisSystem;
   trailMode: TrailMode;
@@ -134,7 +148,9 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     ebl2: { on: false, bearing: 90 },
     vrm2: { on: false, range: 1 },
     eblOrigin: null,
-    pi: Array.from({ length: 4 }, () => ({ on: false, bearing: 0, range: 1 })),
+    eblOriginCarried: false,
+    eblOriginOffset: null,
+    pi: Array.from({ length: 4 }, () => ({ on: false, bearing: 0, range: 1, ahead: null, astern: null })),
     navLines: [],
     navMarks: [],
     routeEdit: null,
@@ -143,6 +159,8 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     comms: [],
     pmOn: false,
     hlOff: false,
+    eblRelative: false,
+    headingLost: false,
     ais: new AisSystem(),
     trailMode: "off",
     trailMinutes: 6,
@@ -181,6 +199,9 @@ export function advance(app: AppState, wallDt: number, rng: () => number = Math.
       const as = app.arpa.settings;
       stepSpeedInput(w, app.display, simDt / steps, as.logMode === "manual" ? as.manualSpeedKn : app.arpa.logFailed ? 0 : logSpeed(w));
       updateTrueMotionOrigin(w, app.display);
+      if (app.eblOrigin && app.eblOriginCarried && app.eblOriginOffset) app.eblOrigin = { e: w.own.pos.e + app.eblOriginOffset.e, n: w.own.pos.n + app.eblOriginOffset.n };
+      // The radar's power state is in the world (engine/power.ts); off, warming up and standby all mean no picture.
+      app.radarStandby = !radarTransmitting(w);
       if (app.radarStandby) app.arpa.settings.standby = true;
       if (!app.roc) app.arpa.step(w, rng);
       app.ais.step(w);
@@ -189,7 +210,7 @@ export function advance(app: AppState, wallDt: number, rng: () => number = Math.
         app.snapshots.push({ time: w.time, world: structuredClone(w) });
         if (app.snapshots.length > 40) app.snapshots.shift();
       }
-      app.arpaEx?.step(w, app.arpa, { pi: app.pi, navLines: app.navLines.filter((l) => l.length >= 2).length });
+      app.arpaEx?.step(w, app.arpa, { pi: app.pi, navLines: app.navLines.filter((l) => l.length >= 2).length, pmOn: app.pmOn });
       app.recorder?.sample(w, app.roc ? null : app.arpa);
       app.trails.sample(w, app.display);
       if (app.roc && app.roc.step(w)) {

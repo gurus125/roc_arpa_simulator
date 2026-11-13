@@ -43,7 +43,7 @@ export const PANEL_ACTIONS: PanelAction[] = [
   { id: "bandS", label: "S band", key: "F4" },
   { id: "rings", label: "Range rings on / off", key: "F7" },
   { id: "dayNight", label: "Day / night", key: "F8" },
-  { id: "headingLineOff", label: "Heading line off (while held)", key: "KeyH" },
+  { id: "headingLineOff", label: "Heading line and graphics off (while held)", key: "KeyH" },
 ];
 
 /** Knobs of a game-controller panel, in order: the slider each one sets. */

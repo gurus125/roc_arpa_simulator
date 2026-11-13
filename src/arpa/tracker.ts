@@ -1,4 +1,5 @@
 import { CourseSpeed, Vec2, add, courseSpeedOf, length, rotateVec, scale, sub, velocityOf } from "../core/vec";
+import { capacityCautionAt } from "./alerts";
 import { CpaResult, computeCpa } from "../core/cpa";
 import { relativeVelocity } from "../core/motion";
 import { TrialResult, trialManoeuvre } from "../core/trial";
@@ -45,6 +46,8 @@ export interface Track {
   acquiredAt: number;
   plots: TrackPlot[];
   missed: number;
+  /** When the target was lost, for a lost target that is not held by a warning waiting to be acknowledged. */
+  lostAt?: number;
   hits: boolean[];
   fading: boolean;
   dangerous: boolean;
@@ -55,6 +58,8 @@ export interface Track {
   truthId: number | null;
   firstTruthId: number | null;
   swaps: number;
+  /** Times the adaptive window has dropped the older plots because the target manoeuvred. */
+  windowRestarts: number;
   /** Relative velocity when the track was last judged steady (target manoeuvre alarm reference), and when it started to differ. */
   baseRelVel: Vec2 | null;
   devSince: number | null;
@@ -74,7 +79,7 @@ export interface SelfTestTarget {
   relVel: Vec2;
 }
 
-export type AlarmKind = "cpa" | "lost" | "new" | "guard" | "capacity" | "groundref" | "action" | "order" | "malfunction" | "course" | "trial" | "anchor";
+export type AlarmKind = "cpa" | "lost" | "new" | "guard" | "capacity" | "capacity-near" | "groundref" | "action" | "order" | "malfunction" | "course" | "trial" | "anchor";
 
 export interface ArpaAlarm {
   key: string;
@@ -102,6 +107,9 @@ interface Candidate {
   misses: number;
   alarmed: boolean;
 }
+
+/** How long a lost target's symbol stays when the lost target warning is switched off, seconds (this simulator's choice). */
+export const LOST_SYMBOL_SEC = 60;
 
 export interface TrialRow {
   trackId: number;
@@ -585,7 +593,45 @@ export class ArpaSystem {
     }
     for (const t of this.tracks) {
       while (t.plots.length > 2 && t.plots[0]!.t < now - this.cfg.windowSec) t.plots.shift();
+      this.restartOnManoeuvre(t, now);
     }
+  }
+
+  /**
+   * Adaptive window (see `manoeuvreTestSec` in the config): when the newest plots have left the line
+   * fitted to the older ones by more than the plot noise can explain, the target has changed course
+   * or speed. The older plots are dropped so that the estimate follows the new motion.
+   */
+  private restartOnManoeuvre(t: Track, now: number): void {
+    if (t.state !== "tracking") return;
+    const cut = now - this.cfg.manoeuvreTestSec;
+    const older = t.plots.filter((p) => p.t < cut);
+    const recent = t.plots.filter((p) => p.t >= cut);
+    if (older.length < 4 || recent.length < 3) return;
+    if (older[older.length - 1]!.t - older[0]!.t < this.cfg.manoeuvreTestSec) return;
+    const fit = fitLinearMotion(older.map((p) => ({ t: p.t / 3600, p: p.refSea })));
+    if (!fit) return;
+    let e = 0;
+    let n = 0;
+    for (const p of recent) {
+      const d = sub(p.refSea, fitPositionAt(fit, p.t / 3600));
+      e += d.e;
+      n += d.n;
+    }
+    const meanOff = Math.hypot(e, n) / recent.length;
+    // Expected spread of that mean when the target has not manoeuvred: the noise of the recent plots'
+    // mean, plus the error of the older line extrapolated to the recent plots' mean time
+    // (least squares: sigma² (1/n + (t - t̄)² / Sxx)).
+    const range = length(recent[recent.length - 1]!.rel);
+    const sigmaPos = Math.hypot(this.cfg.rangeNoiseNm, range * Math.sin((this.cfg.bearingNoiseDeg * Math.PI) / 180), this.cfg.scintillationNm);
+    const tOld = older.reduce((s, p) => s + p.t, 0) / older.length;
+    const tNew = recent.reduce((s, p) => s + p.t, 0) / recent.length;
+    const sxx = older.reduce((s, p) => s + (p.t - tOld) ** 2, 0);
+    const spread = sigmaPos * Math.sqrt(1 / recent.length + 1 / older.length + (tNew - tOld) ** 2 / sxx);
+    const limit = Math.max(this.cfg.manoeuvreMinNm, this.cfg.manoeuvreSigmas * spread);
+    if (!(meanOff > limit)) return;
+    t.plots = recent;
+    t.windowRestarts++;
   }
 
   private associate(w: World, t: Track, p: ArpaPlot, tp: TrackPlot): void {
@@ -616,7 +662,8 @@ export class ArpaSystem {
       t.state = "lost";
       t.dangerous = false;
       this.alarms = this.alarms.filter((a) => a.key !== `cpa-${t.id}`);
-      this.raise(w, `lost-${t.id}`, "lost", `Target ${t.id} LOST.`, t.id);
+      if (this.settings.lostWarning) this.raise(w, `lost-${t.id}`, "lost", `Target ${t.id} LOST.`, t.id);
+      else t.lostAt = w.time;
       this.event(w, `Target ${t.id} lost.`, false);
     }
   }
@@ -634,6 +681,7 @@ export class ArpaSystem {
     this.checkGroundRef(w);
     this.checkTrial(w);
     this.checkAnchorWatch(w);
+    this.checkCapacity(w);
     const stab = this.effectiveStab();
     for (const t of this.tracks) {
       while (t.hits.length > this.cfg.fadingScans) t.hits.shift();
@@ -698,6 +746,23 @@ export class ArpaSystem {
     this.alarms = this.alarms.filter((a) => a.kind !== "trial" || keys.has(a.key));
     for (const r of rows) {
       this.raise(w, `trial-${r.trackId}`, "trial", `TRIAL: target ${r.trackId} would pass inside the limits (CPA ${r.result.cpa.toFixed(2)} NM in ${r.result.tcpaMinutes.toFixed(1)} min).`, r.trackId);
+    }
+  }
+
+  /**
+   * Caution when the target capacity is about to be exceeded (IEC 62388 11.3.5.1: at a nominal 95%,
+   * so at 19 of 20). A caution is not acknowledged; it goes when targets are dropped. The warning
+   * that the capacity HAS been exceeded is raised when one more target is asked for.
+   */
+  private checkCapacity(w: World): void {
+    // With the lost target warning switched off there is nothing to acknowledge, so the lost target
+    // symbol is shown for a minute at the last position and the track is then dropped.
+    this.tracks = this.tracks.filter((t) => !(t.state === "lost" && t.lostAt !== undefined && w.time - t.lostAt > LOST_SYMBOL_SEC));
+    const n = this.activeCount();
+    if (n >= capacityCautionAt(this.cfg.maxTracks)) {
+      this.raise(w, "capacity-near", "capacity-near", `Target capacity nearly full: ${n} of ${this.cfg.maxTracks} tracked.`);
+    } else {
+      this.alarms = this.alarms.filter((a) => a.kind !== "capacity-near");
     }
   }
 
@@ -775,7 +840,9 @@ export class ArpaSystem {
     const range = length(t.est.rel);
     const sigmaPos = Math.hypot(this.cfg.rangeNoiseNm, range * Math.sin((this.cfg.bearingNoiseDeg * Math.PI) / 180), this.cfg.scintillationNm);
     const n = Math.max(2, t.plots.length);
-    const sigmaVel = (sigmaPos * Math.sqrt(12 / n)) / (this.cfg.windowSec / 3600);
+    // Over the plots actually in the window: shorter after the adaptive window has dropped old plots.
+    const span = Math.max(this.cfg.manoeuvreTestSec, t.plots[t.plots.length - 1]!.t - t.plots[0]!.t);
+    const sigmaVel = (sigmaPos * Math.sqrt(12 / n)) / (span / 3600);
     if (dev <= Math.max(this.cfg.courseChangeKn, this.cfg.courseChangeNoiseFactor * sigmaVel)) {
       t.devSince = null;
       return;
@@ -840,6 +907,7 @@ export class ArpaSystem {
       truthId: null,
       firstTruthId: null,
       swaps: 0,
+      windowRestarts: 0,
       baseRelVel: null,
       devSince: null,
       history: [],
@@ -857,7 +925,7 @@ export class ArpaSystem {
     const alarm: ArpaAlarm = { key, kind, text, raisedAt: w.time, acked: false };
     if (trackId !== undefined) alarm.trackId = trackId;
     this.alarms.push(alarm);
-    this.event(w, `ALARM: ${text}`, false);
+    this.event(w, `${kind === "capacity-near" ? "CAUTION" : "ALARM"}: ${text}`, false);
   }
 
   private say(w: World, text: string): void {

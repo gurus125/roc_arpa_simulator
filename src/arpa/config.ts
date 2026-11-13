@@ -38,9 +38,19 @@ export interface ArpaConfig {
   scintillationNm: number;
   /** A poor ground reference left unrestored this long cancels ground stabilisation, seconds. */
   poorRefCancelSec: number;
-  /** Standard deviation of the bearing measurement noise of one plot, degrees. */
+  /**
+   * Standard deviation of the bearing measurement noise of one plot, degrees. IEC 62388:2013 Annex E
+   * lists the bearing errors of a radar meeting the standard: beam shape (s 0.05°), antenna backlash
+   * (±0.05°), quantization (±0.1°), bearing encoder (s 0.03°) and gyro compass (s 0.08°). Taken
+   * together, as one normal distribution of the same spread: s = 0.118°.
+   */
   bearingNoiseDeg: number;
-  /** Standard deviation of the range measurement noise of one plot, NM. */
+  /** Largest bearing error of one plot from all sensor errors together, glint included, degrees (Annex E.5: ±0.6°). */
+  bearingErrorLimitDeg: number;
+  /**
+   * Standard deviation of the range measurement noise of one plot, NM. Annex E: quantization
+   * ±0.01 NM (a spread of 0.0058 NM) and pulse shape (s 0.66 m), together 0.0058 NM.
+   */
   rangeNoiseNm: number;
   /** The same for echoes inside `shortPulseRangeNm`, where a shorter pulse is in use. */
   rangeNoiseShortNm: number;
@@ -52,6 +62,18 @@ export interface ArpaConfig {
   maxRangeNm: number;
   /** Length of the sliding window of plots used to work out course and speed, seconds. */
   windowSec: number;
+  /**
+   * Adaptive window (this simulator's tracker design, not a figure from a standard): the plots of the
+   * last `manoeuvreTestSec` seconds are compared with the line fitted to the older plots. If their mean
+   * distance from it is more than `manoeuvreSigmas` times the expected noise of that mean (and at least
+   * `manoeuvreMinNm`), the target has manoeuvred, and the older plots are dropped so that the vector
+   * settles on the new course and speed instead of averaging old and new. IEC 62388 TT scenario 3
+   * requires course within 3° and speed within 5% or 1 kn 1.5 minutes after a target's 60° turn,
+   * which a fixed 3-minute window cannot meet.
+   */
+  manoeuvreTestSec: number;
+  manoeuvreSigmas: number;
+  manoeuvreMinNm: number;
   /** Track age before a vector and CPA/TCPA are shown (marked PRELIMINARY), seconds. */
   vectorAfterSec: number;
   /** Track age after which the track is shown as steady, seconds. */
@@ -93,14 +115,18 @@ export const ARPA_PLACEHOLDERS: ArpaConfig = {
   courseChangeNoiseFactor: 5,
   stationaryKn: 0.5,
   scintillationNm: 0.016,
-  bearingNoiseDeg: 0.2,
-  rangeNoiseNm: 0.012,
-  rangeNoiseShortNm: 0.008,
+  bearingNoiseDeg: 0.118,
+  bearingErrorLimitDeg: 0.6,
+  rangeNoiseNm: 0.0058,
+  rangeNoiseShortNm: 0.0058,
   shortPulseRangeNm: 3,
   rangeResolutionNm: 0.05,
   beamwidthDeg: 2,
   maxRangeNm: 24,
   windowSec: 180,
+  manoeuvreTestSec: 30,
+  manoeuvreSigmas: 5,
+  manoeuvreMinNm: 0.02,
   vectorAfterSec: 60,
   steadyAfterSec: 180,
   gateBaseNm: 0.2,
@@ -153,6 +179,11 @@ export interface ArpaSettings {
   /** Past positions: mode, number of dots shown and the time between them, minutes. */
   past: { mode: "off" | "relative" | "true"; points: number; intervalMin: number };
   /**
+   * Lost target warning for tracked radar targets. It can be switched off, and that it is off
+   * must then be shown (IEC 62288 5.6.4.1). The lost target symbol is drawn either way.
+   */
+  lostWarning: boolean;
+  /**
    * Safe limit vector suppression (Bole and Dineley 5.2.7): the vectors of targets that do not
    * violate the CPA and TCPA limits are not drawn. They are still tracked, and a vector comes back
    * with the alarm as soon as its target violates the limits.
@@ -202,6 +233,7 @@ export function defaultArpaSettings(ownCourse: number, ownSpeed: number): ArpaSe
     showData: true,
     brilliance: 100,
     past: { mode: "off", points: 5, intervalMin: 1 },
+    lostWarning: true,
     vectorSuppress: false,
     anchorWatch: { trackId: null, limitNm: ANCHOR_WATCH_DEFAULT_NM },
   };

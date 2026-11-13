@@ -40,6 +40,33 @@ interface RawPlot {
  * Simplification: the whole revolution is treated as one instant.
  * `wantLand(relTrue)` limits the (expensive) coastline plots to where the tracker needs them.
  */
+/**
+ * Bearing error from the tilt of the antenna as the ship rolls and pitches, degrees. An antenna
+ * tilted by a roll angle r about the fore-and-aft line, or a pitch angle p about the athwartships
+ * line, measures the bearing of a target at relative bearing b with an error of about
+ * (p² - r²) / 4 x sin 2b (angles in radians): nothing ahead, astern and abeam, most on the bows and
+ * quarters. With 10° of roll this gives 0.44° at full roll and 0.22° on average, as IEC 62388:2013
+ * Annex E.2.2 states for its test (and Bole, Wall and Norris 9.4: unstable platform or antenna tilt).
+ */
+export function antennaTiltErrorDeg(relBearingDeg: number, rollDeg: number, pitchDeg: number): number {
+  const rad = Math.PI / 180;
+  const r = rollDeg * rad, p = pitchDeg * rad;
+  return (((p * p - r * r) / 4) * Math.sin(2 * relBearingDeg * rad)) / rad;
+}
+
+/** Scans counted for each fading target (see `Target.paint`). */
+const paintScans = new WeakMap<object, number>();
+/**
+ * Whether a fading target is painted on this scan: the paints are spread evenly, so a target with
+ * `paint` 0.5 is painted on every other scan, which is 5 out of any 10 consecutive scans (the
+ * visibility IEC 62388 11.3.9 requires a tracker to keep tracking through).
+ */
+export function paintedThisScan(t: object, paint: number): boolean {
+  const k = paintScans.get(t) ?? 0;
+  paintScans.set(t, k + 1);
+  return Math.floor((k + 1) * paint + 1e-9) > Math.floor(k * paint + 1e-9);
+}
+
 export function extractPlots(
   w: World,
   cfg: ArpaConfig,
@@ -62,6 +89,7 @@ export function extractPlots(
     if (rb.range > cfg.maxRangeNm) continue;
     const e = effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: rb.range, relBearing: relativeBearing(rb.bearing, heading), pos: t.pos, kind: t.kind }, rx);
     if (rng() >= detectionProbability(e)) continue;
+    if (t.paint !== undefined && !paintedThisScan(t, t.paint)) continue; // a fading target is missed on some scans
     // Scintillation: the centre of a real echo wanders a little from scan to scan.
     // (IMO A.823(19) appendix 3: glint is along the length of the target; across it is negligible.)
     const along = t.speed > 0.1 ? fromPolar(t.course, gaussian(rng) * cfg.scintillationNm * (targetLengthM(t) / 200)) : { e: 0, n: 0 };
@@ -124,12 +152,19 @@ export function extractPlots(
     }
   }
 
-  // Measurement: gyro-referenced bearing plus noise, range plus noise.
+  // Measurement: gyro-referenced bearing plus noise, range plus noise. The sensor errors of the radar
+  // (noise, and the tilt of the antenna as the ship rolls and pitches) are limited together to
+  // bearingErrorLimitDeg; a gyro error set by the instructor comes on top.
   const g = w.sensors.gyroErrorDeg;
+  const sw = w.own.seaway;
   return raw.map((p) => {
     const r0 = length(p.relTrue);
     const r = Math.max(0, r0 + gaussian(rng) * (r0 < cfg.shortPulseRangeNm ? cfg.rangeNoiseShortNm : cfg.rangeNoiseNm));
-    const b = bearingOf(p.relTrue) + g + gaussian(rng) * cfg.bearingNoiseDeg;
+    const tb = bearingOf(p.relTrue);
+    const tilt = sw ? antennaTiltErrorDeg(relativeBearing(tb, heading), sw.rollDeg, sw.pitchDeg) : 0;
+    const lim = cfg.bearingErrorLimitDeg;
+    const err = Math.max(-lim, Math.min(lim, gaussian(rng) * cfg.bearingNoiseDeg + tilt));
+    const b = tb + g + err;
     return { rel: fromPolar(b, r), kind: p.kind, truthIds: p.truthIds };
   });
 }

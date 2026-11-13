@@ -312,6 +312,127 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.waitForTimeout(1000);
     const pic = await p.$eval("#inPic", (e) => ({ hidden: e.hidden, w: e.naturalWidth }));
     check(`${tag} replay: the recorded radar picture is shown`, !pic.hidden && pic.w === 480, JSON.stringify(pic));
+
+    // Items from IEC 62388 and IEC 62288.
+    // Primary controls always in view: display brilliance and AIS on / off; the signal processing in use is shown.
+    check(`${tag} brilliance is in the data area`, await p.evaluate(() => !!document.getElementById("brill").closest("#console") && document.getElementById("brill").offsetParent !== null));
+    await p.click("#aisKey");
+    await p.waitForTimeout(400);
+    check(`${tag} AIS key switches AIS off`, (await text("#aisKey")) === "AIS OFF" && !(await p.isChecked("#aisOn")), await text("#aisKey"));
+    await p.click("#aisKey");
+    await p.waitForTimeout(400);
+    check(`${tag} AIS key switches AIS on again`, (await text("#aisKey")) === "AIS ON" && (await p.isChecked("#aisOn")));
+    await key("gain");
+    await p.check("#irOn");
+    await p.waitForTimeout(300);
+    check(`${tag} signal processing in use is shown`, (await p.$$eval("#cProc i.on", (e) => e.map((x) => x.textContent).join(","))) === "IR", await text("#cProc"));
+    await p.uncheck("#irOn");
+    // EBL bearings true or relative, with the reference shown.
+    await p.check("#eblOn");
+    await p.waitForTimeout(300);
+    const eblT = await text("#m_ebl");
+    await p.click("#eblRef");
+    await p.waitForTimeout(300);
+    const eblR = await text("#m_ebl");
+    check(`${tag} EBL readout true or relative, reference shown`, eblT.endsWith("T") && eblR.endsWith("R") && (await text("#eblRef")) === "REL", `${eblT} | ${eblR}`);
+    await p.click("#eblRef");
+    // Sleeping AIS targets can be filtered by range; the lost target warning can be switched off.
+    await key("ais");
+    await p.selectOption("#aisFilter", "6");
+    check(`${tag} AIS sleeping target filter`, (await p.evaluate(() => window.__simTest.aisFilter())) === 6);
+    // More criteria: CPA, and class B only; the status is shown on the picture, on the AIS key and in the panel.
+    await p.selectOption("#aisFiltCpa", "2");
+    await p.selectOption("#aisFiltCls", "B");
+    await p.waitForTimeout(400);
+    const fLabel = await p.evaluate(() => window.__simTest.aisFilterLabel());
+    check(`${tag} AIS filter by range and CPA for class B, status shown`, fLabel === "RNG>6 CPA>2 CLASS B ONLY" && (await text("#aisKey")) === "AIS FILT" && (await text("#aisFiltNow")).startsWith("Filter on"), `${fLabel} | ${await text("#aisKey")}`);
+    await p.selectOption("#aisFiltCpa", "");
+    await p.selectOption("#aisFiltCls", "all");
+    await p.selectOption("#aisFilter", "");
+    await p.waitForTimeout(300);
+    check(`${tag} AIS filter off`, (await text("#aisKey")) === "AIS ON" && (await p.evaluate(() => window.__simTest.aisFilterLabel())) === "");
+    // Own ship's AIS data on request.
+    await p.click("#aisOwnKey");
+    await p.waitForTimeout(400);
+    check(`${tag} own ship AIS data on request`, (await text("#aisOwn")).includes("MMSI 419000001"), await text("#aisOwn"));
+    await p.click("#aisOwnKey");
+    // An AIS target's further data on request: the MORE key in the target data.
+    const aisRow = '#aisRows tr[data-ais="1"]';
+    if (await p.$(aisRow)) {
+      await p.evaluate(() => document.querySelectorAll("#arpaRows tr.sel").forEach((r) => r.classList.remove("sel")));
+      await p.click(aisRow);
+      await p.waitForTimeout(500);
+      const moreShown = await p.isVisible("#cAisMore");
+      if (moreShown) await p.click("#cAisMore");
+      await p.waitForTimeout(500);
+      const td = await text("#cTd");
+      check(`${tag} AIS further data on request (MORE)`, moreShown && td.includes("IMO") && td.includes("DEST") && td.includes("CLASS"), td.slice(0, 160));
+      if (moreShown) await p.click("#cAisMore");
+      await p.click(aisRow);
+      await p.waitForTimeout(300);
+    } else check(`${tag} AIS further data on request (MORE)`, false, "no AIS row");
+    await key("alarm");
+    await p.uncheck("#arpaLostWarn");
+    check(`${tag} lost target warning can be switched off`, (await p.evaluate(() => window.__simTest.lostWarning())) === false);
+    await p.check("#arpaLostWarn");
+    // Heading input lost: the picture goes to unstabilised head-up and bearings are relative.
+    await key("fault");
+    await p.selectOption("#orient", "north-up");
+    await p.check("#gyroFail");
+    await p.waitForTimeout(500);
+    check(`${tag} heading failure: unstabilised head-up, relative bearings`, (await p.$eval("#orient", (e) => e.value)) === "head-up" && (await p.evaluate(() => window.__simTest.headingLost())) && (await text("#m_ebl")).endsWith("R"), `${await p.$eval("#orient", (e) => e.value)} ${await text("#m_ebl")}`);
+    await p.uncheck("#gyroFail");
+    await p.waitForTimeout(300);
+    await p.selectOption("#orient", "north-up");
+    // DEFAULT SETTINGS (IEC 62388 Table 35), after a confirmation.
+    await key("set");
+    p.once("dialog", (d) => d.accept());
+    await p.click("#radarDefault");
+    await p.waitForTimeout(500);
+    const def = await p.evaluate(() => ({
+      range: document.getElementById("range").value, orient: document.getElementById("orient").value, motion: document.getElementById("motion").value,
+      stab: document.getElementById("stab").value, cpa: document.getElementById("arpaCpaLim").value, tcpa: document.getElementById("arpaTcpaLim").value,
+      vec: document.getElementById("arpaVec").value, ebl: document.getElementById("eblOn").checked, rings: document.getElementById("ringsKey").textContent,
+      vrm: document.getElementById("m_vrm").textContent, trails: document.getElementById("trails").value, band: document.getElementById("band").value,
+    }));
+    check(`${tag} default settings`, def.range === "6" && def.orient === "north-up" && def.motion === "true" && def.stab === "ground" && def.cpa === "2" && def.tcpa === "12" && def.vec === "relative" && def.ebl && def.rings === "RINGS OFF" && def.vrm === "0.25 NM" && def.trails === "true" && def.band === "X", JSON.stringify(def));
+    // Parallel index lines: one put parallel to the heading, all switched off together.
+    await key("meas");
+    await p.click('#piGrid button[data-pihdg="1"]');
+    await p.waitForTimeout(200);
+    const piOn = await p.isChecked("#pi1On");
+    await p.click("#piAllOff");
+    check(`${tag} PI line parallel to the heading, then all PI lines off`, piOn && !(await p.isChecked("#pi1On")) && (await p.locator("#pi0Ahd").count()) === 1);
+    // User settings: store, change, recall. (Storing over an existing setting, and recalling, ask for a confirmation.)
+    const acceptAll = (d) => void d.accept().catch(() => {});
+    p.on("dialog", acceptAll);
+    await key("set");
+    await p.click('[data-us-save="0"]');
+    await p.waitForTimeout(200);
+    const r0 = await p.$eval("#range", (e) => e.value);
+    await p.click("#rngUp");
+    await p.waitForTimeout(200);
+    await p.click('[data-us-load="0"]');
+    await p.waitForTimeout(300);
+    check(`${tag} user setting stored and recalled`, (await p.$eval("#range", (e) => e.value)) === r0 && (await text("#usInfo0")) === "recalled", `${r0} ${await p.$eval("#range", (e) => e.value)} ${await text("#usInfo0")}`);
+    // Setting-up exercise: the radar starts off, warms up, waits in standby, then transmits.
+    await key("ex");
+    await p.click('#paneEx button[data-ex="radar-22"]');
+    await p.waitForTimeout(500);
+    const off = await text("#radarSb");
+    if (/run/i.test(await text("#run"))) await p.click("#run");
+    await p.click("#radarSb");
+    await p.waitForTimeout(300);
+    const warming = await text("#radarSb");
+    await p.selectOption("#speed", "10");
+    await p.waitForFunction(() => /STANDBY/.test(document.getElementById("radarSb").textContent), null, { timeout: 30000 });
+    await p.click("#radarSb");
+    await p.waitForTimeout(300);
+    check(`${tag} setting-up exercise: off, warming up, standby, on`, off === "RADAR: OFF" && /^WARM UP 1:/.test(warming) && (await text("#radarSb")) === "RADAR: ON", `${off} | ${warming} | ${await text("#radarSb")}`);
+    await p.selectOption("#speed", "1");
+    await p.click("#exFinish");
+    await p.waitForTimeout(400);
+    p.off("dialog", acceptAll);
   }
 
   check(`${tag} no script errors`, errs.length === 0, errs.join("; "));

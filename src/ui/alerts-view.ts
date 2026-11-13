@@ -14,7 +14,7 @@ export function alertRows(app: AppState): AlertRow[] {
   if (app.roc) return [];
   return [
     ...app.arpa.alarms.map((x) => ({ key: x.key, text: x.text, priority: alertPriority(x.kind), acked: x.acked, raisedAt: x.raisedAt })),
-    ...app.ais.alarms.map((x) => ({ key: x.key, text: x.text, priority: alertPriority(x.key.startsWith("ais-cpa") ? "ais-cpa" : "ais-lost"), acked: x.acked, raisedAt: x.raisedAt })),
+    ...app.ais.alarms.map((x) => ({ key: x.key, text: x.text, priority: alertPriority(x.key.startsWith("ais-cpa") ? "ais-cpa" : x.key.startsWith("ais-cap-near") ? "capacity-near" : "ais-lost"), acked: x.acked, raisedAt: x.raisedAt })),
   ];
 }
 

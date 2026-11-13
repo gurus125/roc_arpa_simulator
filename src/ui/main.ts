@@ -1,13 +1,14 @@
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
+import { aisFilterLabel } from "../ais/index";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
-import { BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor } from "../engine/index";
+import { BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, setRadarTransmit, switchRadarOff, switchRadarOn } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
 import { ARPA_EXERCISES, PLOT_RULES, ArpaExSession, ArpaExercise, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
 import { initTrainUi } from "./train-ui";
 import { initInstructorUi } from "./instructor-ui";
 import { Link } from "./link";
 import { esc } from "./dom";
-import { ConsoleUi, initConsoleUi } from "./console-ui";
+import { ConsoleUi, initConsoleUi, radarKeyLabel } from "./console-ui";
 import { AppState, SCENARIO_ORIGIN, advance, createApp, resetCourseUp, resetTrueMotion, setDisplayMode, setRange } from "./app";
 import { initRocUi } from "./roc-ui";
 import { initArpaUi } from "./arpa-ui";
@@ -289,7 +290,11 @@ function applyControls(): void {
   app.vrm2 = { on: chk("vrm2On"), range: num("vrm2Rng") };
   setText("ebl2BrgV", brg1(app.ebl2.bearing));
   setText("vrm2RngV", app.vrm2.range.toFixed(2));
-  app.pi = [0, 1, 2, 3].map((i) => ({ on: chk(`pi${i}On`), bearing: normalizeDeg(num(`pi${i}Brg`) || 0), range: num(`pi${i}Rng`) || 0 }));
+  const cut = (id: string): number | null => {
+    const v = (document.getElementById(id) as HTMLInputElement).value.trim();
+    return v === "" || !Number.isFinite(Number(v)) ? null : Math.max(0, Number(v));
+  };
+  app.pi = [0, 1, 2, 3].map((i) => ({ on: chk(`pi${i}On`), bearing: normalizeDeg(num(`pi${i}Brg`) || 0), range: num(`pi${i}Rng`) || 0, ahead: cut(`pi${i}Ahd`), astern: cut(`pi${i}Ast`) }));
   w.radar.band = sel("band") as "X" | "S";
   for (const b of document.querySelectorAll<HTMLElement>("#bandKeys button")) b.classList.toggle("on", b.dataset["b"] === w.radar.band);
   {
@@ -441,6 +446,24 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
   arpaUi.onAppChanged(app);
   if (opts.arpa) {
     app.arpaEx = new ArpaExSession(opts.arpa, app.world, app.arpa, JSON.parse(JSON.stringify(store.data.scoring)) as typeof store.data.scoring);
+    if (opts.arpa.startsSwitchedOff) {
+      // The exercise has left the radar off and badly set: show the controls as they are, with the automatic ones off.
+      const c = app.world.radar.controls;
+      for (const id of ["autoSea", "autoRain", "autoTune"]) setCheck(id, false);
+      setSlider("gain", c.gain);
+      setSlider("stc", c.stc);
+      setSlider("ftc", c.ftc);
+      setSlider("tuning", c.tuning);
+      setSlider("brill", c.brilliance);
+      setCheck("echoStretch", !!c.echoStretch);
+      setCheck("echoAvg", !!c.echoAverage);
+      setCheck("irOn", !!c.interferenceRejection);
+      setSelect("pulse", c.pulse ?? "auto");
+      setCheck("pmOn", false);
+      applyControls();
+      app.radarStandby = true;
+      app.hits = [];
+    }
     startRecorder(opts.arpa.id, `${opts.arpa.group ?? "ARPA"} ${opts.arpa.number}: ${opts.arpa.title}`, "arpa");
   }
   trainUi.onAppChanged(app);
@@ -457,12 +480,116 @@ function setup(): void {
   scSel.addEventListener("change", () => loadScenario(allScenarios()[Number(scSel.value)] ?? SCENARIOS[0]!));
   $("reset").addEventListener("click", () => loadScenario(allScenarios()[Number(scSel.value)] ?? SCENARIOS[0]!));
   for (const [k, [, btn]] of Object.entries(TABS)) $(btn).addEventListener("click", () => setTab(k as Tab));
+  // DEFAULT SETTINGS: the known starting state of IEC 62388:2013, Table 35, chosen by one action and confirmed.
+  // Gain, the clutter controls and tuning are left as they are (the table allows that); maps keep their last setting.
+  $("radarDefault").addEventListener("click", () => {
+    if (!confirm("Put the radar and ARPA controls to the standard default settings?")) return;
+    const fire = (id: string): void => {
+      const el = $(id);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const set = (id: string, v: string): void => {
+      ($(id) as HTMLInputElement).value = v;
+      fire(id);
+    };
+    const check = (id: string, v: boolean): void => {
+      const el = $(id) as HTMLInputElement;
+      if (el.checked !== v) {
+        el.checked = v;
+        fire(id);
+      }
+    };
+    set("band", "X");
+    set("range", "6");
+    if ($("ringsKey").classList.contains("on")) $("ringsKey").click(); // fixed range rings off
+    check("eblOn", true);
+    check("vrmOn", true);
+    set("vrmRng", "0.25");
+    check("ebl2On", false);
+    check("vrm2On", false);
+    for (const i of [0, 1, 2, 3]) check(`pi${i}On`, false);
+    set("orient", "north-up");
+    set("motion", "true");
+    set("stab", "ground");
+    set("trails", "true");
+    set("trailMin", "6");
+    set("pastMode", "off");
+    set("arpaVec", "relative");
+    set("arpaVecT", "6");
+    set("arpaLogMode", "gnss"); // ground stabilised: course and speed over the ground
+    check("arpaAuto", false);
+    for (const el of document.querySelectorAll<HTMLInputElement>('input[id^="z_"][id$="_on"]')) check(el.id, false); // zones off
+    check("aisOn", true);
+    set("aisAssoc", "ais");
+    set("arpaCpaLim", "2");
+    set("arpaTcpaLim", "12");
+    $("tmReset").click(); // own ship placed for the view ahead
+    $("radarDefaultMsg").textContent = "Default settings set.";
+    app.recorder?.note(app.world, "Radar controls put to the default settings.");
+  });
+  // Two stored sets of user settings (IEC 62388 13.5.1), each recalled after a confirmation.
+  const USER_SETTING_IDS = [
+    "band", "range", "orient", "motion", "stab", "trails", "trailMin", "arpaVec", "arpaVecT", "arpaGraphics", "pastMode", "pastPts", "pastInt",
+    "gain", "stc", "ftc", "tuning", "brill", "autoSea", "autoRain", "autoTune", "pulse", "echoStretch", "echoAvg", "irOn",
+    "arpaCpaLim", "arpaTcpaLim", "arpaVecSup", "arpaLostWarn", "aisOn", "aisLost", "aisFilter", "aisFiltCpa", "aisFiltTcpa", "aisFiltSog", "aisFiltCls", "aisAutoAct",
+  ];
+  const showUserSettings = (): void => {
+    for (const i of [0, 1]) $(`usInfo${i}`).textContent = store.data.userSettings[i] ? "stored" : "empty";
+  };
+  showUserSettings();
+  for (const i of [0, 1]) {
+    document.querySelector(`[data-us-save="${i}"]`)!.addEventListener("click", () => {
+      if (store.data.userSettings[i] && !confirm(`Replace user setting ${i + 1} with the present settings?`)) return;
+      const rec: Record<string, string | boolean> = { rings: $("ringsKey").classList.contains("on") };
+      for (const id of USER_SETTING_IDS) {
+        const el = document.getElementById(id) as HTMLInputElement | null;
+        if (el) rec[id] = el.type === "checkbox" ? el.checked : el.value;
+      }
+      store.data.userSettings[i] = rec;
+      store.save();
+      showUserSettings();
+    });
+    document.querySelector(`[data-us-load="${i}"]`)!.addEventListener("click", () => {
+      const rec = store.data.userSettings[i];
+      if (!rec) {
+        $(`usInfo${i}`).textContent = "empty: nothing to recall";
+        return;
+      }
+      if (!confirm(`Recall user setting ${i + 1}?`)) return;
+      for (const id of USER_SETTING_IDS) {
+        const el = document.getElementById(id) as HTMLInputElement | null;
+        const v = rec[id];
+        if (!el || v === undefined) continue;
+        if (el.type === "checkbox") el.checked = v === true;
+        else el.value = String(v);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      if (typeof rec["rings"] === "boolean" && $("ringsKey").classList.contains("on") !== rec["rings"]) $("ringsKey").click();
+      $(`usInfo${i}`).textContent = "recalled";
+      app.recorder?.note(app.world, `User setting ${i + 1} recalled.`);
+    });
+  }
+  // The RADAR key: switches on from cold (the warm-up then runs), and moves between standby and transmit.
   $("radarSb").addEventListener("click", () => {
-    app.radarStandby = !app.radarStandby;
+    const w = app.world;
+    const p = radarPower(w);
+    if (p === "warming") return; // nothing to do until the warm-up is over
+    if (p === "off") switchRadarOn(w);
+    else setRadarTransmit(w, p === "standby");
+    app.radarStandby = !radarTransmitting(w);
     if (app.radarStandby) app.hits = [];
     else app.arpa.settings.standby = false;
-    $("radarSb").textContent = app.radarStandby ? "RADAR: STANDBY" : "RADAR: ON";
-    app.recorder?.note(app.world, app.radarStandby ? "Radar to standby." : "Radar to transmit.");
+    $("radarSb").textContent = radarKeyLabel(w);
+    app.recorder?.note(w, p === "off" ? "Radar switched on: warming up." : app.radarStandby ? "Radar to standby." : "Radar to transmit.");
+  });
+  $("radarOff").addEventListener("click", () => {
+    if (!confirm("Switch the radar off? It will need to warm up again before it can transmit.")) return;
+    switchRadarOff(app.world);
+    app.radarStandby = true;
+    app.hits = [];
+    app.recorder?.note(app.world, "Radar switched off.");
   });
   // Students at this display.
   $("lgStart").addEventListener("click", () => {
@@ -706,9 +833,28 @@ function setup(): void {
   });
 
   // More measuring tools: EBL 2, VRM 2, parallel index lines, heading line off, off-centre, band.
-  $("piGrid").innerHTML = "<span></span><span>Bearing °</span><span>Distance NM</span>" + [0, 1, 2, 3].map((i) =>
-    `<label><input type="checkbox" id="pi${i}On"> PI ${i + 1}</label><input type="number" id="pi${i}Brg" min="0" max="359" step="1" value="0"><input type="number" id="pi${i}Rng" min="-24" max="24" step="0.05" value="${i % 2 === 0 ? 1 : -1}">`).join("");
-  for (const id of ["ebl2On", "ebl2Brg", "vrm2On", "vrm2Rng", "band", ...[0, 1, 2, 3].flatMap((i) => [`pi${i}On`, `pi${i}Brg`, `pi${i}Rng`])]) {
+  $("piGrid").innerHTML = "<span></span><span>Bearing °</span><span>Distance NM</span><span>Ahead NM</span><span>Astern NM</span><span></span>" + [0, 1, 2, 3].map((i) =>
+    `<label><input type="checkbox" id="pi${i}On"> PI ${i + 1}</label><input type="number" id="pi${i}Brg" min="0" max="359" step="1" value="0"><input type="number" id="pi${i}Rng" min="-24" max="24" step="0.05" value="${i % 2 === 0 ? 1 : -1}"><input type="number" id="pi${i}Ahd" min="0" max="48" step="0.1" placeholder="full"><input type="number" id="pi${i}Ast" min="0" max="48" step="0.1" placeholder="full"><button data-pihdg="${i}" title="Put this line parallel to the ship's heading">HDG</button>`).join("");
+  $("piGrid").addEventListener("click", (ev) => {
+    const b = (ev.target as HTMLElement).closest<HTMLElement>("button[data-pihdg]");
+    if (!b) return;
+    const i = Number(b.dataset["pihdg"]);
+    setSlider(`pi${i}Brg`, Math.round(normalizeDeg(measuredHeading(app.world))) % 360);
+    setCheck(`pi${i}On`, true);
+    applyControls();
+  });
+  for (const [id, on] of [["piAllOn", true], ["piAllOff", false]] as const) {
+    $(id).addEventListener("click", () => {
+      for (const i of [0, 1, 2, 3]) setCheck(`pi${i}On`, on);
+      applyControls();
+    });
+  }
+  $("eblCarry").addEventListener("click", () => {
+    app.eblOriginCarried = !app.eblOriginCarried;
+    app.eblOriginOffset = app.eblOrigin ? { e: app.eblOrigin.e - app.world.own.pos.e, n: app.eblOrigin.n - app.world.own.pos.n } : null;
+    $("eblCarry").textContent = app.eblOriginCarried ? "Offset origin: carried with own ship" : "Offset origin: fixed to ground";
+  });
+  for (const id of ["ebl2On", "ebl2Brg", "vrm2On", "vrm2Rng", "band", ...[0, 1, 2, 3].flatMap((i) => [`pi${i}On`, `pi${i}Brg`, `pi${i}Rng`, `pi${i}Ahd`, `pi${i}Ast`])]) {
     $(id).addEventListener("input", applyControls);
     $(id).addEventListener("change", applyControls);
   }
@@ -825,6 +971,7 @@ function setup(): void {
     }
     if (pickMode === "eblOrigin") {
       app.eblOrigin = wp;
+      app.eblOriginOffset = { e: wp.e - app.world.own.pos.e, n: wp.n - app.world.own.pos.n };
       setCheck("eblOn", true);
       pickMode = null;
       applyControls();
@@ -1062,6 +1209,10 @@ window.addEventListener("beforeunload", () => store.save());
   targetCount: (): number => app.world.targets.length,
   refraction: (): string => app.world.env.refraction ?? "standard",
   vectorSuppress: (): boolean => app.arpa.settings.vectorSuppress,
+  aisFilter: (): number | null => app.ais.settings.sleepFilter.rangeNm,
+  aisFilterLabel: (): string => aisFilterLabel(app.ais.settings.sleepFilter),
+  headingLost: (): boolean => app.headingLost,
+  lostWarning: (): boolean => app.arpa.settings.lostWarning,
   firstTargetScreen: (): { x: number; y: number } | null => {
     const t = app.world.targets[0];
     if (!t) return null;

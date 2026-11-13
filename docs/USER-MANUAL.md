@@ -17,8 +17,8 @@ HELP. HELP shows a short explanation under every control; press it again to hide
 
 | Control | What it does |
 |---|---|
-| RADAR: ON / STANDBY | Switches the transmitter on or to standby. In standby there is no picture. |
-| ALARM ACK | Acknowledges the alert shown beside it, one at a time: alarms first, then the oldest warning. It flashes while an alert is waiting. The alert box beside it is red for an alarm and amber for a warning. |
+| RADAR key | Switches the radar on from cold (RADAR: OFF), and between standby and transmit. Switched on from cold it warms up first (WARM UP and a countdown; about one and a half minutes here, never more than 4 minutes on a real set), then waits in STANDBY: press again to transmit. In standby there is no picture. SETTINGS, RADAR POWER OFF switches it off. |
+| ALARM ACK | Acknowledges the alert shown beside it, one at a time: alarms first, then the oldest warning. It flashes while an alert is waiting. The alert box beside it is red for an alarm, orange for a warning and yellow for a caution. |
 | PAUSE / RUN, 1x-10x (top strip) | Stops and starts the exercise clock, and sets how fast it runs. |
 | DAY / NIGHT (top strip) | Display colours for day or for a dark bridge (also under SETTINGS). |
 
@@ -35,6 +35,14 @@ Own ship's data is under the top keys:
 
 The small box after a value names the sensor it comes from. It turns red when that sensor has failed.
 
+Own ship on the picture is drawn as on a radar: the heading line with a short beam line across it
+at the ship's position, and on the shortest range scales the ship's outline to scale. The bearing
+scale round the picture has a mark every 5° and a number every 30°.
+
+If the gyro compass fails, the picture changes by itself to head-up (unstabilised) with relative
+motion, "HDG FAIL: UNSTAB, REL BRG ONLY" is written at the top left, and the EBLs read relative
+bearings only. That is what a real radar does when it loses its heading input.
+
 The corners of the picture carry the settings in short lines, as on a radar screen: top left the
 range scale in large figures, the ring interval, the orientation and motion (N UP RM) and the
 stabilisation of the picture; top right the band and pulse length (SP short, MP medium, LP long)
@@ -46,7 +54,8 @@ The settings are boxes that are clicked; each shows the setting in use by its st
 
 - **RANGE − / +**: range scale, 0.25 to 96 NM. **RINGS**: fixed range rings on or off.
 - **X BAND / S BAND**: the 3 cm or 10 cm radar. S band sees through rain better; X band gives a
-  sharper picture and is the only band a SART answers.
+  sharper picture and is the only band a SART answers. **AIS ON / OFF** beside them shows or hides
+  the AIS targets.
 - **MODE**, three boxes: orientation **N UP** (north-up), **H UP** (head-up, unstabilised: bearings
   are relative) or **C UP** (course-up); motion **RM** (relative motion, own ship fixed) or **TM**
   (true motion, own ship moves across the screen); stabilisation of the picture **GND** (ground) or
@@ -61,11 +70,18 @@ The settings are boxes that are clicked; each shows the setting in use by its st
 
 Tick EBL 1 or VRM 1. The line follows the cursor over the picture and shows MOVE. Double-click
 the picture to lock it (LOCK). Untick and tick again to move it. EBL 2 and VRM 2 work the same
-way. The CURSOR box shows the true bearing (BRG), relative bearing (REL) and range (RNG) of the
-cursor at all times, and under them the latitude and longitude of the point it is on.
+way. The **EBL BRG** key under the readouts changes the EBL bearings between TRUE and REL
+(relative to the ship's head); every bearing ends in T or R so that you know which it is. The
+cursor line in the data area shows the true bearing (BRG), relative bearing (REL) and range (RNG)
+of the cursor at all times, and under them (CURS) the latitude and longitude of the point it is on.
 
 More tools are under **PI / MAP**: four parallel index lines, an offset EBL origin, off-centre,
-heading line off, navigation lines and marks.
+navigation lines and marks, and "Hold: graphics off". Each parallel index line can be cut short (Ahead and
+Astern, in NM from the point abeam of own ship), put parallel to the heading (HDG), and all can be
+switched on or off together. An offset EBL origin can stay fixed to the ground or be carried with
+own ship. While that key is held (or key H), the
+heading line and every other line and symbol are taken off, leaving only the echoes and trails,
+so that a weak echo under a line can be seen.
 
 ## 5. GAIN / CLUTTER box
 
@@ -78,6 +94,11 @@ Each control is a bar: click or drag along it. The figure beside it is the setti
 - **RAIN**: rain clutter control. Too much weakens all echoes.
 - **TUNE**: tune for the highest METER reading.
 - **AUTO**: the set chooses the setting. Like a real automatic control it is a compromise.
+- **BRILL**: brightness of the radar picture.
+
+The small letters in the heading of the box light up when a signal processing function is in use:
+IR (interference rejection), ENH (echo stretch), SC/SC (echo averaging from scan to scan), MON
+(performance monitor). Switch them under **RADAR**.
 
 More under **RADAR**: pulse length, echo stretch, echo averaging, interference rejection,
 performance monitor.
@@ -91,8 +112,11 @@ The target keys are along the bottom-left edge of the picture.
    vector is at full strength and the data is reliable.
 3. Press **Select** and click a target to see its data in the TARGET DATA box: target number,
    bearing (BRG), range (RNG), course (CSE), speed (SPD), CPA, TCPA, and the bow crossing range
-   and time (BCR, BCT), each with its unit. TT after the heading means a tracked (radar) target,
-   AIS an AIS target. A yellow ? after a value means it is still preliminary. The line under the
+   and time (BCR, BCT), each with its unit. The course and speed are named CTW and STW (through
+   the water) when the ARPA is sea stabilised, and COG and SOG (over the ground) when it is ground
+   stabilised. TT after the heading means a tracked (radar) target, AIS an AIS target; for an AIS
+   target the box also shows its MMSI, navigational status, reported position and heading, and
+   MISSING for anything its report does not carry. A yellow ? after a value means it is still preliminary. The line under the
    data shows the CPA and TCPA limits, the ARPA's speed input and the past positions setting.
 4. **Cancel** drops one target; **Cancel all** drops them all. **Auto** acquires targets that
    enter a guard zone.
@@ -114,11 +138,18 @@ Symbols (as in IMO circular SN.1/Circ.243/Rev.2):
 | Own ship's vector with one arrowhead / two arrowheads | Stabilised through the water / over the ground |
 | Large T | A trial manoeuvre is being shown |
 
-Alerts (after IMO resolution MSC.302(87)): an ALARM (a dangerous target) sounds until it is
-acknowledged and stays shown until the danger has gone. A WARNING (lost target, new target, guard
-zone, input failure and the rest) gives one short signal, flashes until acknowledged and is
-announced again every 5 minutes if it is left. Alerts are acknowledged one at a time. Under
-**CPA/ALARM**, "Silence sound 30 s" stops the sound without acknowledging anything.
+Alerts (IMO resolution MSC.302(87), IEC 62288 and IEC 62388) have three priorities:
+
+| Priority | When | Shown | Sound |
+|----------|------|-------|-------|
+| ALARM | A dangerous target (CPA and TCPA inside the limits) | Red, flashing until acknowledged, then steady until the danger has gone | Three short signals, repeated every 8 seconds until acknowledged |
+| WARNING | Lost target, new target in a zone, capacity exceeded, sensor failure and the rest | Orange, flashing until acknowledged | Two short signals; again every 5 minutes if left unacknowledged |
+| CAUTION | The tracker is nearly full (19 of 20 targets) | Yellow, steady | None; nothing to acknowledge |
+
+Alerts are acknowledged one at a time. Under **CPA/ALARM**, "Silence sound 30 s" stops the sound
+without acknowledging anything, and the lost target warning for tracked targets can be switched
+off ("LOST TGT WARNING OFF" is then written on the picture, and a lost target's symbol goes after
+a minute).
 
 Other ARPA keys: **PAST POS** (past positions), **GUARD** (guard zones and exclusion areas),
 **TRIAL** (trial manoeuvre with delay), **TGT LIST** (all tracked targets), **AIS LIST**
@@ -194,6 +225,28 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
 - **WEATHER**: sea state, rain, abnormal propagation (ducting), refraction, interference, wind,
   current and tide. Refraction changes how far the radar sees: in sub-refraction targets are
   detected at about 80% of the usual range, in super-refraction at up to about 140%.
+- **SETTINGS**, DEFAULT SETTINGS: after a confirmation, puts the radar and ARPA controls to the
+  standard starting state every radar offers (X band, 6 NM, rings off, one EBL and one VRM on,
+  true motion north-up, ground stabilised, trails and relative vectors of 6 minutes, AIS on, CPA
+  limit 2 NM, TCPA limit 12 minutes). Gain, clutter and tuning stay as they are.
+- **AIS LIST**: "Activate automatically" activates sleeping AIS targets within 3, 6 or 12 NM by
+  themselves; with automatic acquisition on, an AIS target in an acquisition zone is activated too,
+  with a NEW AIS TARGET warning. At most 20 targets can be activated (a caution at 19). An activated
+  target shows its past positions (as set under PAST POS), a turn indicator on its heading line when
+  it is turning, and on the shortest range scales its outline to scale. Its data gives its rate of
+  turn (ROT) when it reports one, and CTW and STW when the ARPA is sea stabilised.
+  The **filter for sleeping targets** thins out a crowded picture: a sleeping AIS target is left out
+  when it is further off than the range chosen, passes wider than the CPA chosen (or is opening),
+  has its CPA further ahead than the TCPA chosen, or is slower than the speed chosen. "Apply to"
+  narrows this to class B targets (small craft); on its own it filters nothing. While the filter is
+  on, "AIS FILTER" and its criteria are written at the top right of the picture and the AIS key
+  reads AIS FILT. Activated, dangerous, lost and selected targets are always shown, and no single
+  target can be taken off the picture.
+  **Further data**: with an AIS target selected, the MORE key in the TARGET DATA box shows its AIS
+  class, IMO number, ship type, destination, ETA, draught, size and position accuracy; LESS goes
+  back. Anything the ship does not send reads MISSING: a class B set (small craft) sends no
+  navigational status, rate of turn, IMO number or voyage data, and reports less often (every 30 s
+  or so). "Own ship AIS data" shows what own ship's AIS is sending.
 - **SCENARIO**: free-practice scenarios (one has 100 ships at once; one is on the real coastline
   of the approaches to Mumbai); show target names (a study aid).
 - **SETTINGS**: day or night display; telemotor 2 (faster rudder); own ship data.
@@ -201,6 +254,9 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
   blind pilotage, traffic).
 - **ARPA EX**: ARPA exercises 1-9, radar exercises 10-11, manual plotting exercises 12-21.
 - **INSTR**: instructor pages (PIN needed).
+
+- **SETTINGS**, User setting 1 and 2: Store keeps the present settings of the radar and ARPA
+  controls; Recall puts them back (each asks you to confirm).
 
 ## 9. Doing an exercise
 

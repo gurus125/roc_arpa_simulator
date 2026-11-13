@@ -40,6 +40,11 @@ export interface StoreData {
   displayMode: "day" | "night";
   /** Keys of a hardware control panel chosen by the user, by function (see ui/panel-map.ts). Empty: the default keys. */
   panelKeys: Record<string, string>;
+  /**
+   * Two sets of control settings the user has stored, to recall later (IEC 62388 13.5.1: at least two).
+   * Each maps a control's id to its value (or checked state). Null: nothing stored.
+   */
+  userSettings: (Record<string, string | boolean> | null)[];
 }
 
 export interface KeyValue {
@@ -59,6 +64,7 @@ export function emptyStore(): StoreData {
     ownShip: { name: "TRAINING SHIP", callSign: "TRNG1", imo: "0000000", mmsi: "000000000", draughtM: null, hazardous: "None", destination: "", eta: "" },
     displayMode: "day",
     panelKeys: {},
+    userSettings: [null, null],
   };
 }
 

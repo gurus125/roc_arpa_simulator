@@ -146,6 +146,17 @@ export function validateScenario(x: unknown): string[] {
       need(t["lengthM"] === undefined || (isNum(t["lengthM"]) && t["lengthM"] >= 0), `${n}: lengthM must not be negative.`);
       need(t["raconBand"] === undefined || ["X", "S", "both"].includes(t["raconBand"] as string), `${n}: raconBand must be X, S or both.`);
       need(t["ais"] === undefined || typeof t["ais"] === "boolean", `${n}: ais must be true or false.`);
+      need(t["paint"] === undefined || (isNum(t["paint"]) && t["paint"] > 0 && t["paint"] <= 1), `${n}: paint must be above 0 and at most 1 (the share of scans the target is seen on).`);
+      need(t["aisClass"] === undefined || ["A", "B-CS", "B-SO"].includes(t["aisClass"] as string), `${n}: aisClass must be "A", "B-CS" or "B-SO".`);
+      const st = t["aisStatic"];
+      const strOrNull = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.length <= 40);
+      need(
+        st === undefined ||
+          (isObj(st) && strOrNull(st["imo"]) && strOrNull(st["shipType"]) && strOrNull(st["destination"]) && strOrNull(st["eta"]) && strOrNull(st["navStatus"]) &&
+            (st["draughtM"] === undefined || st["draughtM"] === null || (isNum(st["draughtM"]) && st["draughtM"] >= 0 && st["draughtM"] <= 30)) &&
+            (st["posAccuracy"] === undefined || st["posAccuracy"] === "high" || st["posAccuracy"] === "low")),
+        `${n}: aisStatic may hold imo, shipType, destination, eta and navStatus (text up to 40 letters, or null for not sent), draughtM (0 to 30) and posAccuracy ("high" or "low").`,
+      );
       const ev = t["events"];
       need(
         Array.isArray(ev) &&

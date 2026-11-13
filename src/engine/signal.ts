@@ -140,6 +140,11 @@ export function noiseDensity(sens: number): number {
   return clamp((sens - 1.0) / 1.0, 0, 1);
 }
 
+/** How dense the receiver noise speckle is with these controls: 0 none, 1 the whole picture. */
+export function noiseSpeckle(c: RadarControls, tuningOptimum: number): number {
+  return noiseDensity(sensitivity(c, tuningOptimum));
+}
+
 export interface SignalInput {
   rcs: number;
   height: number;

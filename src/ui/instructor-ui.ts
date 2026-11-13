@@ -3,7 +3,7 @@ import { IMO_TABLE2, Scenario, TARGET_TYPES, Target, TargetKind, clearTargetRout
 import { MAX_ROUTE_WAYPOINTS } from "../core/route";
 import { EXERCISES } from "../roc/index";
 import {
-  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, PLACEHOLDER_SCORING, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
+  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, PLACEHOLDER_SCORING, SETUP_LIMITS, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
 } from "../train/index";
 import { AppState, rewind } from "./app";
 import { deletePictures, loadPictures } from "./picture-store";
@@ -599,6 +599,20 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     { key: "turn", label: "Substantial turn (°)", get: (c) => c.substantialTurnDeg, set: (c, v) => (c.substantialTurnDeg = v ?? c.substantialTurnDeg) },
     { key: "cut", label: "Substantial speed cut (0-1)", get: (c) => c.substantialSpeedCut, set: (c, v) => (c.substantialSpeedCut = v ?? c.substantialSpeedCut) },
     { key: "pass", label: "Pass mark % (blank = none)", get: (c) => c.passPercent, set: (c, v) => (c.passPercent = v) },
+    // Radar 22, switching on and setting up: what counts as set right.
+    ...([
+      ["suSpMin", "Set-up: lightest speckle (0-1)", "speckleMin"],
+      ["suSpMax", "Set-up: heaviest speckle (0-1)", "speckleMax"],
+      ["suTune", "Set-up: tuning tolerance (0-100 scale)", "tuningTol"],
+      ["suBrill", "Set-up: least brilliance (10-100)", "minBrilliance"],
+      ["suClut", "Set-up: sea / rain at zero up to", "clutterZero"],
+    ] as const).map(([key, label, k]) => ({
+      key, label,
+      get: (c: ScoringConfig): number | null => (c.setup ?? SETUP_LIMITS)[k],
+      set: (c: ScoringConfig, v: number | null): void => {
+        c.setup = { ...(c.setup ?? SETUP_LIMITS), [k]: v ?? (c.setup ?? SETUP_LIMITS)[k] };
+      },
+    })),
   ];
   const fillScore = (): void => {
     $("inScore").innerHTML = scoreFields.map((f) => `<div><label for="sc_${f.key}">${f.label}</label><input type="number" step="any" min="0" id="sc_${f.key}" value="${f.get(st.data.scoring) ?? ""}"></div>`).join("");

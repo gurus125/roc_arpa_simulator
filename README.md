@@ -37,7 +37,7 @@ then manoeuvre for a 1 NM CPA; result as a percentage of the required CPA, 80% n
 follow the Learnmarine plotting trainer the academy supplied as a reference; the situations are our own.
 RINGS on/off and DAY/NIGHT keys; 30-minute trails.
 Self-test (`src/train/robot.ts`): Instructor page > "Self-test of the exercises", or `npm run selftest`.
-Three robots (careful, wrong, idle) work all 21 ARPA, radar and plotting exercises and the marking is
+Three robots (careful, wrong, idle) work all 22 ARPA, radar and plotting exercises and the marking is
 compared with what should happen. It checks that the exercises run and are marked properly, not that
 the answer key is good seamanship. ROC exercises are not included.
 SETTINGS key: DAY / NIGHT display palettes (`src/ui/palette.ts`; day is dark blue with yellow echoes,
@@ -66,8 +66,26 @@ Real coastline: the scenario "Approaches to Mumbai (real coastline)" uses `src/e
 contributors, Open Database License (ODbL) 1.0, https://www.openstreetmap.org/copyright. About 250 m accuracy; no
 depths, lights or buoys. It is not a chart.
 Symbols follow IMO SN.1/Circ.243/Rev.2 (`src/ui/arpa-view.ts`) and alerts follow IMO MSC.302(87)
-(`src/arpa/alerts.ts`: alarm and warning priorities, acknowledged one at a time). IEC 62288 and IEC 62388 have not
-been read; the priority given to each alert is the project's own judgement.
+(`src/arpa/alerts.ts`: alarm, warning and caution priorities, acknowledged one at a time).
+Checked against IEC 62388:2013 (shipborne radar) and IEC 62288:2014 (presentation) on 13 Nov 2026: see
+`docs/IEC-CHECK.md` for what was changed (own ship's symbol, bearing scale, graphics-off key, EBL true/relative,
+brilliance and AIS as primary controls, processing status, CTW/STW and COG/SOG, capacity caution, alert signals and
+colours, lost target warning switch, heading-failure fallback, default settings, AIS filter and data) and for what
+is still not met. Tests: `tests/iec.test.ts` (with the standard's TT scenario 1) and `tests/pub1310.test.ts`.
+Second round from the same standards: radar power states (off, 90 s warm-up, standby, transmit: `src/engine/power.ts`),
+radar exercise 22 "Switching on and setting up the radar" (`src/train/radar-exercises.ts`, limits in `SETUP_LIMITS`),
+parallel index lines cut short and set parallel to the heading, EBL origin carried or fixed, two stored user settings,
+and AIS: Table 27 reporting and lost times, rate of turn and turn indicator, capacity, automatic activation, past
+positions, outlines to scale and the trial manoeuvre (`src/ais/index.ts`; tests `tests/ais-iec.test.ts`,
+`tests/setup-exercise.test.ts`).
+Third round: the ARPA's measurement errors are the IEC 62388 Annex E figures, with the bearing error from the
+antenna tilting as own ship rolls and pitches (`src/arpa/plots.ts`); TT scenario 1 now meets every limit; TT
+scenarios 2 to 5 run as tests (`tests/iec-tt.test.ts`), met after the tracker was given an adaptive window that
+drops old plots when a target manoeuvres (`src/arpa/tracker.ts`, `manoeuvreTestSec` in `src/arpa/config.ts`); a
+fading target (`paint` in a scenario); AIS class B with its Table 27 rates; further AIS data on request (MORE in
+the target data: class, IMO number, type, destination, ETA, draught, size, position accuracy, MISSING where not
+sent); own ship's AIS data; the sleeping-target filter by range, CPA, TCPA, speed and class; and the setting-up
+exercise's limits set by the instructor.
 Hardware control panel: keys for every radar function, changeable, and knob-box (game controller) inputs
 (`src/ui/panel-map.ts`, `src/ui/panel.ts`; SETTINGS > Control panel). No real panel has been tried.
 `npm run test:link` starts the classroom server and checks an instructor and four student displays in separate
@@ -83,7 +101,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 441 tests
+    npm test            # 488 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

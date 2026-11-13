@@ -4,8 +4,10 @@ import { SILENCE_SEC, alertSound, nextToAcknowledge } from "../arpa/index";
 import { acknowledge, alertRows } from "./alerts-view";
 import { createAlarmSound } from "./alarm-sound";
 import { Track, VECTOR_TIME_RANGE_MIN, ZoneSetting, arpaAvailableOnScale, ARPA_SCALES_NM } from "../arpa/index";
-import { measuredHeading } from "../engine/index";
-import { AppState } from "./app";
+import { World, measuredHeading } from "../engine/index";
+import { aisFilterLabel, aisFilterOn, ownShipAisData } from "../ais/index";
+import { formatLatLon, latLonOf } from "../core/nav";
+import { AppState, SCENARIO_ORIGIN } from "./app";
 
 export type ClickMode = "acquire" | "select" | "cancel" | "ebl";
 
@@ -48,6 +50,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
   let mode: ClickMode = "acquire";
   let alarmSig = "";
   const sound = createAlarmSound();
+  let ownAisTick: (w: World) => void = () => {};
 
 
   // Zone editor
@@ -80,6 +83,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     $("arpaManSpd").closest<HTMLElement>(".row")!.style.display = s.logMode === "manual" ? "" : "none";
     s.graphics = $<HTMLSelectElement>("arpaGraphics").value as typeof s.graphics;
     s.vectorSuppress = inp("arpaVecSup").checked;
+    s.lostWarning = inp("arpaLostWarn").checked;
     s.showData = inp("arpaShow").checked;
     s.brilliance = num("arpaBrill", 100);
     $("arpaBrillV").textContent = String(s.brilliance);
@@ -132,6 +136,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     // Keep the student's display choices; reset what belongs to the scenario.
     s.autoAcquire = inp("arpaAuto").checked;
     inp("arpaVecSup").checked = s.vectorSuppress;
+    inp("arpaLostWarn").checked = s.lostWarning;
     inp("trialOn").checked = false;
     inp("trialCourse").value = String(Math.round(measuredHeading(app.world)));
     inp("trialSpeed").value = String(app.world.own.speedThroughWater);
@@ -160,7 +165,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
   };
 
   const ids = [
-    "arpaAuto", "arpaVec", "arpaVecT", "gyroFail", "logFail", "hmErr", "vrmErr", "perf", "arpaShow", "arpaBrill", "arpaLogMode", "arpaManSpd", "arpaGraphics", "arpaVecSup", "pastMode", "pastPts", "pastInt", "arpaSound", "arpaCpaLim", "arpaTcpaLim", "trialOn", "trialCourse", "trialSpeed", "trialDelay",
+    "arpaAuto", "arpaVec", "arpaVecT", "gyroFail", "logFail", "hmErr", "vrmErr", "perf", "arpaShow", "arpaBrill", "arpaLogMode", "arpaManSpd", "arpaGraphics", "arpaVecSup", "arpaLostWarn", "pastMode", "pastPts", "pastInt", "arpaSound", "arpaCpaLim", "arpaTcpaLim", "trialOn", "trialCourse", "trialSpeed", "trialDelay",
     "gyroErr", "logErr", "arpaTruth", ...ZONES.flatMap((z) => ["on", "in", "out", "from", "to"].map((f) => `z_${z.key}_${f}`)),
   ];
   for (const id of ids) {
@@ -194,12 +199,38 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     const st = api.getApp().ais.settings;
     st.on = inp("aisOn").checked;
     st.lostAlarm = inp("aisLost").checked;
+    const num = (id: string): number | null => {
+      const x = $<HTMLSelectElement>(id).value;
+      return x === "" ? null : Number(x);
+    };
+    st.sleepFilter = {
+      classes: $<HTMLSelectElement>("aisFiltCls").value === "B" ? "B" : "all",
+      rangeNm: num("aisFilter"), cpaNm: num("aisFiltCpa"), tcpaMin: num("aisFiltTcpa"), minSpeedKn: num("aisFiltSog"),
+    };
+    $("aisFiltNow").textContent = aisFilterOn(st.sleepFilter)
+      ? `Filter on: sleeping ${st.sleepFilter.classes === "B" ? "class B " : ""}targets not drawn when ${aisFilterLabel(st.sleepFilter).replace(" CLASS B ONLY", "")}.`
+      : st.sleepFilter.classes === "B" ? "Filter off: choose a range, CPA, TCPA or speed as well; the class alone does not filter." : "Filter off: every sleeping target is drawn.";
+    const aa = $<HTMLSelectElement>("aisAutoAct").value;
+    st.autoActivateNm = aa === "" ? null : Number(aa);
     st.associatedShows = $<HTMLSelectElement>("aisAssoc").value as "ais" | "radar";
   };
-  for (const id of ["aisOn", "aisLost", "aisAssoc"]) $(id).addEventListener("change", aisApply);
+  for (const id of ["aisOn", "aisLost", "aisAssoc", "aisFilter", "aisFiltCpa", "aisFiltTcpa", "aisFiltSog", "aisFiltCls", "aisAutoAct"]) $(id).addEventListener("change", aisApply);
+  // Own ship's AIS data, on request (IMO MSC.192(79) 5.28.6).
+  let ownAisShown = false;
+  $("aisOwnKey").addEventListener("click", () => {
+    ownAisShown = !ownAisShown;
+    $("aisOwnKey").classList.toggle("on", ownAisShown);
+    if (!ownAisShown) $("aisOwn").textContent = "";
+  });
+  ownAisTick = (w) => {
+    if (!ownAisShown) return;
+    const o = ownShipAisData(w);
+    const ll = latLonOf(SCENARIO_ORIGIN, o.pos);
+    $("aisOwn").textContent = `Own ship's AIS (class ${o.cls}): MMSI ${o.mmsi}, call sign ${o.callSign}, ${o.navStatus}. Position ${formatLatLon(ll.lat, "lat", 3)} ${formatLatLon(ll.lon, "lon", 3)}. COG ${pad3(o.cog)}°, SOG ${o.sog.toFixed(1)} kn, heading ${pad3(o.heading)}°.`;
+  };
   $("aisActAll").addEventListener("click", () => {
     const ais = api.getApp().ais;
-    for (const id of ais.reports.keys()) ais.activate(id);
+    for (const id of ais.reports.keys()) ais.activate(id, api.getApp().world);
   });
   $("aisSleepAll").addEventListener("click", () => {
     const ais = api.getApp().ais;
@@ -210,10 +241,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     if (!id) return;
     const ais = api.getApp().ais;
     if (ais.selected === id) ais.sleep(id);
-    else {
-      ais.activate(id);
-      ais.selected = id;
-    }
+    else if (ais.activate(id, api.getApp().world)) ais.selected = id;
   });
   $("arpaCancelAll").addEventListener("click", () => {
     const app = api.getApp();
@@ -278,6 +306,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
   };
 
   const tick = (app: AppState): void => {
+    ownAisTick(app.world);
     const w = app.world;
     const a = app.arpa;
     if (app.roc) {
@@ -318,8 +347,13 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     $("aisRows").innerHTML = views.map((v) => `<tr data-ais="${v.report.id}" class="${app.ais.selected === v.report.id ? "sel" : ""}"><td>${v.report.name}</td><td>${pad3(v.bearing)}</td><td>${v.range.toFixed(2)}</td><td>${v.cpa.opening ? "open" : v.cpa.cpa.toFixed(2)}</td><td>${v.cpa.tcpaMinutes === null ? "---" : v.cpa.tcpaMinutes.toFixed(1)}</td><td>${pad3(v.report.cog)}</td><td>${v.report.sog.toFixed(1)}</td><td>${v.lost ? "LOST" : v.dangerous ? "DANGER" : v.state === "activated" ? "active" : "sleep"}${v.associatedTrack !== null ? ` =R${v.associatedTrack}` : ""}</td></tr>`).join("")
       || `<tr><td colspan="8" class="small">${app.ais.settings.on ? "No AIS targets received." : "AIS display is off."}</td></tr>`;
     const sv = views.find((v) => v.report.id === app.ais.selected);
+    const miss = (x: string | null): string => x ?? "MISSING";
     $("aisData").textContent = sv
-      ? `Source AIS. ${sv.report.name}, MMSI ${sv.report.mmsi}. ${sv.report.navStatus}. Heading ${pad3(sv.report.heading)}°, COG ${pad3(sv.report.cog)}°, SOG ${sv.report.sog.toFixed(1)} kn. Last report ${Math.round(sv.ageSec)} s ago. Rate of turn: missing.`
+      ? `Source AIS, class ${sv.report.cls === "A" ? "A" : `B (${sv.report.cls.slice(2)})`}. ${sv.report.name}, MMSI ${sv.report.mmsi}, call sign ${sv.report.callSign}. ` +
+        `Status: ${sv.report.navStatus || "MISSING"}. Heading ${pad3(sv.report.heading)}°, COG ${pad3(sv.report.cog)}°, SOG ${sv.report.sog.toFixed(1)} kn, ` +
+        `rate of turn ${sv.report.rot === null ? "MISSING" : `${sv.report.rot.toFixed(0)}°/min`}. Last report ${Math.round(sv.ageSec)} s ago. ` +
+        `IMO ${miss(sv.report.imo)}, type ${miss(sv.report.shipType)}, destination ${miss(sv.report.destination)}, ETA ${miss(sv.report.eta)}, ` +
+        `draught ${sv.report.draughtM === null ? "MISSING" : `${sv.report.draughtM.toFixed(1)} m`}, size ${sv.report.lengthM === null ? "MISSING" : `${Math.round(sv.report.lengthM)} x ${Math.round(sv.report.beamM ?? 0)} m`}, position accuracy ${sv.report.posAccuracy}.`
       : "";
 
     const all = alertRows(app);
@@ -327,7 +361,11 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     if (sig !== alarmSig) {
       alarmSig = sig;
       $("arpaAlarms").innerHTML = all
-        .map((x) => `<li class="${x.acked ? "" : "un"}"><span>${mmss(x.raisedAt)} <b class="${x.priority === "alarm" ? "no" : "wn"}">${x.priority.toUpperCase()}</b> ${x.text}${x.acked ? " (acknowledged)" : ""}</span>${x.acked ? "" : `<button data-key="${x.key}">Ack</button>`}</li>`)
+        .map((x) => {
+          // A caution is shown steadily and is not acknowledged; it goes when its cause goes.
+          const caution = x.priority === "caution";
+          return `<li class="${x.acked || caution ? "" : "un"}"><span>${mmss(x.raisedAt)} <b class="${x.priority === "alarm" ? "no" : caution ? "cau" : "wn"}">${x.priority.toUpperCase()}</b> ${x.text}${x.acked ? " (acknowledged)" : ""}</span>${x.acked || caution ? "" : `<button data-key="${x.key}">Ack</button>`}</li>`;
+        })
         .join("") || '<li><span class="small">No alarms.</span></li>';
     }
 
@@ -364,6 +402,11 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
             const note = r.result.beforeManoeuvre ? "before turn" : "";
             return `<tr><td>${r.trackId}</td><td class="${cls}">${r.result.cpa.toFixed(2)}</td><td>${r.result.tcpaMinutes.toFixed(1)}</td><td>${now ? now.cpa.toFixed(2) : "---"}</td><td class="small">${note}</td></tr>`;
           })
+          .join("") +
+        // Activated AIS targets are tried as well (IEC 62388 11.9.2.1).
+        app.ais.targets(w, a, { cpaNm: a.settings.cpaLimitNm, tcpaMin: a.settings.tcpaLimitMin })
+          .filter((v) => v.trial)
+          .map((v) => `<tr><td>${v.report.name}</td><td class="${v.trial!.dangerous ? "no" : "ok"}">${v.trial!.result.cpa.toFixed(2)}</td><td>${v.trial!.result.tcpaMinutes.toFixed(1)}</td><td>${v.cpa.opening ? "open" : v.cpa.cpa.toFixed(2)}</td><td class="small">AIS${v.trial!.result.beforeManoeuvre ? ", before turn" : ""}</td></tr>`)
           .join("") || '<tr><td colspan="5" class="small">No target with a vector yet.</td></tr>';
     } else {
       $("trialRows").innerHTML = '<tr><td colspan="5" class="small">Trial is off.</td></tr>';
@@ -402,8 +445,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
         const v = app.ais.targets(w, a, { cpaNm: a.settings.cpaLimitNm, tcpaMin: a.settings.tcpaLimitMin })
           .find((x) => length(sub(fromPolar(x.bearing, x.range), rel)) <= radiusNm);
         if (v) {
-          app.ais.activate(v.report.id);
-          app.ais.selected = v.report.id;
+          if (app.ais.activate(v.report.id, w)) app.ais.selected = v.report.id;
           return;
         }
       }

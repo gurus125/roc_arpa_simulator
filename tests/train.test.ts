@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { bowCrossing } from "../src/core/bcr";
 import { rule19Check } from "../src/core/colreg";
 import { courseSpeedOf, fromPolar, normalizeDeg, rotateVec, sub } from "../src/core/vec";
-import { World, createWorld, setShipModel, stepWorld } from "../src/engine/index";
+import { SCENARIOS, World, createWorld, setShipModel, stepWorld } from "../src/engine/index";
 import { ArpaSystem, Track } from "../src/arpa/index";
 import {
   ARPA_EXERCISES, ArpaExSession, PLACEHOLDER_SCORING, SCENARIO_FORMAT, arpaExerciseById, minimalStarboardAlteration, scenarioFromJson,
@@ -77,6 +77,22 @@ describe("scenario files", () => {
     expect(errs.some((e) => e.includes("used twice"))).toBe(true);
     expect(scenarioFromJson("{not json")).toHaveProperty("errors");
     expect(validateScenario({ format: "other" }).length).toBeGreaterThan(2);
+  });
+  it("keeps a target's AIS class and further AIS data, and checks them", () => {
+    const sc = SCENARIOS.find((x) => x.id === "open-sea")!;
+    const back = scenarioFromJson(scenarioToJson(sc));
+    if (!("scenario" in back)) throw new Error("did not validate");
+    const a = back.scenario.targets.find((t) => t.id === 1)!;
+    expect(a.aisStatic).toEqual({ destination: "SINGAPORE", eta: "16 NOV 0600 UTC", draughtM: 8.6, shipType: "Cargo" });
+    expect(back.scenario.targets.find((t) => t.id === 4)!.ais).toBe(true);
+    const bad = JSON.parse(scenarioToJson(sc));
+    bad.targets[0].aisClass = "C";
+    bad.targets[1].aisStatic = { draughtM: 99 };
+    bad.targets[2].paint = 1.5;
+    const errs = validateScenario(bad);
+    expect(errs.some((e) => e.includes("aisClass"))).toBe(true);
+    expect(errs.some((e) => e.includes("aisStatic"))).toBe(true);
+    expect(errs.some((e) => e.includes("paint"))).toBe(true);
   });
 });
 

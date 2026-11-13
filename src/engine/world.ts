@@ -5,6 +5,7 @@ import { targetTypeById } from "./targets";
 import { courseToSteer, tidalStreamRate } from "../core/current";
 import { autopilotRudder, rudderRate, shipTypeById, stepShip } from "../core/shipmodel";
 import { seawayResponse } from "../core/seaway";
+import { stepRadarPower } from "./power";
 
 export const COAST_SAMPLE_SPACING_NM = 0.025;
 
@@ -142,6 +143,7 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
 
 /** Advance the simulation by dtSec seconds. */
 export function stepWorld(w: World, dtSec: number): void {
+  stepRadarPower(w);
   const o = w.own;
   if (o.model) {
     const type = shipTypeById(o.model.typeId);

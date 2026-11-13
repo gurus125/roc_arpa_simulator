@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fromPolar, sub } from "../src/core/vec";
 import { Scenario, createWorld, raconSegments, scanWedge, stepWorld, SAR, SART_DOT_SPACING_NM, newDisplayState, worldToDisplayNm, displayNmToWorld, RADAR_RANGES, ringInterval } from "../src/engine/index";
 import { ArpaSystem } from "../src/arpa/index";
-import { AisSystem, AIS_PLACEHOLDERS } from "../src/ais/index";
+import { AisSystem } from "../src/ais/index";
 
 type Tgt = Scenario["targets"][number];
 const ship = (id: number, brg: number, rng: number, course: number, speed: number, extra: Partial<Tgt> = {}): Tgt => ({ id, name: `Ship ${id}`, kind: "ship", pos: fromPolar(brg, rng), course, speed, rcs: 1, height: 20, events: [], ...extra });
@@ -57,7 +57,7 @@ describe("AIS reported targets", () => {
     expect(ais.alarms.length).toBe(0);
   });
 
-  it("when a ship's AIS stops, an activated target is reported LOST after six intervals", () => {
+  it("when a ship's AIS stops, an activated target at 10 kn is reported LOST after 60 s (IEC 62388 Table 27)", () => {
     const w = world([ship(1, 45, 6, 270, 10)]);
     const ais = new AisSystem();
     ais.step(w);
@@ -70,7 +70,6 @@ describe("AIS reported targets", () => {
     expect(ais.alarms.some((a) => a.key === "ais-lost-1")).toBe(true);
     ais.ack("ais-lost-1");
     expect(ais.reports.size).toBe(0);
-    expect(AIS_PLACEHOLDERS.lostAfterIntervals * AIS_PLACEHOLDERS.intervalSec).toBe(60);
   });
 
   it("an AIS target is associated with the radar track of the same ship, not with another ship", () => {

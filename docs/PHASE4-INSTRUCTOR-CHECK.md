@@ -189,8 +189,8 @@ tell me the real ones, or tell me if the behaviour is wrong.
 - Track capacity is 20 for manual and automatic targets together (the textbook gives about 10 manual
   and 20 automatic for typical sets).
 - Symbols follow IMO SN.1/Circ.243/Rev.2 since 12 Nov 2026 (broken circle acquiring, circle
-  tracked, bold red circle dangerous, circle with a bold cross lost). They are not checked against
-  IEC 62288 or IEC 62388, which have not been read.
+  tracked, bold red circle dangerous, circle with a bold cross lost). Checked against IEC 62288
+  Annex A on 13 Nov 2026 (see `IEC-CHECK.md`).
 - Real-browser testing: the page was driven in a headless browser (acquisition, vectors, trial,
   guard zones, 40-track capacity at 10x speed with no errors and normal frame rate), but not yet
   on your screen.
