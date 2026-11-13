@@ -226,7 +226,38 @@ true data is wrong while CPA and TCPA stay correct.
 
 ## 7. Own ship
 
-Press **SHIP**.
+The ship's controls are in the **ship control window** (key **SHIP CONTROL** in the header), or under
+**SHIP** in the menu when that window is not open.
+
+### The ship control window (for a second screen)
+
+Press **SHIP CONTROL** at the top of the radar screen. A second window opens with:
+
+- **STEERING**: AUTOPILOT or HAND STEERING, PUMP 2 (the second steering gear pump: the rudder moves
+  faster), SET COURSE in large figures with keys −10, −1, +1 and +10 (or drag the bar under it),
+  heading and rate of turn, the rudder indicator (where the rudder is, and the order), and the rudder
+  keys for hand steering.
+- **ENGINE TELEGRAPH**: the telegraph from FULL AST to SEA FULL, the engine order in knots with − and +,
+  STW, SOG, COG and the relative wind, and LET GO ANCHOR.
+- **OWN SHIP DATA**: name, call sign, MMSI, IMO number, type and size; and the choice of ship.
+- **EXERCISE**: the ARPA and radar exercises and the ROC exercises (the keys at the top of the box
+  change between them). Choose the exercise, read the briefing and how you will be assessed, answer,
+  and press Finish: the result appears there. While an exercise runs, CHOOSE EXERCISE shows the
+  list again.
+
+Drag the window to the second screen (on a computer with two screens Chrome or Edge may ask whether
+the simulator may place windows: allow it, and the window goes to the other screen by itself). If the
+browser blocks the window, allow pop-up windows for this page (the icon at the right of the address
+bar) and press SHIP CONTROL again.
+
+While the window is open, SHIP, ROC EX, ARPA EX and the EXERCISE tab on the radar screen bring it
+forward. Close the window and its controls go back to the menu of the radar screen, as they were.
+On a single screen, keep both windows side by side: the simulation keeps running while either window
+can be seen.
+
+### The controls
+
+Press **SHIP** (or use the ship control window).
 
 - **Ship**: choose the ship type. Large ships turn and stop slowly. Three types are fitted to
   published turning figures (the 230 m container ship to model tests of the KCS benchmark hull, the
@@ -325,7 +356,8 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
 
 ## 9. Doing an exercise
 
-1. Press ARPA EX (or ROC EX) and choose the exercise. Read the briefing.
+1. Press ARPA EX (or ROC EX), or use the EXERCISE box of the ship control window, and choose the
+   exercise. Read the briefing.
 2. Press Run. Do what the briefing asks.
 3. Type your answers where asked. A number is marked against the true value at the moment you
    enter it.

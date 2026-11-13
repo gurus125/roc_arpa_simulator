@@ -1,3 +1,4 @@
+import { byId } from "./dom";
 import { Vec2, length, normalizeDeg, sub } from "../core/vec";
 import { rangeBearing } from "../core/nav";
 import { formatAspect } from "../core/plot";
@@ -11,11 +12,11 @@ import { drawBoard, drawChart, drawTriangle } from "./work";
 type View = "board" | "chart" | "tri";
 
 const $ = <T extends HTMLElement>(id: string): T => {
-  const el = document.getElementById(id);
+  const el = byId(id);
   if (!el) throw new Error(`Missing element #${id}`);
   return el as T;
 };
-const val = (id: string): string => (document.getElementById(id) as HTMLInputElement).value;
+const val = (id: string): string => (byId(id) as HTMLInputElement).value;
 const mmss = (sec: number): string => {
   const s = Math.floor(sec + 1e-6);
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
@@ -368,7 +369,7 @@ export function initRocUi(api: RocUiApi): RocUi {
       const clr = $<HTMLSelectElement>("clrObj");
       clr.innerHTML = "";
       for (const c of s.charted) clr.add(new Option(c.name, String(c.id)));
-      for (const id of ["ansRelC", "ansRelS", "ansTrueC", "ansTrueS", "ansCpa", "ansTcpa", "ansAsp", "ansSet", "ansDrift"]) (document.getElementById(id) as HTMLInputElement).value = "";
+      for (const id of ["ansRelC", "ansRelS", "ansTrueC", "ansTrueS", "ansCpa", "ansTcpa", "ansAsp", "ansSet", "ansDrift"]) (byId(id) as HTMLInputElement).value = "";
     }
     refreshTable(app);
     status(app);

@@ -91,7 +91,7 @@ export interface ConsoleUi {
   followTab: (tab: Tab) => void;
 }
 
-export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<Line, boolean>): ConsoleUi {
+export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<Line, boolean>, elsewhere: (key: string) => boolean = () => false): ConsoleUi {
   const side = $("side");
   /** Range rings shown (kept here so the choice survives a change of scenario). */
   let ringsOn = true;
@@ -363,6 +363,11 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     syncTabs();
   };
   const setMenu = (key: string, open = true): void => {
+    // A key whose controls are in the ship control window brings that window forward instead.
+    if (open && elsewhere(key)) {
+      openMenu(false);
+      return;
+    }
     const k = KEYS.find((x) => x.key === key) ?? KEYS[0]!;
     current = k.key;
     if (open) openMenu(true);

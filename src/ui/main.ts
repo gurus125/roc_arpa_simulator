@@ -1,3 +1,4 @@
+import { ShipWindow, initShipWindow } from "./ship-window";
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
 import { aisFilterLabel } from "../ais/index";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
@@ -7,7 +8,7 @@ import { ARPA_EXERCISES, PLOT_RULES, ArpaExSession, ArpaExercise, Recorder, Remo
 import { initTrainUi } from "./train-ui";
 import { initInstructorUi } from "./instructor-ui";
 import { Link } from "./link";
-import { esc } from "./dom";
+import { byId, esc } from "./dom";
 import { ConsoleUi, initConsoleUi, radarKeyLabel } from "./console-ui";
 import { AppState, advance, createApp, resetCourseUp, resetTrueMotion, setDisplayMode, setRange } from "./app";
 import { initRocUi } from "./roc-ui";
@@ -23,7 +24,7 @@ import { savePictures } from "./picture-store";
 import { MAX_PICTURES, PICTURE_INTERVAL_SEC, PICTURE_QUALITY, PICTURE_SIZE_PX } from "../train/index";
 
 const $ = <T extends HTMLElement>(id: string): T => {
-  const el = document.getElementById(id);
+  const el = byId(id);
   if (!el) throw new Error(`Missing element #${id}`);
   return el as T;
 };
@@ -208,9 +209,9 @@ function resize(): void {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-const num = (id: string): number => Number((document.getElementById(id) as HTMLInputElement).value);
-const chk = (id: string): boolean => (document.getElementById(id) as HTMLInputElement).checked;
-const sel = (id: string): string => (document.getElementById(id) as HTMLSelectElement).value;
+const num = (id: string): number => Number((byId(id) as HTMLInputElement).value);
+const chk = (id: string): boolean => (byId(id) as HTMLInputElement).checked;
+const sel = (id: string): string => (byId(id) as HTMLSelectElement).value;
 const setText = (id: string, v: string): void => {
   $(id).textContent = v;
 };
@@ -291,7 +292,7 @@ function applyControls(): void {
   setText("ebl2BrgV", brg1(app.ebl2.bearing));
   setText("vrm2RngV", app.vrm2.range.toFixed(2));
   const cut = (id: string): number | null => {
-    const v = (document.getElementById(id) as HTMLInputElement).value.trim();
+    const v = (byId(id) as HTMLInputElement).value.trim();
     return v === "" || !Number.isFinite(Number(v)) ? null : Math.max(0, Number(v));
   };
   app.pi = [0, 1, 2, 3].map((i) => ({ on: chk(`pi${i}On`), bearing: normalizeDeg(num(`pi${i}Brg`) || 0), range: num(`pi${i}Rng`) || 0, ahead: cut(`pi${i}Ahd`), astern: cut(`pi${i}Ast`) }));
@@ -338,13 +339,13 @@ function placeRainSquall(): void {
 }
 
 function setSlider(id: string, v: number): void {
-  (document.getElementById(id) as HTMLInputElement).value = String(v);
+  (byId(id) as HTMLInputElement).value = String(v);
 }
 function setSelect(id: string, v: string): void {
-  (document.getElementById(id) as HTMLSelectElement).value = v;
+  (byId(id) as HTMLSelectElement).value = v;
 }
 function setCheck(id: string, v: boolean): void {
-  (document.getElementById(id) as HTMLInputElement).checked = v;
+  (byId(id) as HTMLInputElement).checked = v;
 }
 
 type Tab = "radar" | "roc" | "arpa" | "ex" | "instr";
@@ -352,16 +353,20 @@ const TABS: Record<Tab, [string, string]> = {
   radar: ["paneRadar", "tabRadar"], roc: ["paneRoc", "tabRoc"], arpa: ["paneArpa", "tabArpa"], ex: ["paneEx", "tabEx"], instr: ["paneInstr", "tabInstr"],
 };
 let consoleUi: ConsoleUi | null = null;
+let shipWin: ShipWindow | null = null;
 function setSteering(hand: boolean): void {
   $("steerHand").classList.toggle("on", hand);
   $("steerAuto").classList.toggle("on", !hand);
 }
 function setTab(tab: Tab): void {
+  // While the ship control window is open the exercises are in it: it shows them, and the menu is not opened on them.
+  const away = shipWin?.isOpen() && (tab === "ex" || tab === "roc");
   for (const [k, [pane, btn]] of Object.entries(TABS)) {
-    $(pane).hidden = k !== tab;
+    if (!shipWin?.holds($(pane))) $(pane).hidden = k !== tab;
     $(btn).classList.toggle("on", k === tab);
   }
-  consoleUi?.followTab(tab);
+  if (away) shipWin!.focus(tab as "ex" | "roc");
+  else consoleUi?.followTab(tab);
 }
 
 function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExercise } = {}): void {
@@ -545,7 +550,7 @@ function setup(): void {
       if (store.data.userSettings[i] && !confirm(`Replace user setting ${i + 1} with the present settings?`)) return;
       const rec: Record<string, string | boolean> = { rings: $("ringsKey").classList.contains("on") };
       for (const id of USER_SETTING_IDS) {
-        const el = document.getElementById(id) as HTMLInputElement | null;
+        const el = byId(id) as HTMLInputElement | null;
         if (el) rec[id] = el.type === "checkbox" ? el.checked : el.value;
       }
       store.data.userSettings[i] = rec;
@@ -560,7 +565,7 @@ function setup(): void {
       }
       if (!confirm(`Recall user setting ${i + 1}?`)) return;
       for (const id of USER_SETTING_IDS) {
-        const el = document.getElementById(id) as HTMLInputElement | null;
+        const el = byId(id) as HTMLInputElement | null;
         const v = rec[id];
         if (!el || v === undefined) continue;
         if (el.type === "checkbox") el.checked = v === true;
@@ -1077,7 +1082,7 @@ function showMeasureState(): void {
   setText("eblOrg", app.eblOrigin ? "EBL origin: fixed point (press for own ship)" : "EBL origin: own ship");
 }
 function chkId(id: string): boolean {
-  return (document.getElementById(id) as HTMLInputElement).checked;
+  return (byId(id) as HTMLInputElement).checked;
 }
 
 let nextFog: number | null = null;
@@ -1213,9 +1218,17 @@ function takePicture(): void {
 }
 
 let readoutClock = 0;
+/** When the simulation last stepped (this page's clock). */
+let lastStepAt = 0;
 function frame(now: number): void {
+  step(now);
+  requestAnimationFrame(frame);
+}
+/** One step of the simulation and one drawing of the picture. */
+function step(now: number): void {
   const dt = (now - last) / 1000;
   last = now;
+  lastStepAt = now;
   advance(app, dt);
   drawPpi(ctx, cssSize, app);
   takePicture();
@@ -1224,12 +1237,35 @@ function frame(now: number): void {
   if (readoutClock > 0.15) {
     readoutClock = 0;
     updateReadouts();
+    shipWin?.tick(app);
   }
-  requestAnimationFrame(frame);
 }
 
 setup();
-consoleUi = initConsoleUi(setTab, freeLines);
+// The ship control window: while it is in front it keeps the clock going even if the radar window is hidden.
+const ship = initShipWindow({
+  keepAlive: () => {
+    const now = performance.now();
+    if (now - lastStepAt > 200) step(now);
+  },
+  changed: (open) => {
+    $("shipWinKey").classList.toggle("on", open);
+    $("shipWinKey").title = open ? "The ship control window is open: press to bring it forward" : "Open the ship control window (steering, engine, anchor and the exercise) for a second screen";
+    if (!open) setTab(app.arpaEx ? "ex" : app.roc ? "roc" : "radar");
+  },
+  blocked: () => banner("The browser did not open the ship control window. Allow pop-up windows for this page (the icon at the right of the address bar), then press SHIP CONTROL again."),
+});
+shipWin = ship;
+$("shipWinKey").addEventListener("click", () => ship.open());
+window.addEventListener("beforeunload", () => ship.close());
+consoleUi = initConsoleUi(setTab, freeLines, (key) => {
+  // SHIP and the exercise keys bring the ship control window forward while it is open.
+  if (!ship.isOpen()) return false;
+  if (key === "own") ship.focus();
+  else if (key === "ex" || key === "roc") ship.focus(key);
+  else return false;
+  return true;
+});
 panelUi = initPanel(store);
 (window as unknown as { __panelAct: unknown }).__panelAct = (id: string, down?: boolean): void => panelUi?.act(id, down);
 setRole("student");
@@ -1259,6 +1295,8 @@ window.addEventListener("beforeunload", () => store.save());
   },
   aisFilterLabel: (): string => aisFilterLabel(app.ais.settings.sleepFilter),
   headingLost: (): boolean => app.headingLost,
+  /** The autopilot course ordered now. */
+  orderedCourse: (): number => Math.round(app.world.own.ordered.course) % 360,
   /** Targets whose data label is shown on the picture. */
   labels: (): string[] => [...app.tgtLabels],
   lostWarning: (): boolean => app.arpa.settings.lostWarning,

@@ -558,6 +558,40 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.waitForTimeout(500);
     await p.uncheck("#sternLine");
     await p.uncheck("#antMark");
+    // The ship control window: steering, engine, anchor and the exercises in a window of their own (for a second
+    // screen); closing it gives them back to the radar page.
+    {
+      await closeMenu();
+      const [pop] = await Promise.all([p.context().waitForEvent("page"), rawClick("#shipWinKey")]);
+      pop.on("pageerror", (e) => errs.push(`ship window: ${e.message}`));
+      await pop.waitForTimeout(600);
+      const inPop = await pop.evaluate(() => ["telegraph", "helmScale", "steerAuto", "ordCourse", "anchorKey", "paneEx", "paneRoc"].every((id) => !!document.getElementById(id)));
+      const inMain = await p.evaluate(() => ["telegraph", "helmScale", "paneEx", "paneRoc"].some((id) => !!document.getElementById(id)));
+      check(`${tag} ship control window opens with steering, engine, anchor and the exercises`, inPop && !inMain && (await pop.title()) === "Ship control" && (await p.$eval("#shipWinKey", (e) => e.classList.contains("on"))), JSON.stringify({ inPop, inMain }));
+      const c0 = Number(await pop.$eval("#ordCourse", (e) => e.value));
+      await pop.click('.setc button[data-dc="10"]');
+      const c1 = Number(await pop.$eval("#ordCourse", (e) => e.value));
+      await pop.click('#telegraph button[data-k="ST"]');
+      await pop.waitForTimeout(400);
+      const ordered = await pop.$eval("#swOrdered", (e) => e.textContent);
+      check(`${tag} ship control window: SET COURSE +10 and the telegraph work`, (c1 - c0 + 360) % 360 === 10 && /Ordered 0 kn/.test(ordered) && (await p.evaluate(() => window.__simTest.orderedCourse())) === c1, `${c0} ${c1} ${ordered}`);
+      if (!(await pop.isVisible('#paneEx button[data-ex="arpa-2"]'))) await pop.click("#swChoose");
+      await pop.click('#paneEx button[data-ex="arpa-2"]');
+      await pop.waitForTimeout(800);
+      const exTitle = await pop.$eval("#exTitle", (e) => e.textContent);
+      check(`${tag} ship control window: an exercise starts there, the radar's menu stays shut`, /^2\. /.test(exTitle) && !(await menuOpen()) && (await pop.$eval("#paneEx", (e) => !e.hidden)), exTitle);
+      await key("ex");
+      check(`${tag} ARPA EX on the radar brings the ship control window forward instead of the menu`, !(await menuOpen()));
+      await pop.click('#swExTabs button[data-t="roc"]');
+      check(`${tag} ship control window: the ROC exercises are there too`, await pop.$eval("#paneRoc", (e) => !e.hidden && !!e.querySelector("#rocSelect")));
+      await pop.close();
+      await p.waitForTimeout(800);
+      const back = await p.evaluate(() => ["telegraph", "helmScale", "steerAuto", "ordCourse", "anchorKey", "paneEx", "paneRoc"].every((id) => !!document.getElementById(id)));
+      check(`${tag} closing the ship control window gives the controls back to the radar page`, back && !(await p.$eval("#shipWinKey", (e) => e.classList.contains("on"))));
+      await key("ex");
+      await p.click("#exFinish");
+      await p.waitForTimeout(400);
+    }
     // Marking sheets: one choice per exercise, and "all".
     await key("instr");
     const sheets = await p.$$eval("#msEx option", (os) => os.length);

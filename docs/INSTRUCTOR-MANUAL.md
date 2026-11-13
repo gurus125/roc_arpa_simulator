@@ -236,6 +236,15 @@ GLO-90, free, with the credit given in the scenario descriptions). On a Windows 
 `scripts/areas.mjs` and run `scripts/make-coast.mjs` and `scripts/make-terrain.mjs` as their first
 lines describe. The tiles themselves are not part of the simulator and need not be kept.
 
+## 11a. Two screens at a display
+
+A display with two screens shows the radar on one and the ship control window (steering, engine
+telegraph, anchor, own ship's data and the exercise with its briefing, answers and result) on the
+other: press SHIP CONTROL in the header and drag the window across, or allow the browser to place it
+(Chrome and Edge ask once on a computer with two screens). The two windows are one simulator: the
+record, the score and the replay are the same as with one window. Allow pop-up windows for the page
+once on each PC. This has been checked in a test browser, not yet on the academy's PCs and screens.
+
 ## 12. Locking a classroom PC to the simulator (kiosk mode)
 
 A trainee should not be able to leave the simulator for other programs during an assessment. The
@@ -249,7 +258,8 @@ shortcut with one of these targets (put in the real path of the file, or the add
 The browser then fills the screen with no address bar, tabs or window buttons. Alt+F4 still closes
 it and Alt+Tab still switches programs: to block those as well, use a Windows "assigned access"
 (kiosk) account for the trainee, which the PC's administrator sets up. This procedure has not been
-tried on the academy's PCs; try it before relying on it.
+tried on the academy's PCs; try it before relying on it. How the ship control window behaves in kiosk
+mode (which screen it opens on) has not been tried either.
 
 ## 13. Limits the instructor should know
 

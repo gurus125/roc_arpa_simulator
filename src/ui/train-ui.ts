@@ -3,7 +3,7 @@ import { ARPA_EXERCISES, ArpaExercise, ExerciseResult, PLOTTING_EXERCISES, RADAR
 /** Every exercise, listed by number. */
 const ALL = [...ARPA_EXERCISES, ...RADAR_EXERCISES, ...PLOTTING_EXERCISES].sort((a, b) => a.number - b.number);
 import { AppState } from "./app";
-import { $, esc, mmss } from "./dom";
+import { $, byId, esc, mmss } from "./dom";
 
 export interface TrainUiApi {
   getApp: () => AppState;
@@ -141,7 +141,7 @@ export function initTrainUi(api: TrainUiApi): TrainUi {
     if (!s) return;
     $("exClock").textContent = `Exercise time ${mmss(app.world.time)}${s.finished ? " (finished)" : app.running ? "" : " (paused: press Run)"}`;
     for (const t of s.def.tasks) {
-      const st = document.getElementById(`exSt_${t.id}`);
+      const st = byId(`exSt_${t.id}`);
       if (!st) continue;
       if (t.kind === "action") st.innerHTML = s.actionsDone.has(t.id) ? '<span class="ok">✓ done</span>' : "";
       else if (t.kind !== "outcome") {

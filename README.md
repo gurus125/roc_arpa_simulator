@@ -24,7 +24,12 @@ limits, the ARPA's status, ALARM ACK and the alert, Acquire / Select / Cancel / 
 No settings are written over the picture (IEC 62288 4.3.3, 5.5.14); a target's data label appears beside
 it only when the target is clicked, and goes when it is clicked again. MENU opens a drawer over the
 right-hand side with a grid of menu keys; only the controls of the chosen key are shown, and
-CLOSE or Esc closes it. The page header has the RADAR / ARPA / EXERCISE tabs (they open those menus), the
+CLOSE or Esc closes it. SHIP CONTROL in the header opens the ship control window
+(`src/ui/ship-window.ts`) for a second screen: steering (autopilot or hand, set course, rudder indicator,
+pump 2), engine telegraph, engine order, anchor, own ship's data, and the exercises (choice, briefing,
+assessment, answers, finish, result, ROC worksheets). It is a view of the same page: the page's own controls
+are moved into it while it is open and back when it closes, so there is one simulation and one record; and
+while it is in front it keeps the clock running if the radar window is hidden. The page header has the RADAR / ARPA / EXERCISE tabs (they open those menus), the
 simulator keys (pause, speed, day / night), the ship's clock (UTC), the state of the alerts, settings,
 help and change students; the foot has a legend of the symbols and "training simulator, not type
 approved, not for navigation". Colours (the institute's scheme of 13 Nov 2026): navy #061329 / #0A1D3A,

@@ -502,7 +502,8 @@
   #console #cTd .tp b { font-family:Consolas, "DejaVu Sans Mono", ui-monospace, monospace; }
   #console #cTd .tp.nosel { display:flex; align-items:center; justify-content:flex-start; gap:10px; padding:4px 0; text-align:left; }
   #console #cTd .tp.nosel .ico { width:24px; height:24px; color:var(--accent); flex:none; }
-  #console #cTd .tp.nosel b { display:block; color:var(--accent); font:600 12px "Segoe UI", system-ui, sans-serif; letter-spacing:.03em; }
+  #console #cTd .tp.nosel > span { flex:1; text-align:left; }
+  #console #cTd .tp.nosel b { display:block; color:var(--accent); font:600 12px "Segoe UI", system-ui, sans-serif; letter-spacing:.03em; text-align:left; }
   #console #cTd .tp.nosel .cl { display:block; color:var(--clab); white-space:normal; }
   /* VRM / ARPA */
   #console #bArpa h3 #cArpaChip { margin-left:auto; font:700 10.5px/16px "Segoe UI", system-ui, sans-serif; padding:0 8px; border-radius:3px; border:1px solid; letter-spacing:.04em; }
@@ -556,6 +557,10 @@
     #console #cTop { margin:4px 0 3px; }
     #console .cmenu { margin-top:4px; }
   }
+  #shipWinKey { flex:none; height:30px; padding:0 14px 0 12px; display:flex; align-items:center; gap:8px; border-radius:5px; background:var(--btn); border:1px solid var(--line); color:var(--text); font:600 12px "Segoe UI", system-ui, sans-serif; letter-spacing:.05em; }
+  #shipWinKey::before { content:""; width:12px; height:9px; border:1.5px solid currentColor; border-top-width:3px; border-radius:1px; }
+  #shipWinKey:hover { border-color:var(--accent); }
+  #shipWinKey.on { background:var(--menubg); border-color:var(--menuline); color:var(--ok); }
   @media (max-width:1300px) { #hdrClock i, #brand .sub { display:none; } #topTabs button { padding:0 14px; } }
   @media (max-height:700px) {
     #console .ccolumn { gap:5px; }
@@ -593,6 +598,7 @@
 <header>
   <div id="brand"><span class="logo" id="hdrLogo"></span><div><b>ROC / ARPA Radar Simulator</b><span class="sub">Training &amp; Study Mode <span id="who"></span></span></div></div>
   <nav id="topTabs"><button data-top="radar" class="on" title="The radar screen; opens the radar's menu">RADAR</button><button data-top="arpa" title="The ARPA's menu">ARPA</button><button data-top="exercise" title="Choose and run an exercise">EXERCISE</button></nav>
+  <button id="shipWinKey" title="Open the ship control window (steering, engine, anchor and the exercise) for a second screen">SHIP CONTROL</button>
   <div id="hdrRight">
     <span id="hdrClock" title="Ship's clock (UTC)"><i class="ico" id="hdrClockIco"></i><span><b id="hdrTime">--:--:--</b><i id="hdrDate"></i></span></span>
     <span id="hdrAlarm" class="ok"><i class="dot"></i><span>No Alarms</span></span>

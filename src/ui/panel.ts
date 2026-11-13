@@ -1,5 +1,5 @@
 import { Store } from "../train/index";
-import { $, esc } from "./dom";
+import { $, esc, query } from "./dom";
 import { AXIS_CONTROLS, BUTTON_ACTIONS, PANEL_ACTIONS, assignKey, axisToValue, keyFor, keyMap, keyName, movedAxes } from "./panel-map";
 
 /** Hardware control panel: keys and knobs work the same controls as the mouse does (see panel-map.ts). */
@@ -30,7 +30,7 @@ export function initPanel(store: Store): PanelUi {
     if (wrap) v = ((v % 360) + 360) % 360;
     setSlider(id, Math.round(v * 100) / 100);
   };
-  const click = (sel: string): void => document.querySelector<HTMLElement>(sel)?.click();
+  const click = (sel: string): void => query(sel)?.click();
   const pointer = (el: Element, type: string, at?: { x: number; y: number }): void => {
     el.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: at?.x ?? 0, clientY: at?.y ?? 0, pointerType: "mouse" }));
   };

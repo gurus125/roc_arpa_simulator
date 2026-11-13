@@ -79,8 +79,11 @@ const banners = async () => Promise.all(students.map((p) => text(p, "#banner")))
 check("instructor's message is shown on every student display", await until(async () => (await banners()).every((t) => t.includes("Reduce to 3 NM range"))), (await banners()).join(" | "));
 
 // The server stops (power cut, cable out) and comes back: the displays find it again by themselves.
-await new Promise((r) => server.close(r));
-server.closeAllConnections?.();
+// Connections still open are cut at once (waiting for them to end could hang the test).
+await new Promise((r) => {
+  server.close(r);
+  server.closeAllConnections?.();
+});
 await new Promise((r) => setTimeout(r, 9000));
 check("with the server stopped, the display says it is out of reach", (await text(instr, "#inLinkMode")).includes("out of reach"), await text(instr, "#inLinkMode"));
 server = await listen();

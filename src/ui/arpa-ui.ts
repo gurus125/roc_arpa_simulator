@@ -1,3 +1,4 @@
+import { byId } from "./dom";
 import { Vec2, bearingOf, fromPolar, length, normalizeDeg, sub } from "../core/vec";
 import { bowCrossing } from "../core/bcr";
 import { SILENCE_SEC, alertSound, nextToAcknowledge } from "../arpa/index";
@@ -12,7 +13,7 @@ import { AppState } from "./app";
 export type ClickMode = "acquire" | "select" | "cancel" | "ebl";
 
 const $ = <T extends HTMLElement>(id: string): T => {
-  const el = document.getElementById(id);
+  const el = byId(id);
   if (!el) throw new Error(`Missing element #${id}`);
   return el as T;
 };
