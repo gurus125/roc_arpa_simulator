@@ -27,8 +27,8 @@ under the INSTR key.
 | To do this | Use |
 |------------|-----|
 | Choose what the trainees work on | SCENARIO key (free practice), ROC EX key (radar observer exercises), ARPA EX key (ARPA and manual plotting exercises) |
-| Halt and continue | Pause / Run key in the top panel |
-| Run faster | The speed box beside Pause: 1x, 2x, 5x, 10x |
+| Halt and continue | PAUSE / RUN key in the strip at the top of the page |
+| Run faster | The speed box beside PAUSE: 1x, 2x, 5x, 10x |
 | Start again from the beginning | "Restart" in the SCENARIO key, or open the exercise again |
 | Go back in time | INSTR key, "Take exercise back 2 min", "Back 5 min", "Back 10 min". The ships, weather and faults return to that moment so that the trainees can try again. The simulator keeps one state a minute for the last 40 minutes |
 

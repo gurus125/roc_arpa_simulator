@@ -32,25 +32,9 @@ export function drawArpa(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: 
   const w = app.world;
   const a = app.arpa;
   const s = a.settings;
-  if (s.standby) {
-    ctx.save();
-    ctx.font = "bold 14px monospace";
-    ctx.textAlign = "left";
-    ctx.fillStyle = COL.lost;
-    ctx.fillText("ARPA STANDBY", 8, 32);
-    ctx.restore();
-    return;
-  }
-  if (!arpaAvailableOnScale(w.radar.controls.rangeNm)) {
-    // Tracking carries on inside the ARPA, but the display only offers it on the ARPA range scales.
-    ctx.save();
-    ctx.font = "12px monospace";
-    ctx.textAlign = "left";
-    ctx.fillStyle = COL.lost;
-    ctx.fillText("ARPA NOT AVAILABLE ON THIS RANGE SCALE (USE 3, 6, 12 OR 24 NM)", 8, 32);
-    ctx.restore();
-    return;
-  }
+  // In standby, and on a range scale the ARPA is not offered on, nothing is drawn on the picture; the message is
+  // written in the corner by drawArpaHud. (Tracking carries on inside the ARPA on the other range scales.)
+  if (s.standby || !arpaAvailableOnScale(w.radar.controls.rangeNm)) return;
   if (!s.showData) return;
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, s.brilliance / 100));
@@ -406,21 +390,53 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
 
 }
 
-/** ARPA text on the PPI (drawn outside the radar circle clip). */
+/**
+ * Size of the text in the corners of the picture: it follows the size of the picture, so the
+ * short lines stay clear of the bearing scale on a small screen and can be read on a large one.
+ */
+export function hudText(size: number): { fs: number; lh: number; big: number } {
+  const fs = Math.max(11, Math.min(16, Math.round(size / 62)));
+  return { fs, lh: Math.round(fs * 1.35), big: Math.round(fs * 1.7) };
+}
+
+/**
+ * ARPA text on the PPI (drawn outside the radar circle clip). The ARPA's settings are written in
+ * short lines in the top right corner, under the band and pulse line that view.ts writes there:
+ * the corners of the square are the only room outside the circle, and a long line would run
+ * into the bearing scale.
+ */
 export function drawArpaHud(ctx: Ctx, app: AppState, size: number): void {
   if (app.roc) return;
   const a = app.arpa;
   const s = a.settings;
   const trialOn = s.trial.on;
   const flash = Math.floor(app.wall * 2) % 2 === 0;
+  const hud = hudText(size);
   ctx.save();
-  ctx.textAlign = "left";
-  ctx.font = "12px monospace";
-  ctx.fillStyle = COL.track;
-  const stab = a.stabLabel();
-  ctx.fillText(`ARPA  VECT ${s.vectorMode === "true" ? "TRUE" : "REL"} ${s.vectorMinutes} MIN  ${stab}  CPA ${s.cpaLimitNm} NM / ${s.tcpaLimitMin} MIN`, 8, 32);
-  if (s.past.mode !== "off") ctx.fillText(`PAST POSN ${s.past.mode === "true" ? "TRUE" : "REL"}  ${s.past.points} x ${s.past.intervalMin} MIN`, 8, 48);
-  if (!s.showData) ctx.fillText("ARPA DATA OFF", 8, 64);
+  ctx.textAlign = "right";
+  ctx.font = `${hud.fs}px monospace`;
+  let y = 2 * hud.lh;
+  const line = (text: string): void => {
+    ctx.fillText(text, size - 8, y);
+    y += hud.lh;
+  };
+  if (s.standby) {
+    ctx.fillStyle = COL.lost;
+    ctx.font = `bold ${hud.fs}px monospace`;
+    line("ARPA STANDBY");
+  } else if (!arpaAvailableOnScale(app.world.radar.controls.rangeNm)) {
+    ctx.fillStyle = COL.lost;
+    line("ARPA NOT AVAILABLE");
+    line("ON THIS RANGE SCALE");
+    line("USE 3, 6, 12 OR 24 NM");
+  } else {
+    ctx.fillStyle = COL.track;
+    line(`VECTOR ${s.vectorMode === "true" ? "TRUE" : "REL"} ${s.vectorMinutes} MIN`);
+    line(a.stabLabel());
+    line(`CPA ${s.cpaLimitNm} NM  TCPA ${s.tcpaLimitMin} MIN`);
+    if (s.past.mode !== "off") line(`PAST ${s.past.mode === "true" ? "TRUE" : "REL"} ${s.past.points} x ${s.past.intervalMin} MIN`);
+    if (!s.showData) line("ARPA DATA OFF");
+  }
   if (trialOn) {
     ctx.fillStyle = COL.trial;
     ctx.font = "bold 22px monospace";

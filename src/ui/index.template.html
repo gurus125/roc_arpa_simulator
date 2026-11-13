@@ -126,12 +126,6 @@
   .cbox b { color:var(--text); font-weight:600; white-space:nowrap; }
   .cbox b.big, .cbox .big { font-size:14px; color:var(--bright); }
   .cbox .no { color:#ff6b6b; }
-  .cgrid { display:grid; grid-template-columns:auto 1fr auto 1fr; gap:1px 8px; align-items:baseline; }
-  .cgrid b { text-align:right; overflow:hidden; text-overflow:ellipsis; }
-  .cgrid.three { grid-template-columns:auto 1fr auto 1fr auto 1fr; }
-  .cgrid.four { grid-template-columns:auto 1fr auto 1fr auto 1fr auto 1fr; }
-  .cgrid .full { grid-column:1 / -1; }
-  .cgrid .span3 { grid-column:span 3; }
   .ccol { display:flex; flex-direction:column; gap:4px; min-width:0; }
   .ccol > .cbox:last-of-type { flex:1; }
   #rngHold select { width:100%; min-width:70px; }
@@ -197,8 +191,107 @@
   #cMenu button { padding:6px 1px; font:600 10px ui-monospace, Consolas, monospace; white-space:nowrap; }
   section { padding:7px 10px; }
   section h2 { margin:0 0 5px; font-size:11px; }
+  /* ---- The data area, drawn the way ships' radars in general present their data (see console-ui.ts): one framed panel
+     divided by thin lines, square corners, labels dim and values bright, heading and speed in large figures with their
+     sensor, settings in boxes, gain and clutter as bars. A generic arrangement of our own, not a copy of any maker's screen. ---- */
+  :root { --cbg:#020a26; --cline:#3856b4; --clab:#93b9ea; --src:#5fe3bd; --chead:rgba(56,86,180,.38); --alarmbg:#6a1010; --warnbg:#4a3a08; }
+  body[data-mode=night] { --cbg:#000000; --cline:#2a1b0c; --clab:#6b4f27; --src:#6f5a22; --chead:rgba(42,27,12,.7); --alarmbg:#2a0606; --warnbg:#1c1503; }
+  header { height:22px; align-items:center; }
+  main { height:calc(100vh - 24px); }
+  #wrap { max-width:min(100%, calc(100vh - 32px)); }
+  #ppi { border-radius:0; }
+  #side section, #side button, #side select, #side input[type=number], #side input[type=text], #side input[type=password], #side textarea { border-radius:2px; }
+  #cRun { display:flex; gap:4px; align-items:center; }
+  #cRun button, #cRun select { height:18px; padding:0 10px; font:600 11px/16px ui-monospace, Consolas, monospace; border-radius:2px; width:auto; text-transform:uppercase; }
+  #cRun #cHelp { margin-left:0; }
+  #cRun button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+  #console { gap:0; background:var(--cbg); border:1px solid var(--cline); font:12px/1.3 Consolas, "Lucida Console", "DejaVu Sans Mono", ui-monospace, monospace; font-variant-numeric:tabular-nums; }
+  #console .cbox { border:0; border-top:1px solid var(--cline); border-radius:0; background:transparent; padding:0 6px 3px; }
+  #console .ccol { gap:0; }
+  #console .ccol + .ccol { border-left:1px solid var(--cline); }
+  #console .cbox h3 { margin:0 -6px 2px; padding:0 6px; font:600 10px/13px Consolas, "Lucida Console", ui-monospace, monospace; letter-spacing:.14em; color:var(--clab); background:linear-gradient(to right, var(--chead), transparent 85%); gap:8px; }
+  #console .cbox .cl { color:var(--clab); font-size:11px; letter-spacing:.03em; white-space:nowrap; }
+  #console .cbox b { color:var(--bright); }
+  #console .cbox b.no { color:var(--bad); }
+  #console .cbox b.wn { color:var(--warn); }
+  #console u { text-decoration:none; font-size:10px; font-weight:400; color:var(--clab); margin-left:2px; }
+  #console .src { font-style:normal; font-size:9.5px; line-height:12px; color:var(--src); border:1px solid currentColor; padding:0 3px; letter-spacing:.06em; justify-self:end; align-self:center; }
+  #console .src.no { color:var(--bad); }
+  #console .pair { white-space:nowrap; }
+  /* Top strip: transmitter key, alert acknowledge key, alert box. */
+  #cTop { gap:4px; padding:2px; align-items:stretch; }
+  #console #cTop button { border-radius:0; padding:3px 14px; font:700 13px Consolas, "Lucida Console", ui-monospace, monospace; }
+  #console #radarSb { min-width:150px; }
+  #cTopAlarm { flex:1; display:flex; align-items:center; border:1px solid var(--cline); padding:0 8px; font-weight:600; }
+  #cTopAlarm > span { overflow:hidden; white-space:normal; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; font-size:11px; line-height:12px; }
+  #cTopAlarm.alarm { background:var(--alarmbg); border-color:var(--bad); }
+  #cTopAlarm.alarm .no { color:#ffd9d4; }
+  #cTopAlarm.warning { background:var(--warnbg); border-color:var(--warn); }
+  /* Own ship: heading and speed large; course and speed over the ground; position; rudder, rate of turn, steering, wind, time. */
+  #console #bOwn { padding-top:2px; }
+  #cOwn { display:grid; grid-template-columns:1fr 1fr; column-gap:18px; align-items:baseline; }
+  #cOwn .nav { display:grid; grid-template-columns:34px 1fr 18px 40px; align-items:baseline; column-gap:3px; }
+  #cOwn .nav b { text-align:right; font-size:15px; line-height:17px; font-weight:600; }
+  #cOwn .nav.big b { font-size:24px; line-height:24px; font-weight:700; }
+  #cOwn .nav.big .cl { font-size:12px; font-weight:600; }
+  #cOwn .nav.big u { font-size:12px; }
+  #cOwn .nav u { margin-left:0; }
+  #cOwn .nav.pos { grid-template-columns:34px 1fr 61px; }
+  #cOwn .nav.pos b { font-size:14px; line-height:16px; }
+  #cOwn .navrow { grid-column:1 / 3; display:flex; justify-content:space-between; gap:8px; border-top:1px dotted var(--cline); margin-top:2px; padding-top:1px; }
+  /* Settings: keys and boxes that are clicked. */
+  #console button { border-radius:0; border-color:var(--cline); padding:1px 8px; font:600 11px/15px Consolas, "Lucida Console", ui-monospace, monospace; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
+  #console button.pm { width:24px; padding:1px 0; font-size:13px; }
+  #console select { appearance:none; -webkit-appearance:none; background:transparent; border:1px solid var(--cline); border-radius:0; color:var(--bright); font:600 12px/15px Consolas, "Lucida Console", ui-monospace, monospace; padding:1px 4px; text-align:center; text-align-last:center; text-transform:uppercase; cursor:pointer; }
+  #console select:hover, #console select:focus-visible, #console button:hover { border-color:var(--accent); outline:none; }
+  #console select option { background:var(--box); color:var(--text); }
+  #console .crow { gap:4px; margin:1px 0; }
+  #console .crow .cl { width:40px; }
+  #console .crow > span:not(.cl) { flex:1; min-width:0; display:flex; gap:4px; }
+  #console .crow > #hReset { flex:2.6; }
+  #console .crow > span > select, #console .crow > span > button { flex:1; min-width:0; }
+  #console #rngHold select { font-size:15px; font-weight:700; line-height:15px; padding:1px 2px; min-width:74px; }
+  #console #ringsKey { padding:1px 4px; flex:none; }
+  #console .cbtns { gap:4px; margin:2px 0 0; }
+  #console .cbtns button { flex:1; }
+  #console input[type=checkbox], #ppiCorner input[type=checkbox] { appearance:none; -webkit-appearance:none; width:11px; height:11px; min-width:11px; border:1px solid var(--clab); border-radius:0; background:transparent; margin:0; cursor:pointer; }
+  #console input[type=checkbox]:checked, #ppiCorner input[type=checkbox]:checked { background:var(--accent); border-color:var(--accent); box-shadow:inset 0 0 0 2px var(--cbg); }
+  /* Gain, sea, rain, tune: bars. The control is dragged or clicked like a slider. */
+  #cGain .row { grid-template-columns:38px 1fr 26px 52px; gap:5px; margin:1px 0; }
+  #cGain .row.two { grid-template-columns:38px 1fr; }
+  #cGain label { color:var(--clab); font-size:11px; }
+  #cGain .val { color:var(--bright); font-weight:600; }
+  #cGain input[type=range] { -webkit-appearance:none; appearance:none; height:13px; margin:0; background:transparent; cursor:ew-resize; --p:50%; }
+  #cGain input[type=range]::-webkit-slider-runnable-track { height:10px; border:1px solid var(--cline); background:linear-gradient(to right, var(--accent) 0, var(--accent) var(--p), transparent var(--p), transparent 100%); }
+  #cGain input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:3px; height:13px; margin-top:-3px; background:var(--bright); border:0; border-radius:0; }
+  #cGain input[type=range]::-moz-range-track { height:8px; border:1px solid var(--cline); background:transparent; }
+  #cGain input[type=range]::-moz-range-progress { height:8px; background:var(--accent); }
+  #cGain input[type=range]::-moz-range-thumb { width:3px; height:14px; background:var(--bright); border:0; border-radius:0; }
+  #cGain .meter { height:6px; border-radius:0; border-color:var(--cline); background:transparent; }
+  /* Cursor and target data. */
+  #cCur .cline { display:flex; justify-content:space-between; align-items:baseline; gap:6px; line-height:17px; }
+  #cCur .cpos { display:flex; gap:10px; align-items:baseline; }
+  #cCur .cpos b { font-weight:600; }
+  #console .cbox b.big { font-size:15px; }
+  #console #bTd h3 #cTgtKind { color:var(--src); }
+  #console #bTd h3 #cTgtN { margin-left:auto; color:var(--bright); letter-spacing:.04em; }
+  #cTd { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:0 16px; align-content:start; min-height:51px; }
+  #cTd .tp { display:flex; justify-content:space-between; align-items:baseline; gap:4px; min-width:0; line-height:17px; }
+  #cTd .tp b { text-align:right; overflow:hidden; text-overflow:ellipsis; font-weight:600; }
+  #cTd .tp.span2 { grid-column:span 2; }
+  #cTd .tp.none { grid-column:1 / -1; }
+  #console .q { font-style:normal; color:var(--warn); margin-left:1px; }
+  #cVecInfo { display:flex; flex-wrap:wrap; gap:0 16px; border-top:1px dotted var(--cline); margin-top:2px; padding-top:1px; }
+  #console #arpaMsg { margin:1px 0 0; }
+  /* EBL / VRM readouts and the cursor keys over the corner of the picture, and the menu keys: the same square look. */
+  #ppiCorner #cMeas { border-radius:0; background:var(--cbg); border-color:var(--cline); }
+  #ppiCorner #cTgt button { border-radius:0; }
+  #cMenu button { border-radius:0; }
+  /* On a large screen the data area is drawn larger, as on a radar's own display, in the room the square picture leaves free. */
+  @media (min-width:1560px) and (min-height:860px) { main { grid-template-columns:minmax(0, 1fr) 636px; } #console { zoom:1.2; } }
+  @media (min-width:1880px) and (min-height:1000px) { main { grid-template-columns:minmax(0, 1fr) 742px; } #console { zoom:1.4; } }
   .row { margin:3px 0; }
-  @media (max-width: 900px) { body { overflow:auto; } main { grid-template-columns:1fr; height:auto; } #side { height:auto; } }
+  @media (max-width: 900px) { body { overflow:auto; } main { grid-template-columns:1fr; height:auto; } #side { height:auto; } header { height:auto; flex-wrap:wrap; } }
   canvas[hidden], #readout[hidden] { display:none; }
   #login { position:fixed; inset:0; background:rgba(5,10,8,.92); display:flex; align-items:center; justify-content:center; z-index:10; padding:16px; }
   #login[hidden] { display:none; }

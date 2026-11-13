@@ -20,6 +20,13 @@ describe("ship position as latitude and longitude", () => {
     expect(formatLatLon(-5.25, "lon")).toBe("005°15.0'W");
     expect(formatLatLon(10 + 59.97 / 60, "lat")).toBe("11°00.0'N"); // minutes round up into the next degree
   });
+  it("can be written with three decimals of the minutes, as a radar display shows it", () => {
+    // Worked by hand: 18 deg 50.1234 min is 18°50.123'; 72.5 deg is 072°30.000'; 0.0004 min short of 11 deg rounds up.
+    expect(formatLatLon(18 + 50.1234 / 60, "lat", 3)).toBe("18°50.123'N");
+    expect(formatLatLon(72.5, "lon", 3)).toBe("072°30.000'E");
+    expect(formatLatLon(-(5 + 7.0056 / 60), "lon", 3)).toBe("005°07.006'W");
+    expect(formatLatLon(10 + 59.9996 / 60, "lat", 3)).toBe("11°00.000'N");
+  });
 });
 
 describe("day and night palettes", () => {

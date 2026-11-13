@@ -1,9 +1,9 @@
 import { G, bgOuter, bgPpi, echoColour } from "./palette";
 import { fromPolar, normalizeDeg } from "../core/vec";
 import { rangeBearing } from "../core/nav";
-import { ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, ownCogSog, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead } from "../engine/index";
+import { pulseFor, ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead } from "../engine/index";
 import { AppState, ECHO_LIFETIME_S } from "./app";
-import { drawArpa, drawArpaHud } from "./arpa-view";
+import { drawArpa, drawArpaHud, hudText } from "./arpa-view";
 import { HitKind } from "../engine/scan";
 
 type Ctx = CanvasRenderingContext2D;
@@ -388,19 +388,24 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
 
   drawArpaHud(ctx, app, size);
 
-  // HUD
+  // Corner readouts, as on a radar screen: the range scale in large figures, the rings and the presentation
+  // mode at the top left; band and pulse length at the top right, with the ARPA's lines under it (drawArpaHud).
+  // The lines are short because the corners are the only room outside the circle.
+  // (Heading and speeds are in the own ship box; the bottom-left corner carries the EBL/VRM and target keys.)
+  const hud = hudText(size);
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = G("#8fd9a6");
-  ctx.font = "12px monospace";
-  const orientLabel = ds.orientation === "north-up" ? "N-UP" : ds.orientation === "head-up" ? "H-UP" : "C-UP";
-  ctx.fillText(`${ds.motion === "relative" ? "RM" : "TM"}  ${orientLabel}  ${ds.stabilisation === "sea" ? "SEA" : "GND"}`, 8, 16);
+  ctx.font = `bold ${hud.big}px monospace`;
+  ctx.fillText(`${c.rangeNm} NM`, 8, hud.big);
+  ctx.font = `${hud.fs}px monospace`;
+  const orientLabel = ds.orientation === "north-up" ? "N UP" : ds.orientation === "head-up" ? "H UP" : "C UP";
+  ctx.fillText(`RINGS ${app.ringsOn ? `${fmtNm(step)} NM` : "OFF"}`, 8, hud.big + hud.lh);
+  ctx.fillText(`${orientLabel}  ${ds.motion === "relative" ? "RM" : "TM"}`, 8, hud.big + 2 * hud.lh);
+  ctx.fillText(ds.stabilisation === "sea" ? "SEA STAB" : "GND STAB", 8, hud.big + 3 * hud.lh);
   ctx.textAlign = "right";
-  ctx.fillText(`${w.radar.band}-BAND   RANGE ${c.rangeNm} NM   RINGS ${app.ringsOn ? `${fmtNm(step)} NM` : "OFF"}`, size - 8, 16);
-  ctx.textAlign = "left";
-  const cog = ownCogSog(w);
-  // (Heading and speeds are in the OWN SHIP box; the bottom-left corner carries the EBL/VRM and target keys.)
-  ctx.textAlign = "right";
+  const pulse = pulseFor(c.rangeNm, c.pulse).name;
+  ctx.fillText(`${w.radar.band}-BAND  ${pulse === "short" ? "SP" : pulse === "medium" ? "MP" : "LP"}`, size - 8, hud.lh);
   ctx.fillStyle = G("#58a56f");
   ctx.fillText("TRAINING USE ONLY", size - 8, size - 8);
   ctx.restore();

@@ -1,17 +1,26 @@
 import { nextToAcknowledge } from "../arpa/index";
 import { alertRows } from "./alerts-view";
+import { formatLatLon, latLonOf } from "../core/nav";
 import { normalizeDeg } from "../core/vec";
-import { logSpeed, measuredHeading, ownCogSog, relativeWind, ringInterval } from "../engine/index";
-import { AppState } from "./app";
+import { displayNmToWorld, logSpeed, measuredHeading, ownCogSog, relativeWind, ringInterval } from "../engine/index";
+import { AppState, SCENARIO_ORIGIN } from "./app";
 import { $ } from "./dom";
+import { readoutAt } from "./view";
 
 /**
  * Console layout: the radar picture on the left; on the right the working controls and data
  * that a radar console keeps in view (display, own ship, cursor, EBL/VRM, gain and clutter,
  * targets, vectors, target data, AIS data), then a grid of menu keys for everything else.
  * The boxes are built from the SAME controls as before (the elements are moved, so their
- * handlers still work). Explanatory text is hidden until HELP is pressed. This is a generic
- * radar-console arrangement of our own, not a copy of any maker's screen.
+ * handlers still work). Explanatory text is hidden until HELP is pressed.
+ *
+ * The data area is laid out and drawn the way ships' radars in general present their data: one
+ * framed panel divided by thin lines; heading and speed in large figures with the sensor they
+ * come from; position, cursor, and target data as label and value with the unit in small
+ * letters; settings in boxes that are clicked; gain and clutter as bars. The abbreviations are
+ * the standard ones of IMO SN.1/Circ.243/Rev.2. It is a generic arrangement of our own, not a
+ * copy of any maker's screen. The keys that work the simulator and not the radar (pause, speed,
+ * day/night, help) sit in the strip at the top of the page.
  */
 type Tab = "radar" | "roc" | "arpa" | "ex" | "instr";
 type Line = "ebl" | "vrm" | "ebl2" | "vrm2";
@@ -75,26 +84,29 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   panel.id = "console";
   panel.innerHTML = `
     <div id="cTop" class="wide"><span id="cTopSb"></span><button id="ackKey" title="Acknowledge the alert shown (one at a time: alarms first)">ALARM ACK</button><span id="cTopAlarm"></span></div>
+    <div class="cbox wide" id="bOwn"><div id="cOwn"></div></div>
     <div class="ccol">
     <div class="cbox" id="bDisp"><h3>DISPLAY</h3>
-      <div class="crow"><span class="cl">RANGE</span><button id="rngDn" class="pm">−</button><span id="rngHold"></span><button id="rngUp" class="pm">+</button><button id="ringsKey" title="Range rings on / off">RINGS</button></div>
+      <div class="crow"><span class="cl">RANGE</span><button id="rngDn" class="pm" title="Range scale down">−</button><span id="rngHold"></span><button id="rngUp" class="pm" title="Range scale up">+</button><button id="ringsKey" title="Range rings on / off">RINGS</button></div>
       <div class="crow"><span class="cl">BAND</span><span id="bandKeys" class="cbtns" style="margin:0"><button data-b="X">X BAND</button><button data-b="S">S BAND</button></span></div>
-      <div class="crow"><span class="cl">ORIENT</span><span id="hOrient"></span></div>
-      <div class="crow"><span class="cl">MOTION</span><span id="hMotion"></span></div>
-      <div class="crow"><span class="cl">STAB</span><span id="hStab"></span></div>
+      <div class="crow"><span class="cl">MODE</span><span id="hOrient"></span><span id="hMotion"></span><span id="hStab"></span></div>
       <div class="crow"><span class="cl">TRAILS</span><span id="hTrails"></span><span id="hTrailMin"></span></div>
-      <div class="crow"><span class="cl">VECTORS</span><span id="hVec"></span><span id="hVecT"><select id="vecTimeSel">${VECTOR_TIMES.map((t) => `<option value="${t}">${t} min</option>`).join("")}</select></span></div>
-      <div class="crow"><span class="cl">DANGER</span><span id="hGfx"></span></div>
+      <div class="crow"><span class="cl">VECTOR</span><span id="hVec"></span><span id="hVecT"><select id="vecTimeSel" title="Vector time">${VECTOR_TIMES.map((t) => `<option value="${t}">${t} min</option>`).join("")}</select></span></div>
+      <div class="crow"><span class="cl">DANGER</span><span id="hGfx"></span><span id="hReset"></span></div>
     </div>
-    <div class="cbox" id="bTd"><h3>TARGET DATA (ARPA) <span id="cTgtN"></span></h3><div class="cgrid" id="cTd"></div><div class="cgrid" id="cVecInfo"></div></div>
     </div>
     <div class="ccol">
-    <div class="cbox" id="bOwn"><h3>OWN SHIP <span id="cTx"></span> <span id="cAlarm" class="no"></span></h3><div class="cgrid" id="cOwn"></div></div>
-    <div class="cbox" id="bCur"><h3>CURSOR</h3><div class="cgrid" id="cCur"></div></div>
     <div class="cbox" id="bGain"><h3>GAIN / CLUTTER</h3><div id="cGain"></div></div>
-    <div id="cRun"></div>
+    <div class="cbox" id="bCur"><h3>CURSOR</h3><div id="cCur"></div></div>
     </div>
+    <div class="cbox wide" id="bTd"><h3>TARGET DATA <span id="cTgtKind"></span><span id="cTgtN"></span></h3><div id="cTd"></div><div id="cVecInfo"></div></div>
     `;
+  // The keys that work the simulator, not the radar, sit in the strip at the top of the page.
+  const runBar = document.createElement("div");
+  runBar.id = "cRun";
+  const pageHeader = document.querySelector("header");
+  if (pageHeader) pageHeader.insertBefore(runBar, pageHeader.lastElementChild);
+  else panel.appendChild(runBar);
   const menu = document.createElement("div");
   menu.id = "cMenu";
   // The chosen menu's controls scroll in their own area; the menu keys stay at the bottom of the panel.
@@ -106,6 +118,18 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   // Display: the same selects, moved.
   $("rngHold").appendChild($("range"));
   for (const [hold, id] of [["hOrient", "orient"], ["hMotion", "motion"], ["hStab", "stab"], ["hTrails", "trails"], ["hTrailMin", "trailMin"]] as const) $(hold).appendChild($(id));
+  // The settings are shown with the standard abbreviations; the full words are in the tooltip.
+  const relabel = (id: string, names: Record<string, string>, title: string): void => {
+    const s = $<HTMLSelectElement>(id);
+    for (const o of s.options) o.textContent = names[o.value] ?? o.textContent;
+    s.title = title;
+  };
+  relabel("orient", { "north-up": "N UP", "head-up": "H UP", "course-up": "C UP" }, "Orientation: N UP north-up, H UP head-up (unstabilised), C UP course-up");
+  relabel("motion", { relative: "RM", true: "TM" }, "Motion: RM relative motion, TM true motion");
+  relabel("stab", { ground: "GND", sea: "SEA" }, "Stabilisation of the picture: GND ground, SEA sea (through the water)");
+  relabel("trails", { off: "OFF", relative: "REL", true: "TRUE" }, "Trails: off, relative or true");
+  relabel("trailMin", {}, "Trail length");
+  relabel("range", {}, "Range scale");
   const fire = (el: HTMLElement): void => {
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
@@ -158,6 +182,8 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   // Vectors and danger graphics sit under Trails, in the same form: the same selects, moved.
   $("hVec").appendChild($("arpaVec"));
   $("hGfx").appendChild($("arpaGraphics"));
+  relabel("arpaVec", { relative: "REL", true: "TRUE" }, "Vectors: REL relative, TRUE true");
+  relabel("arpaGraphics", { off: "OFF", ppc: "PPC", pad: "PAD" }, "Danger graphics: PPC points of possible collision, PAD predicted areas of danger");
   $("vecTimeSel").addEventListener("change", () => {
     const el = $<HTMLInputElement>("arpaVecT");
     el.value = $<HTMLSelectElement>("vecTimeSel").value;
@@ -169,12 +195,11 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     more.open = true;
     more.querySelector("summary")?.remove();
   }
-  const resets = document.createElement("div");
-  resets.className = "cbtns";
-  $("cuReset").textContent = "Reset C-UP";
-  $("tmReset").textContent = "Reset TM";
-  resets.append($("cuReset"), $("tmReset"));
-  $("bDisp").appendChild(resets);
+  $("cuReset").textContent = "C-UP RST";
+  $("cuReset").title = "Course-up reset: take the present heading as the new reference";
+  $("tmReset").textContent = "TM RST";
+  $("tmReset").title = "True motion reset: put own ship back to the start of its run across the screen";
+  $("hReset").append($("cuReset"), $("tmReset"));
 
   // Gain, sea, rain, tune with the automatic controls beside them.
   const short: Record<string, string> = { gain: "GAIN", stc: "SEA", ftc: "RAIN", tuning: "TUNE" };
@@ -259,7 +284,13 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   });
   setMenu("own");
 
-  const cell = (label: string, value: string, cls = ""): string => `<span class="cl">${label}</span><b class="${cls}">${value}</b>`;
+  /** A label and its value kept together, for a row of several. */
+  const pair = (label: string, value: string, cls = ""): string => `<span class="pair"><span class="cl">${label}</span> <b class="${cls}">${value}</b></span>`;
+  /** A unit, written small after its value. */
+  const unit = (u: string): string => `<u>${u}</u>`;
+  const dash = "---";
+  /** The controls drawn as bars. */
+  const BAR_IDS = ["gain", "stc", "ftc", "tuning"];
   const p3 = (x: number): string => normalizeDeg(x).toFixed(1).padStart(5, "0");
   const put = (id: string, html: string): void => {
     const el = $(id);
@@ -272,7 +303,6 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     const a = app.arpa;
     const s = a.settings;
     const cog = ownCogSog(w);
-    const unacked = !app.roc && [...a.alarms, ...app.ais.alarms].some((x) => !x.acked);
     const t = Math.floor(w.time + 1e-6);
     const time = `${String(Math.floor(t / 3600)).padStart(2, "0")}:${String(Math.floor((t % 3600) / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
     const arpaOn = !app.roc && !s.standby;
@@ -285,23 +315,44 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     app.ringsOn = ringsOn;
     $("ringsKey").classList.toggle("on", ringsOn);
     put("ringsKey", ringsOn ? `RINGS ${ringInterval(c.rangeNm)}` : "RINGS OFF");
-    put("cTx", `<span class="${app.radarStandby ? "wn" : "ok"}">${app.radarStandby ? "STANDBY" : "TX"}</span> <span class="cl">${mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : ""}</span>`);
-    put("cAlarm", unacked ? `<span class="flash">ALARM</span>` : "");
     const rows = alertRows(app);
     const pending = rows.filter((x) => !x.acked);
     const nextAlert = nextToAcknowledge(rows);
     $("ackKey").classList.toggle("alarm", pending.length > 0);
-    put("cTopAlarm", nextAlert ? `<span class="${nextAlert.priority === "alarm" ? "no" : "wn"}">${pending.length > 1 ? `${pending.length} ALERTS: ` : ""}${nextAlert.priority.toUpperCase()}: ${nextAlert.text.replace(/</g, "&lt;")}</span>` : `<span class="cl">No alarm</span>`);
+    put("cTopAlarm", nextAlert ? `<span class="${nextAlert.priority === "alarm" ? "no" : "wn"}">${pending.length > 1 ? `${pending.length} ALERTS: ` : ""}${nextAlert.priority.toUpperCase()}: ${nextAlert.text.replace(/</g, "&lt;")}</span>` : `<span class="cl">NO ALARM</span>`);
+    // The alert box is filled red for an alarm and amber for a warning.
+    const alertClass = nextAlert ? nextAlert.priority : "";
+    if ($("cTopAlarm").className !== alertClass) $("cTopAlarm").className = alertClass;
     $("radarSb").classList.toggle("stby", app.radarStandby);
+    // Own ship: heading and speed in large figures, each value with the sensor it comes from
+    // (red when the instructor has failed that sensor, as the ARPA's own alarm already says).
+    const pos = latLonOf(SCENARIO_ORIGIN, w.own.pos);
+    const nav = (label: string, value: string, u: string, source: string, bad: boolean, cls = ""): string =>
+      `<div class="nav ${cls}"><span class="cl">${label}</span><b>${value}</b>${unit(u)}<i class="src${bad ? " no" : ""}">${source}</i></div>`;
     put("cOwn",
-      cell("HDG", `${p3(measuredHeading(w))}°`, "big") + cell("STW", `${logSpeed(w).toFixed(1)} kn`, "big") +
-      cell("COG", `${p3(cog.course)}°`) + cell("SOG", `${cog.speed.toFixed(1)} kn`) +
-      cell("RUD", mo ? side1(mo.motion.rudder, 0.5, (x) => `${x.toFixed(0)}°`, "MID") : "---") + cell("ROT", mo ? side1(mo.motion.r * 60, 0.5, (x) => `${x.toFixed(0)}°/min`, "0") : "---") +
-      cell("WIND", rw ? `R${String(Math.round(rw.fromRel) % 360).padStart(3, "0")} ${rw.speedKn.toFixed(0)} kn` : "CALM") + cell("TIME", time));
+      nav("HDG", p3(measuredHeading(w)), "°", "GYRO", !app.roc && a.gyroFailed, "big") + nav("STW", logSpeed(w).toFixed(1), "kn", "LOG", !app.roc && a.logFailed, "big") +
+      nav("COG", p3(cog.course), "°", "EPFS", false) + nav("SOG", cog.speed.toFixed(1), "kn", "EPFS", false) +
+      `<div class="nav pos"><span class="cl">LAT</span><b>${formatLatLon(pos.lat, "lat", 3)}</b></div><div class="nav pos"><span class="cl">LON</span><b>${formatLatLon(pos.lon, "lon", 3)}</b></div>` +
+      `<div class="navrow">` +
+      pair("RUD", mo ? side1(mo.motion.rudder, 0.5, (x) => `${x.toFixed(0)}°`, "MID") : "---") + pair("ROT", mo ? side1(mo.motion.r * 60, 0.5, (x) => `${x.toFixed(0)}°/min`, "0") : "---") +
+      pair("STEER", mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : "---") +
+      pair("WIND", rw ? `R${String(Math.round(rw.fromRel) % 360).padStart(3, "0")} ${rw.speedKn.toFixed(0)} kn` : "CALM") + pair("TIME", time) +
+      `</div>`);
 
-    // Cursor: range, true and relative bearing, taken from the existing cursor readout.
-    const cur = ($("rCur").textContent ?? "").match(/([\d.]+) NM\s+T(\d+)\s+R(\d+)/);
-    put("cCur", cell("RNG", cur ? `${cur[1]} NM` : "---", "big") + cell("BRG T", cur ? `${cur[2]}°` : "---", "big") + cell("BRG R", cur ? `${cur[3]}°` : "---", "big"));
+    // Cursor: bearing (true and relative) and range as the radar reads them, and the position that
+    // bearing and range give from own ship's position (so a gyro error shifts it, as on a real set).
+    const cur = app.cursor ? readoutAt(app, displayNmToWorld(w, app.display, app.cursor.x, app.cursor.y)) : null;
+    const curPos = cur ? latLonOf(SCENARIO_ORIGIN, { e: w.own.pos.e + cur.range * Math.sin((cur.trueBearing * Math.PI) / 180), n: w.own.pos.n + cur.range * Math.cos((cur.trueBearing * Math.PI) / 180) }) : null;
+    put("cCur",
+      `<div class="cline">` + pair("BRG", cur ? `${p3(cur.trueBearing)}${unit("°T")}` : dash, "big") + pair("REL", cur ? `${p3(cur.relBearing)}${unit("°")}` : dash) + pair("RNG", cur ? `${cur.range.toFixed(2)}${unit("NM")}` : dash, "big") + `</div>` +
+      `<div class="cpos"><span class="cl">+</span><b>${curPos ? formatLatLon(curPos.lat, "lat", 3) : "--°--.---'"}</b><b>${curPos ? formatLatLon(curPos.lon, "lon", 3) : "---°--.---'"}</b></div>`);
+
+    // Gain and clutter bars: how far each bar is filled.
+    for (const id of BAR_IDS) {
+      const el = $<HTMLInputElement>(id);
+      const pct = `${Math.round(((Number(el.value) - Number(el.min)) / (Number(el.max) - Number(el.min))) * 100)}%`;
+      if (el.style.getPropertyValue("--p") !== pct) el.style.setProperty("--p", pct);
+    }
 
     const free = freeLines();
     const val: Record<Line, string> = {
@@ -322,29 +373,33 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
       vsel.value = String(s.vectorMinutes);
     }
     put("cVecInfo",
-      cell("CPA LIM", `${s.cpaLimitNm} NM`) + cell("TCPA LIM", `${s.tcpaLimitMin} min`) +
-      cell("STAB", arpaOn ? a.stabLabel().replace(" STAB", "").replace(/[()]/g, "").replace("REF ", "") : "---") + cell("PAST", arpaOn && s.past.mode !== "off" ? `${s.past.mode === "true" ? "T" : "R"} ${s.past.points}x${s.past.intervalMin}m` : "OFF"));
+      pair("CPA LIM", `${s.cpaLimitNm}${unit("NM")}`) + pair("TCPA LIM", `${s.tcpaLimitMin}${unit("min")}`) +
+      pair("STAB", arpaOn ? a.stabLabel().replace(" STAB", "").replace(/[()]/g, "").replace("REF ", "") : "---") + pair("PAST", arpaOn && s.past.mode !== "off" ? `${s.past.mode === "true" ? "T" : "R"} ${s.past.points}x${s.past.intervalMin}m` : "OFF"));
 
     // Selected target. An ARPA track shows the values of its row in the target list (computed by the ARPA code);
     // with no track selected, a selected AIS target shows what its AIS report carries.
     const tr = document.querySelector<HTMLElement>("#arpaRows tr.sel");
     const td = tr ? [...tr.querySelectorAll("td")].map((x) => x.textContent ?? "") : null;
     const [bcr, bct] = td ? (td[7] ?? "").split("/").map((x) => x.trim()) : ["", ""];
-    const dash = "---";
     const v = td || app.roc ? undefined : app.ais.targets(w, a, { cpaNm: s.cpaLimitNm, tcpaMin: s.tcpaLimitMin }).find((x) => x.report.id === app.ais.selected);
+    // A value with its unit; no unit after "---" or "open". The "?" of a preliminary value goes after the unit.
+    const withUnit = (x: string | undefined, u: string): string => {
+      if (!x || x === dash || x === "open") return x || dash;
+      const prelim = x.endsWith("?");
+      return `${prelim ? x.slice(0, -1) : x}${unit(u)}${prelim ? `<i class="q">?</i>` : ""}`;
+    };
+    /** One field of the target data: label at the left of its column, value at the right. */
+    const field = (label: string, value: string, cls = "", span = ""): string => `<div class="tp ${span}"><span class="cl">${label}</span> <b class="${cls}">${value}</b></div>`;
+    put("cTgtKind", td ? "TT" : v ? "AIS" : "");
     put("cTd", td
-      ? cell("TGT", td[0] ?? dash, "big") + cell("STATE", td[8] ?? dash) +
-        cell("BRG", `${td[1]}°`, "big") + cell("RNG", `${td[2]} NM`, "big") +
-        cell("CPA", `${td[3]}`, "big") + cell("TCPA", `${td[4]}`, "big") +
-        cell("CSE", `${td[5]}`, "big") + cell("SPD", `${td[6]}`, "big") +
-        cell("BCR", bcr || dash) + cell("BCT", bct || dash)
+      ? field("TGT", td[0] ?? dash, "big") + field("BRG", withUnit(td[1], "°T"), "big") + field("RNG", withUnit(td[2], "NM"), "big") + field("STATE", td[8] ?? dash, /DANGER/.test(td[8] ?? "") ? "no" : /LOST|PRELIM|FADE/.test(td[8] ?? "") ? "wn" : "") +
+        field("CSE", withUnit(td[5], "°T"), "big") + field("SPD", withUnit(td[6], "kn"), "big") + field("CPA", withUnit(td[3], "NM"), "big") + field("TCPA", withUnit(td[4], "min"), "big") +
+        field("BCR", withUnit(bcr, "NM")) + field("BCT", withUnit(bct, "min"))
       : v
-        ? cell("AIS", v.report.name, "big span3") +
-          cell("BRG", `${p3(v.bearing)}°`, "big") + cell("RNG", `${v.range.toFixed(2)} NM`, "big") +
-          cell("CPA", v.cpa.opening ? "open" : v.cpa.cpa.toFixed(2), "big") + cell("TCPA", v.cpa.tcpaMinutes === null ? dash : v.cpa.tcpaMinutes.toFixed(1), "big") +
-          cell("COG", `${p3(v.report.cog)}°`, "big") + cell("SOG", `${v.report.sog.toFixed(1)}`, "big") +
-          cell("STATE", v.lost ? "LOST" : v.dangerous ? "DANGER" : "ACTIVE", v.lost || v.dangerous ? "no" : "") + cell("AGE", `${Math.round(v.ageSec)} s`)
-        : `<span class="cl full">Acquire or select a target</span>`);
+        ? field("AIS", v.report.name.replace(/</g, "&lt;"), "big", "span2") + field("BRG", `${p3(v.bearing)}${unit("°T")}`, "big") + field("RNG", `${v.range.toFixed(2)}${unit("NM")}`, "big") +
+          field("COG", `${p3(v.report.cog)}${unit("°T")}`, "big") + field("SOG", `${v.report.sog.toFixed(1)}${unit("kn")}`, "big") + field("CPA", v.cpa.opening ? "open" : `${v.cpa.cpa.toFixed(2)}${unit("NM")}`, "big") + field("TCPA", v.cpa.tcpaMinutes === null ? dash : `${v.cpa.tcpaMinutes.toFixed(1)}${unit("min")}`, "big") +
+          field("STATE", v.lost ? "LOST" : v.dangerous ? "DANGER" : "ACTIVE", v.lost || v.dangerous ? "no" : "") + field("AGE", `${Math.round(v.ageSec)}${unit("s")}`)
+        : `<div class="tp none"><span class="cl">NO TARGET SELECTED &nbsp; acquire or select a target</span></div>`);
   };
 
   return {

@@ -1,6 +1,6 @@
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
-import { MUMBAI_ORIGIN, BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor } from "../engine/index";
+import { BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
 import { ARPA_EXERCISES, PLOT_RULES, ArpaExSession, ArpaExercise, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
 import { initTrainUi } from "./train-ui";
@@ -8,7 +8,7 @@ import { initInstructorUi } from "./instructor-ui";
 import { Link } from "./link";
 import { esc } from "./dom";
 import { ConsoleUi, initConsoleUi } from "./console-ui";
-import { AppState, advance, createApp, resetCourseUp, resetTrueMotion, setDisplayMode, setRange } from "./app";
+import { AppState, SCENARIO_ORIGIN, advance, createApp, resetCourseUp, resetTrueMotion, setDisplayMode, setRange } from "./app";
 import { initRocUi } from "./roc-ui";
 import { initArpaUi } from "./arpa-ui";
 import { drawPpi, radarGeometry, readoutAt } from "./view";
@@ -20,10 +20,6 @@ import { MAX_ROUTE_WAYPOINTS } from "../core/route";
 import { PanelUi, initPanel } from "./panel";
 import { savePictures } from "./picture-store";
 import { MAX_PICTURES, PICTURE_INTERVAL_SEC, PICTURE_QUALITY, PICTURE_SIZE_PX } from "../train/index";
-
-/** Latitude and longitude of the scenarios' zero point. A made-up position: the scenarios are not tied to a real chart. */
-/** Latitude and longitude of the scenarios' 0,0: the same point the real Mumbai coastline is laid out from. */
-const SCENARIO_ORIGIN = MUMBAI_ORIGIN;
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);

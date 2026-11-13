@@ -5,8 +5,11 @@ import { AisSystem } from "../ais/index";
 import { Vec2 } from "../core/vec";
 import {
   DisplayState, Hit, Scenario, TrailStore, World, createWorld, newDisplayState, recentreTrueMotion, scanWedge,
-  stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading,
+  stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading, MUMBAI_ORIGIN,
 } from "../engine/index";
+
+/** Latitude and longitude of the scenarios' 0,0: the same point the real Mumbai coastline is laid out from. */
+export const SCENARIO_ORIGIN = MUMBAI_ORIGIN;
 
 export type TrailMode = "off" | "relative" | "true";
 

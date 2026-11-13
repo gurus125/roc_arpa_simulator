@@ -69,13 +69,17 @@ Hardware control panel: keys for every radar function, changeable, and knob-box 
 `npm run test:link` starts the classroom server and checks an instructor and four student displays in separate
 browsers (needs Playwright). Separate PCs on a network have not been tried.
 `npm run test:screen` checks the built page in a headless browser (needs Playwright).
-Explanatory text is hidden until HELP is pressed. The layout is our own arrangement
-(`src/ui/console-ui.ts`), not a copy of any maker's screen.
+Explanatory text is hidden until HELP is pressed. The data area (`src/ui/console-ui.ts`, styles in
+`src/ui/index.template.html`) is laid out the way ships' radars in general present their data: heading and
+speed in large figures with their sensor, position, cursor and target data as label, value and unit, settings in
+boxes that are clicked, gain and clutter as bars, short status lines in the corners of the picture, and the
+standard abbreviations of IMO SN.1/Circ.243/Rev.2. It is drawn larger on a large screen. It is a generic
+arrangement of our own, not a copy of any maker's screen, and no radar instructor has reviewed it.
 
 ## Develop
 
     npm install
-    npm test            # 426 tests
+    npm test            # 427 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

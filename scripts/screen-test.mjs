@@ -104,6 +104,28 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   await p.waitForTimeout(200);
   check(`${tag} EBL locks`, (await text("#ms_ebl")) === "LOCK");
   check(`${tag} cursor box`, /NM/.test(await text("#cCur")));
+  check(`${tag} cursor box shows the position of the cursor`, /\d\d°\d\d\.\d{3}'[NS] \d{3}°\d\d\.\d{3}'[EW]/.test(await text("#cCur")), await text("#cCur"));
+
+  // The data area is laid out as on a radar: own ship's data with its sensors and position, settings by their
+  // abbreviations, bars for gain and clutter, and the simulator's own keys in the strip at the top of the page.
+  {
+    const o = await text("#cOwn");
+    check(`${tag} own ship data: heading, speeds, sensors and position`, /HDG \d{3}\.\d ° GYRO STW [\d.]+ kn LOG COG \d{3}\.\d ° EPFS SOG [\d.]+ kn EPFS LAT \d\d°\d\d\.\d{3}'[NS] LON \d{3}°\d\d\.\d{3}'[EW]/.test(o), o);
+    check(`${tag} own ship data: steering, wind and time`, /STEER (AUTO|HAND)/.test(o) && /WIND/.test(o) && /TIME \d\d:\d\d:\d\d/.test(o), o);
+    const abbr = await p.evaluate(() => ["orient", "motion", "stab", "trails", "arpaVec", "arpaGraphics"].map((id) => [...document.getElementById(id).options].map((x) => x.textContent).join("/")));
+    check(`${tag} settings are shown by their abbreviations`, abbr.join(" ") === "N UP/H UP/C UP RM/TM GND/SEA OFF/REL/TRUE REL/TRUE OFF/PPC/PAD", abbr.join(" "));
+    check(`${tag} pause, speed, day/night and help are in the top strip`, await p.evaluate(() => ["run", "speed", "nightKey", "cHelp"].every((id) => !!document.getElementById(id).closest("header") && document.getElementById(id).offsetParent !== null)));
+    const fill = async () => p.$eval("#gain", (e) => e.style.getPropertyValue("--p"));
+    const g0 = await p.$eval("#gain", (e) => e.value);
+    check(`${tag} gain bar is filled to the gain setting`, (await fill()) === `${g0}%`, await fill());
+    const sizes = await p.evaluate(() => {
+      const r = (id) => document.getElementById(id).getBoundingClientRect();
+      return { console: r("console"), body: r("menuBody"), menu: r("cMenu"), own: r("bOwn"), td: r("bTd"), w: window.innerWidth, h: window.innerHeight };
+    });
+    check(`${tag} data area leaves room for the menu's controls`, sizes.body.height >= 140 && sizes.console.bottom <= sizes.body.top + 1 && sizes.menu.bottom <= sizes.h + 1, JSON.stringify({ body: sizes.body.height, console: sizes.console.height }));
+    check(`${tag} own ship data above target data, both the full width of the data area`, sizes.own.top < sizes.td.top && sizes.own.width > sizes.console.width * 0.95 && sizes.td.width > sizes.console.width * 0.95);
+    if (W >= 1880 && H >= 1000) check(`${tag} data area is drawn larger on a large screen`, sizes.console.width >= 700, String(sizes.console.width));
+  }
 
   // Top bar: radar on / standby and alarm acknowledge are at the top of the panel.
   check(`${tag} radar key and alarm ack at the top`, (await topY("#radarSb")) < (await topY("#bDisp")) && (await topY("#ackKey")) < (await topY("#bDisp")));
@@ -133,6 +155,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.mouse.click(c.x + tgt.x, c.y + tgt.y);
     await p.waitForTimeout(600);
     check(`${tag} acquire shows target data`, (await text("#cTd")).includes("TGT"), await text("#cTd"));
+    check(`${tag} target data has bearing and range with units, and is marked as a tracked target`, /BRG \d{3}(\.\d)? ?°T/.test(await text("#cTd")) && /RNG [\d.]+ ?NM/.test(await text("#cTd")) && (await text("#cTgtKind")) === "TT", `${await text("#cTd")} | ${await text("#cTgtKind")}`);
   }
 
   // Manual speed row appears with the manual input.

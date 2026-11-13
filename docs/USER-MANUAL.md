@@ -7,41 +7,69 @@ For training and study only. This is not a radar and must not be used for naviga
 Open `radar-simulator.html` in Chrome or Edge. Choose your batch and enter your name, or press
 "Free practice without names". Press F11 for full screen.
 
-The screen has the radar picture on the left and the control panel on the right. The keys at the
-bottom right open more controls. HELP (next to Pause) shows a short explanation under every
-control; press it again to hide them.
+The screen has the radar picture on the left and the data area on the right, laid out the way
+ships' radars in general present their data (it is not a copy of any one maker's screen). The
+keys at the bottom right open more controls. The strip at the very top of the page holds the keys
+that work the simulator and not the radar: PAUSE / RUN, the speed of the clock, DAY / NIGHT and
+HELP. HELP shows a short explanation under every control; press it again to hide them.
 
-## 2. Top of the panel
+## 2. Top of the data area, and the corners of the picture
 
 | Control | What it does |
 |---|---|
 | RADAR: ON / STANDBY | Switches the transmitter on or to standby. In standby there is no picture. |
-| ALARM ACK | Acknowledges the alert shown beside it, one at a time: alarms first, then the oldest warning. It flashes while an alert is waiting. |
-| Pause / Run, 1x-10x | Stops and starts the exercise clock, and sets how fast it runs. |
-| DAY / NIGHT | Display colours for day or for a dark bridge (also under SETTINGS). |
+| ALARM ACK | Acknowledges the alert shown beside it, one at a time: alarms first, then the oldest warning. It flashes while an alert is waiting. The alert box beside it is red for an alarm and amber for a warning. |
+| PAUSE / RUN, 1x-10x (top strip) | Stops and starts the exercise clock, and sets how fast it runs. |
+| DAY / NIGHT (top strip) | Display colours for day or for a dark bridge (also under SETTINGS). |
+
+Own ship's data is under the top keys:
+
+| Shown | Meaning |
+|---|---|
+| HDG, with GYRO | Heading from the gyro compass |
+| STW, with LOG | Speed through the water from the speed log |
+| COG, SOG, with EPFS | Course and speed over the ground from the position-fixing system (GPS) |
+| LAT, LON | Own ship's position |
+| RUD, ROT, STEER | Rudder angle (P port, S starboard), rate of turn, and AUTO (autopilot) or HAND steering |
+| WIND, TIME | Relative wind (R045 is 45° on the starboard bow) and the exercise clock |
+
+The small box after a value names the sensor it comes from. It turns red when that sensor has failed.
+
+The corners of the picture carry the settings in short lines, as on a radar screen: top left the
+range scale in large figures, the ring interval, the orientation and motion (N UP RM) and the
+stabilisation of the picture; top right the band and pulse length (SP short, MP medium, LP long)
+and the ARPA's vector mode and time, speed input and CPA / TCPA limits.
 
 ## 3. DISPLAY box
+
+The settings are boxes that are clicked; each shows the setting in use by its standard abbreviation.
 
 - **RANGE − / +**: range scale, 0.25 to 96 NM. **RINGS**: fixed range rings on or off.
 - **X BAND / S BAND**: the 3 cm or 10 cm radar. S band sees through rain better; X band gives a
   sharper picture and is the only band a SART answers.
-- **ORIENT**: north-up, head-up (unstabilised: bearings are relative) or course-up.
-- **MOTION**: relative motion (own ship fixed) or true motion (own ship moves across the screen).
-- **STAB**: ground or sea stabilisation of the picture.
-- **TRAILS**: echo trails, relative or true, and their length.
-- **VECTORS**: relative or true vectors of tracked targets, and the vector time.
-- **DANGER**: PPC (potential point of collision) or PAD (predicted area of danger) graphics.
+- **MODE**, three boxes: orientation **N UP** (north-up), **H UP** (head-up, unstabilised: bearings
+  are relative) or **C UP** (course-up); motion **RM** (relative motion, own ship fixed) or **TM**
+  (true motion, own ship moves across the screen); stabilisation of the picture **GND** (ground) or
+  **SEA**.
+- **TRAILS**: echo trails OFF, REL (relative) or TRUE, and their length.
+- **VECTOR**: REL (relative) or TRUE vectors of tracked targets, and the vector time.
+- **DANGER**: PPC (points of possible collision) or PAD (predicted areas of danger) graphics.
+  **C-UP RST** takes the present heading as the new course-up reference; **TM RST** puts own ship
+  back to the start of its run across the screen in true motion.
 
 ## 4. Measuring: EBL and VRM (bottom-left of the picture)
 
 Tick EBL 1 or VRM 1. The line follows the cursor over the picture and shows MOVE. Double-click
 the picture to lock it (LOCK). Untick and tick again to move it. EBL 2 and VRM 2 work the same
-way. The CURSOR box shows the range and bearing of the cursor at all times.
+way. The CURSOR box shows the true bearing (BRG), relative bearing (REL) and range (RNG) of the
+cursor at all times, and under them the latitude and longitude of the point it is on.
 
 More tools are under **PI / MAP**: four parallel index lines, an offset EBL origin, off-centre,
 heading line off, navigation lines and marks.
 
 ## 5. GAIN / CLUTTER box
+
+Each control is a bar: click or drag along it. The figure beside it is the setting, 0 to 100.
 
 - **GAIN**: receiver gain. Too low loses weak echoes; too high fills the picture with noise.
 - **SEA**: sea clutter control. It works close to the ship. Too much removes small targets nearby.
@@ -59,8 +87,11 @@ The target keys are along the bottom-left edge of the picture.
 1. Press **Acquire**, then click an echo. A broken circle appears.
 2. After about one minute a faint (preliminary) vector appears. After about three minutes the
    vector is at full strength and the data is reliable.
-3. Press **Select** and click a target to see its data in the TARGET DATA box: bearing, range,
-   CPA, TCPA, course, speed, BCR and BCT.
+3. Press **Select** and click a target to see its data in the TARGET DATA box: target number,
+   bearing (BRG), range (RNG), course (CSE), speed (SPD), CPA, TCPA, and the bow crossing range
+   and time (BCR, BCT), each with its unit. TT after the heading means a tracked (radar) target,
+   AIS an AIS target. A yellow ? after a value means it is still preliminary. The line under the
+   data shows the CPA and TCPA limits, the ARPA's speed input and the past positions setting.
 4. **Cancel** drops one target; **Cancel all** drops them all. **Auto** acquires targets that
    enter a guard zone.
 

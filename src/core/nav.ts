@@ -119,15 +119,19 @@ export function positionOfLatLon(origin: { lat: number; lon: number }, lat: numb
   return { e: (lon - origin.lon) * 60 * Math.cos(mid), n: (lat - origin.lat) * 60 };
 }
 
-/** A latitude or longitude in degrees and decimal minutes, e.g. 18°50.0'N. */
-export function formatLatLon(value: number, kind: "lat" | "lon"): string {
+/**
+ * A latitude or longitude in degrees and decimal minutes, e.g. 18°50.0'N. `decimals` is the number
+ * of decimals of the minutes (1 by default; a radar display shows 3).
+ */
+export function formatLatLon(value: number, kind: "lat" | "lon", decimals = 1): string {
   const hemi = kind === "lat" ? (value >= 0 ? "N" : "S") : value >= 0 ? "E" : "W";
   const a = Math.abs(value);
+  const f = 10 ** decimals;
   let deg = Math.floor(a);
-  let min = Math.round((a - deg) * 600) / 10;
+  let min = Math.round((a - deg) * 60 * f) / f;
   if (min >= 60) {
     min = 0;
     deg += 1;
   }
-  return `${String(deg).padStart(kind === "lat" ? 2 : 3, "0")}°${min.toFixed(1).padStart(4, "0")}'${hemi}`;
+  return `${String(deg).padStart(kind === "lat" ? 2 : 3, "0")}°${min.toFixed(decimals).padStart(3 + decimals, "0")}'${hemi}`;
 }
