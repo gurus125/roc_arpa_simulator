@@ -8,6 +8,9 @@ import {
 } from "./signal";
 import { World } from "./types";
 import { pulseFor, rcsForDetectionRange, shorelineDetectionNm, unambiguousRangeNm } from "./band";
+import { NM_M, effectiveEarthRadiusM, elevationAngle, isLandAt, landFaceDetectionNm, terrainHides, visibleLand } from "./terrain";
+import { BAND_DATA } from "./band";
+import { pointInPolygon } from "../core/nav";
 
 export type HitKind =
   | "target" | "coast" | "multiple" | "sidelobe" | "sea-clutter" | "rain-clutter" | "noise" | "racon" | "sart" | "ramark" | "second-trace" | "interference"
@@ -94,6 +97,108 @@ export function lineOfSightBlocked(w: World, p: Vec2, ownEdge: number): boolean 
   return false;
 }
 
+/** Whether the point is on land: in the terrain's land mask, or inside a closed drawn coastline. */
+export function isLand(w: World, p: Vec2): boolean {
+  if (w.terrain) return isLandAt(w.terrain, p);
+  return w.coasts.some((c) => c.closed && pointInPolygon(p, c.points));
+}
+
+/**
+ * Whether land hides from the radar an object of `heightM` metres at `pos`: land between is seen at
+ * an elevation as high as the object's top or higher (with the Earth's curve and the refraction of
+ * the moment). With terrain, every piece of ground on the way counts; with drawn coastlines, each
+ * coast crossed counts at its own height. Land within 0.08 NM of the object does not hide it.
+ */
+export function landHides(w: World, pos: Vec2, heightM: number): boolean {
+  const re = effectiveEarthRadiusM(w.env.refraction ?? "standard", w.env.ducting);
+  const ha = w.own.antennaHeight;
+  if (w.terrain) return terrainHides(w.terrain, w.own.pos, pos, heightM, ha, re, Math.max(w.terrain.cellNm / 2, 0.02));
+  const dist = length(sub(pos, w.own.pos));
+  if (dist < 1e-6 || w.edges.length === 0) return false;
+  const top = elevationAngle(heightM, dist * NM_M, ha, re);
+  for (const e of w.edges) {
+    const t = segmentParam(w.own.pos, pos, e.a, e.b);
+    if (t === null || t <= 1e-6 || t >= 1 - 1e-6) continue;
+    const dc = t * dist;
+    if (dist - dc < 0.08) continue;
+    if (elevationAngle(e.heightM, dc * NM_M, ha, re) >= top) return true;
+  }
+  return false;
+}
+
+/** Spacing of the bearings along which the land of a real area is looked at, degrees. */
+export const TERRAIN_RAY_DEG = 0.25;
+
+/**
+ * Land echoes of a real area for the bearings between `start` and `start + width` (relative):
+ * along each ray, the land the radar sees (terrain.ts), each piece returning by the height of the
+ * face it shows, summed over the depth of the pulse. Neighbouring pieces painted on the same scan
+ * are joined into one echo running outward.
+ */
+function terrainLandHits(w: World, start: number, width: number, rng: () => number, hits: Hit[]): void {
+  const g = w.terrain;
+  if (!g) return;
+  const c = w.radar.controls;
+  const heading = w.own.heading;
+  const re = effectiveEarthRadiusM(w.env.refraction ?? "standard", w.env.ducting);
+  const ha = w.own.antennaHeight;
+  const step = Math.max(g.cellNm / 4, c.rangeNm / 480);
+  const pulse = pulseFor(c.rangeNm, c.pulse);
+  // Pieces of land within the depth of the pulse return together (half a pulse either side, to the nearest step).
+  const halfWindow = Math.max(0, Math.floor((pulse.rangeDiscriminationNm + step) / 2 / step + 1e-9));
+  const beam = BAND_DATA[w.radar.band].beamwidthDeg;
+  const shape = echoShape(w.radar.band, c, c.rangeNm / 2);
+  const k0 = Math.floor(start / TERRAIN_RAY_DEG) + 1;
+  for (let k = k0; (k * TERRAIN_RAY_DEG - start) <= width + 1e-9; k++) {
+    const rel = normalizeDeg(k * TERRAIN_RAY_DEG);
+    const tb = normalizeDeg(rel + heading);
+    const from = minRangeFloor(c.rangeNm);
+    const cells = visibleLand(g, w.own.pos, tb, ha, re, from, c.rangeNm, step);
+    if (cells.length === 0) continue;
+    const idx = cells.map((x) => Math.round((x.rangeNm - from) / step));
+    type Run = { first: number; last: number; sum: number; n: number; bucket: number };
+    const st: { run: Run | null } = { run: null };
+    const close = (): void => {
+      const run = st.run;
+      if (!run) return;
+      const a = cells[run.first]!;
+      const strength = run.sum / run.n;
+      hits.push({
+        pos: a.pos, strength, kind: "coast", size: 3, arcDeg: shape.arcDeg,
+        depthNm: (cells[run.last]!.rangeNm - a.rangeNm) + step + shape.depthNm, outward: true,
+      });
+      st.run = null;
+    };
+    let lo = 0;
+    let hi = 0;
+    let sum = 0;
+    for (let i = 0; i < cells.length; i++) {
+      // Exposed height summed over the pulse: the visible pieces within half a pulse either side.
+      while (hi < cells.length && idx[hi]! <= idx[i]! + halfWindow) sum += cells[hi++]!.exposedM;
+      while (idx[lo]! < idx[i]! - halfWindow) sum -= cells[lo++]!.exposedM;
+      const cell = cells[i]!;
+      const e = effectiveSignal(w, { rcs: rcsForDetectionRange(landFaceDetectionNm(sum, cell.heightM, cell.rangeNm, beam)), height: cell.heightM, rangeNm: cell.rangeNm, relBearing: rel, pos: cell.pos, kind: "coast" });
+      const painted = rng() < detectionProbability(e);
+      if (!painted) {
+        close();
+        continue;
+      }
+      const strength = clamp(e / (THRESHOLD * 4), 0.35, 1);
+      const bucket = Math.round(strength * 5);
+      const prev = st.run;
+      if (prev && idx[i]! === idx[prev.last]! + 1 && prev.bucket === bucket) {
+        prev.last = i;
+        prev.sum += strength;
+        prev.n++;
+      } else {
+        close();
+        st.run = { first: i, last: i, sum: strength, n: 1, bucket };
+      }
+    }
+    close();
+  }
+}
+
 /**
  * The echoes painted while the antenna sweeps from relative bearing `aFrom` to `aTo`
  * (degrees from the bow, clockwise). Everything the handout lists as an operator
@@ -146,24 +251,27 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
         const tb2 = bearingOfVec(v);
         const rel2 = relativeBearing(tb2, heading);
         const es = effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel2, pos: t.pos, kind: t.kind });
-        if (inWedge(rel2) && rng() < detectionProbability(es)) hits.push({ pos: add(w.own.pos, fromPolar(tb2, range - ru)), strength: 0.5, kind: "second-trace", size: 4, targetId: t.id, ...echoShape(w.radar.band, c, range - ru, targetLengthM(t), normalizeDeg((t.motion?.heading ?? t.course) - tb2)) });
+        if (inWedge(rel2) && rng() < detectionProbability(es)) hits.push({ pos: add(w.own.pos, fromPolar(tb2, range - ru)), strength: 0.5, kind: "second-trace", size: 4, targetId: t.id, ...echoShape(w.radar.band, c, range - ru, targetLengthM(t), normalizeDeg((t.motion?.heading ?? t.course) - tb2), t.beamM) });
       }
     }
     if (range > c.rangeNm * 1.0) continue;
     const tb = bearingOfVec(v);
     const rel = relativeBearing(tb, heading);
+    // Behind land the target is not seen, nor is anything it returns (worked out once, when needed).
+    let hiddenMemo: boolean | null = null;
+    const hidden = (): boolean => (hiddenMemo ??= landHides(w, t.pos, t.height));
     // Aspect: the angle between the target's heading and the line of sight. Beam-on returns more and paints wider; end-on returns less and paints deeper.
     const lenM = targetLengthM(t);
     const aspect = normalizeDeg((t.motion?.heading ?? t.course) - tb);
     const e = effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel, pos: t.pos, kind: t.kind }) * (lenM > 0 ? aspectFactor(aspect) : 1);
     // A longer pulse paints a longer echo; echo stretch enlarges it further.
     const size = (3 + 4 * Math.min(1, Math.sqrt(t.rcs))) * (c.echoStretch ? 1.8 : 1) * Math.sqrt(pulseFor(c.rangeNm, c.pulse).microseconds / pulseFor(c.rangeNm).microseconds);
-    if (inWedge(rel) && rng() < detectionProbability(e)) {
-      hits.push({ pos: { ...t.pos }, strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind: "target", size, targetId: t.id, ...echoShape(w.radar.band, c, range, lenM, aspect) });
+    if (inWedge(rel) && !hidden() && rng() < detectionProbability(e)) {
+      hits.push({ pos: { ...t.pos }, strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind: "target", size, targetId: t.id, ...echoShape(w.radar.band, c, range, lenM, aspect, t.beamM) });
     }
     // Transponders answer X-band radar only (3 cm). Their response is painted outward from the echo.
     const answers = t.transponder === "sart" ? w.radar.band === "X" : (t.raconBand ?? "X") === "both" || (t.raconBand ?? "X") === w.radar.band;
-    if (t.transponder && answers && range <= TRANSPONDER_RANGE_NM && inWedge(rel)) {
+    if (t.transponder && answers && range <= TRANSPONDER_RANGE_NM && inWedge(rel) && !hidden()) {
       if (t.transponder === "sart") {
         for (let i = 0; i < 12; i++) {
           const rk = range + i * SART_DOT_SPACING_NM;
@@ -185,7 +293,7 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
       }
     }
     // Multiple echoes: a strong, close, large target returns repeated echoes at 2x and 3x range.
-    if (t.rcs >= 0.8 && range < 1.5) {
+    if (t.rcs >= 0.8 && range < 1.5 && !hidden()) {
       for (const k of [2, 3]) {
         const rk = range * k;
         const base = Math.min(effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel, pos: t.pos }), 5);
@@ -194,13 +302,13 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
       }
     }
     // Side-lobe echoes: arcs of weak echoes either side of a very strong, close target.
-    if (e >= 8 && range <= 3) {
+    if (e >= 8 && range <= 3 && !hidden()) {
       for (const off of [-9, 9]) emit(normalizeDeg(tb + off), range, e * 0.08, "sidelobe", 2.5, t.id);
     }
     // Indirect echo: part of the pulse goes out and back by way of own ship's funnel or mast, so a
     // strong, close target is painted a second time in the shadow sector, on the bearing of the
     // obstruction and at the target's own range.
-    if (e >= INDIRECT_MIN_SIGNAL && range <= INDIRECT_MAX_RANGE_NM) {
+    if (e >= INDIRECT_MIN_SIGNAL && range <= INDIRECT_MAX_RANGE_NM && !hidden()) {
       for (const s of w.radar.shadowSectors) {
         const mid = normalizeDeg(s.from + ((((s.to - s.from) % 360) + 360) % 360) / 2);
         if (Math.abs(((rel - mid + 540) % 360) - 180) > 20) emit(normalizeDeg(heading + mid), range, e * INDIRECT_STRENGTH, "indirect", 3);
@@ -246,8 +354,10 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
     }
   }
 
-  // Coastline: strong echoes, but headlands cast radar shadow on what lies behind them.
-  for (const s of w.coastSamples) {
+  // Land. A real area with terrain: the ground the radar sees, ray by ray. Drawn coastlines: strong
+  // echoes from the shoreline, but headlands cast radar shadow on what lies behind them.
+  if (w.terrain) terrainLandHits(w, start, width, rng, hits);
+  else for (const s of w.coastSamples) {
     const v = sub(s.pos, w.own.pos);
     const range = length(v);
     if (range > c.rangeNm) continue;
@@ -272,7 +382,10 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
       const tb = normalizeDeg(rel + heading);
       const p = seaClutterProbability(w, r, rel);
       if (rng() < p) {
-        hits.push({ pos: add(w.own.pos, fromPolar(tb, r)), strength: 0.45, kind: "sea-clutter", size: 1.6 });
+        const pos = add(w.own.pos, fromPolar(tb, r));
+        // No sea clutter on land, nor on water in the shadow of land.
+        if (isLand(w, pos) || landHides(w, pos, 1)) continue;
+        hits.push({ pos, strength: 0.45, kind: "sea-clutter", size: 1.6 });
       }
     }
   }

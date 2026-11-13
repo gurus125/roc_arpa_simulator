@@ -47,15 +47,39 @@ describe("shape of a painted echo (worked by hand)", () => {
     expect(echoShape("X", { ...controls(6), echoStretch: true }, 4).depthNm).toBeCloseTo((45 / NM) * 1.8, 9);
   });
   it("aspect: beam-on returns more than end-on", () => {
-    expect(aspectFactor(90)).toBeCloseTo(1.4, 9);
-    expect(aspectFactor(0)).toBeCloseTo(0.6, 9);
-    expect(aspectFactor(180)).toBeCloseTo(0.6, 9);
-    expect(aspectFactor(270)).toBeCloseTo(1.4, 9);
+    // IEC 62388 Table D.1, largest / smallest cross-section of the 18 ships: 5, 34, 46, 10.9, 1.4, 5.5, 7.5,
+    // 20.8, 1.55, 3.26, 20.8, 7.9, 23.3, 27, 13.3, 7.2, 17.8, 100; median (10.9 + 13.3) / 2 = 12.1.
+    const ratios = [10 / 2, 680 / 20, 2300 / 50, 3500 / 320, 1400 / 1000, 5500 / 1000, 2100 / 280, 100000 / 4800, 17000 / 11000, 14000 / 4300, 11000 / 530, 11000 / 1400, 14000 / 600, 27000 / 1000, 24000 / 1800, 72000 / 10000, 890000 / 50000, 1700000 / 17000].sort((x, y) => x - y);
+    expect((ratios[8]! + ratios[9]!) / 2).toBeCloseTo(12.1, 1);
+    // In echo strength sqrt(12) = 3.4641, averaging 1: a (1 + 2.4641 x 2/pi) = 1, a = 1 / 2.56870 = 0.38930; beam-on 1.34858.
+    expect(aspectFactor(0)).toBeCloseTo(0.3893, 4);
+    expect(aspectFactor(180)).toBeCloseTo(0.3893, 4);
+    expect(aspectFactor(90)).toBeCloseTo(1.3486, 4);
+    expect(aspectFactor(270)).toBeCloseTo(1.3486, 4);
+    expect(aspectFactor(90) / aspectFactor(0)).toBeCloseTo(Math.sqrt(12), 9);
+    let mean = 0;
+    for (let a = 0; a < 360; a += 0.01) mean += aspectFactor(a) / 36000;
+    expect(mean).toBeCloseTo(1, 3);
   });
   it("higher land paints further inland", () => {
     expect(landDepthNm(0)).toBeCloseTo(0.1, 9);
     expect(landDepthNm(60)).toBeCloseTo(0.5, 9);
     expect(landDepthNm(300)).toBeCloseTo(0.5, 9);
     expect(landDepthNm(30)).toBeCloseTo(0.3, 9);
+  });
+});
+
+describe("Echo width from the vessel's real proportions", () => {
+  it("a catalogue vessel paints its typical beam end-on; a vessel of no type a seventh of its length", async () => {
+    const { TARGET_TYPES, TYPICAL_BEAM_M, targetFromType } = await import("../src/engine/index");
+    const panamax = targetFromType(TARGET_TYPES.find((t) => t.id === "bulk-panamax")!);
+    expect(panamax.beamM).toBe(32.3); // the Panama Canal's old lock limit, the class's beam
+    expect(targetExtents(panamax.lengthM!, 0, panamax.beamM).acrossM).toBeCloseTo(32.3, 9);
+    expect(targetExtents(225, 0).acrossM).toBeCloseTo(225 / 7, 9);
+    // Every moving catalogue type has a beam, narrower than its length.
+    for (const t of TARGET_TYPES.filter((x) => x.lengthM > 0)) {
+      expect(TYPICAL_BEAM_M[t.id], t.id).toBeGreaterThan(0);
+      expect(TYPICAL_BEAM_M[t.id]!, t.id).toBeLessThan(t.lengthM);
+    }
   });
 });

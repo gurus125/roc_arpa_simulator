@@ -6,6 +6,37 @@ import { courseToSteer, tidalStreamRate } from "../core/current";
 import { autopilotRudder, rudderRate, shipTypeById, stepShip } from "../core/shipmodel";
 import { seawayResponse } from "../core/seaway";
 import { stepRadarPower } from "./power";
+import { TerrainGrid, landHeightAt, unpackTerrain } from "./terrain";
+import { REAL_TERRAIN } from "./real-terrain";
+import { MUMBAI_ORIGIN } from "./real-coasts";
+
+const terrainCache = new Map<string, TerrainGrid>();
+/** The terrain grid of a real area, unpacked once. Null when there is no data for it. */
+export function terrainById(id: string | undefined): TerrainGrid | null {
+  if (!id) return null;
+  const hit = terrainCache.get(id);
+  if (hit) return hit;
+  const packed = REAL_TERRAIN[id];
+  if (!packed) return null;
+  const g = unpackTerrain(packed);
+  terrainCache.set(id, g);
+  return g;
+}
+
+/**
+ * Height of the coast at a shoreline point, from the terrain: the highest ground within `reachNm`
+ * of it (the land the radar sees rising behind the water's edge).
+ */
+export function shorelineHeightM(g: TerrainGrid, p: Vec2, reachNm = 0.15): number {
+  let best = 0;
+  for (let dy = -reachNm; dy <= reachNm + 1e-9; dy += reachNm / 3) {
+    for (let dx = -reachNm; dx <= reachNm + 1e-9; dx += reachNm / 3) {
+      const h = landHeightAt(g, { e: p.e + dx, n: p.n + dy });
+      if (h !== null && h > best) best = h;
+    }
+  }
+  return best;
+}
 
 export const COAST_SAMPLE_SPACING_NM = 0.025;
 
@@ -80,7 +111,7 @@ export function buildCoast(coasts: Coast[]): { edges: CoastEdge[]; samples: Coas
       const a = c.points[i]!;
       const b = c.points[(i + 1) % n]!;
       const edgeIndex = edges.length;
-      edges.push({ a, b });
+      edges.push({ a, b, heightM: c.heightM ?? 60 });
       const len = length(sub(b, a));
       const steps = Math.max(1, Math.round(len / COAST_SAMPLE_SPACING_NM));
       for (let s = 0; s < steps; s++) {
@@ -94,7 +125,15 @@ export function buildCoast(coasts: Coast[]): { edges: CoastEdge[]; samples: Coas
 
 export function createWorld(sc: Scenario, tuningOptimum = 62): World {
   const { edges, samples } = buildCoast(sc.coasts);
+  const terrain = terrainById(sc.terrain);
+  // With terrain, the shoreline (used by the ARPA's land plots) takes its height from the ground behind it.
+  if (terrain) {
+    for (const s of samples) s.heightM = shorelineHeightM(terrain, s.pos);
+    for (const e of edges) e.heightM = Math.max(shorelineHeightM(terrain, e.a), shorelineHeightM(terrain, e.b));
+  }
   return {
+    ...(terrain ? { terrain } : {}),
+    origin: sc.origin ?? MUMBAI_ORIGIN,
     time: 0,
     own: {
       pos: sc.own.pos ?? { e: 0, n: 0 },

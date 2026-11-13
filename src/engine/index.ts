@@ -9,4 +9,6 @@ export * from "./scenarios";
 export * from "./targets";
 export * from "./echo";
 export * from "./real-coasts";
+export * from "./real-terrain";
+export * from "./terrain";
 export * from "./power";

@@ -336,6 +336,33 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     const eblR = await text("#m_ebl");
     check(`${tag} EBL readout true or relative, reference shown`, eblT.endsWith("T") && eblR.endsWith("R") && (await text("#eblRef")) === "REL", `${eblT} | ${eblR}`);
     await p.click("#eblRef");
+    // A real area: Goa. The land paints from the real heights, and positions are given for that area.
+    {
+      await key("scen");
+      const goa = await p.$$eval("#scenario option", (os) => os.findIndex((o) => /Mormugao/.test(o.textContent ?? "")));
+      await p.selectOption("#scenario", String(goa));
+      const setRange = (r) => p.evaluate((v) => {
+        const el = document.querySelector("#range");
+        el.value = v;
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }, r);
+      await setRange("24");
+      await p.waitForTimeout(3500);
+      const kinds = await p.evaluate(() => window.__simTest.hitKinds());
+      const pos = await text("#cOwn");
+      check(`${tag} real area (Goa): land painted from its heights, position off Goa`, (kinds.coast ?? 0) > 20 && /LAT 15°2\d/.test(pos) && /LON 073°3\d/.test(pos), `${JSON.stringify(kinds)} ${pos.slice(0, 120)}`);
+      await p.selectOption("#scenario", "0");
+      await setRange("6");
+      // A new scenario starts with the EBL off; the checks below use it.
+      await p.evaluate(() => {
+        const e = document.querySelector("#eblOn");
+        if (!e.checked) {
+          e.checked = true;
+          e.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      });
+      await p.waitForTimeout(300);
+    }
     // Sleeping AIS targets can be filtered by range; the lost target warning can be switched off.
     await key("ais");
     await p.selectOption("#aisFilter", "6");

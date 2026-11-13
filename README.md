@@ -61,10 +61,18 @@ Realism (12 Nov 2026): false echoes (`src/core/falseecho.ts`: power line, bridge
 own ship in a seaway (`src/core/seaway.ts`: roll, pitch, yaw; estimated response), true-motion picture driven by the
 speed input, target tracks that allow for current. Radar beamwidths and pulse settings are from one maker's published
 specification; three own-ship types are fitted to published turning figures (see `PUBLISHED` in `src/core/shipmodel.ts`).
-Real coastline: the scenario "Approaches to Mumbai (real coastline)" uses `src/engine/real-coasts.ts`, made by
-`scripts/make-coast.mjs` from the geo-maps "earth-coastlines-250m" data set. Coastline data (c) OpenStreetMap
-contributors, Open Database License (ODbL) 1.0, https://www.openstreetmap.org/copyright. About 250 m accuracy; no
-depths, lights or buoys. It is not a chart.
+Real areas (13 Nov 2026): Mumbai, Mormugao (Goa), Kochi and the Gulf of Kutch (Mundra, Kandla) have their real
+coastline and real land heights. The radar sees the land ray by ray with the Earth's curve and refraction: radar
+shadow behind high land, high ground showing first and low coast later, each piece returning by the face it shows the
+radar, calibrated to IEC 62388 Tables 2 and D.7 (`src/engine/terrain.ts`; one placeholder, `LAND_REFLECTIVITY`).
+Ships behind land are hidden, from the radar and the ARPA, on drawn coastlines too, and there is no sea clutter on
+land. Vessels paint with their class's typical beam, and beam-on against end-on follows IEC 62388 Table D.1. See
+`docs/RADAR-PICTURE.md`. Coastlines: `src/engine/real-coasts.ts`, made by `scripts/make-coast.mjs` from the geo-maps
+"earth-coastlines-250m" data set, (c) OpenStreetMap contributors, Open Database License (ODbL) 1.0,
+https://www.openstreetmap.org/copyright, about 250 m accuracy. Land heights: `src/engine/real-terrain.ts`, made by
+`scripts/make-terrain.mjs` from Copernicus DEM GLO-90, (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH
+2014-2018, provided under COPERNICUS by the European Union and ESA; all rights reserved. No depths, lights or buoys.
+None of it is a chart.
 Symbols follow IMO SN.1/Circ.243/Rev.2 (`src/ui/arpa-view.ts`) and alerts follow IMO MSC.302(87)
 (`src/arpa/alerts.ts`: alarm, warning and caution priorities, acknowledged one at a time).
 Checked against IEC 62388:2013 (shipborne radar) and IEC 62288:2014 (presentation) on 13 Nov 2026: see
@@ -101,7 +109,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 488 tests
+    npm test            # 508 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

@@ -1,7 +1,7 @@
 import { Vec2, add, angleDiffDeg, bearingOf, fromPolar, length, sub } from "../core/vec";
 import { rangeBearing } from "../core/nav";
 import {
-  BAND_DATA, World, RadarControls, rcsForDetectionRange, shorelineDetectionNm, targetLengthM, detectionProbability, effectiveSignal, lineOfSightBlocked, rainClutterProbability,
+  BAND_DATA, World, RadarControls, rcsForDetectionRange, shorelineDetectionNm, targetLengthM, detectionProbability, effectiveSignal, isLand, landHides, lineOfSightBlocked, rainClutterProbability,
   relativeBearing, seaClutterProbability,
 } from "../engine/index";
 import { ArpaConfig } from "./config";
@@ -89,6 +89,7 @@ export function extractPlots(
     if (rb.range > cfg.maxRangeNm) continue;
     const e = effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: rb.range, relBearing: relativeBearing(rb.bearing, heading), pos: t.pos, kind: t.kind }, rx);
     if (rng() >= detectionProbability(e)) continue;
+    if (landHides(w, t.pos, t.height)) continue; // behind land
     if (t.paint !== undefined && !paintedThisScan(t, t.paint)) continue; // a fading target is missed on some scans
     // Scintillation: the centre of a real echo wanders a little from scan to scan.
     // (IMO A.823(19) appendix 3: glint is along the length of the target; across it is negligible.)
@@ -126,7 +127,8 @@ export function extractPlots(
     if (cells.has(key)) continue;
     const e = effectiveSignal(w, { rcs: rcsForDetectionRange(shorelineDetectionNm(s.heightM)), height: s.heightM, rangeNm: r, relBearing: relativeBearing(bearingOf(v), heading), pos: s.pos, kind: "coast" }, rx);
     if (rng() >= detectionProbability(e)) continue;
-    if (lineOfSightBlocked(w, s.pos, s.edge)) continue;
+    // With terrain, the shoreline is hidden by higher land in front of it; drawn coastlines hide what lies behind them.
+    if (w.terrain ? landHides(w, s.pos, s.heightM) : lineOfSightBlocked(w, s.pos, s.edge)) continue;
     cells.add(key);
     raw.push({ relTrue: v, kind: "land", truthIds: [], strength: 1 });
   }
@@ -138,6 +140,8 @@ export function extractPlots(
       const r = Math.max(0.05, maxR * Math.pow(rng(), 2));
       const rel = 360 * rng();
       if (rng() < seaClutterProbability(w, r, rel, rx)) {
+        const at = add(w.own.pos, fromPolar(rel + heading, r));
+        if (isLand(w, at) || landHides(w, at, 1)) continue; // no sea clutter on land or in its shadow
         raw.push({ relTrue: fromPolar(rel + heading, r), kind: "clutter", truthIds: [], strength: 0.5 });
       }
     }

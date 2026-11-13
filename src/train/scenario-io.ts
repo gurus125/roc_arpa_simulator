@@ -1,4 +1,4 @@
-import { Scenario } from "../engine/index";
+import { REAL_TERRAIN, Scenario } from "../engine/index";
 
 /**
  * Scenario files (JSON). `SCENARIO_SCHEMA` documents the format (JSON Schema, draft 2020-12);
@@ -184,6 +184,13 @@ export function validateScenario(x: unknown): string[] {
         `Coast ${i + 1} needs a name, "closed" (true/false) and at least two points.`,
       );
     });
+  const tr = x["terrain"];
+  need(tr === undefined || (typeof tr === "string" && tr in REAL_TERRAIN), `"terrain" must be the name of a real area: ${Object.keys(REAL_TERRAIN).join(", ")}.`);
+  const og = x["origin"];
+  need(
+    og === undefined || (isObj(og) && isNum(og["lat"]) && og["lat"] >= -80 && og["lat"] <= 80 && isNum(og["lon"]) && og["lon"] >= -180 && og["lon"] <= 180),
+    '"origin" must have lat (-80 to 80) and lon (-180 to 180), in degrees.',
+  );
   const hz = x["hazards"];
   need(hz === undefined || (Array.isArray(hz) && hz.every((h) => isObj(h) && typeof h["name"] === "string" && vecOk(h["center"]) && isNum(h["radius"]) && h["radius"] > 0)), "Each hazard needs a name, a centre and a radius above 0.");
   const rt = x["route"];

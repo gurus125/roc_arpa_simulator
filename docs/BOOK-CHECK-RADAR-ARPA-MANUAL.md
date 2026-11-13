@@ -80,7 +80,7 @@ or outside ROC and ARPA).
 | 3.5.7 Radar transponder for survival craft (SART) | Yes: 12 dots, arcs, then rings, X band only |
 | 3.6 Sea clutter: wave height, range, **wind direction**, **pulse length**; sea clutter control; adaptive gain; rotation-to-rotation correlation | Yes since this check. The effect of antenna height on the extent of clutter (3.6.1.4) is not modelled |
 | 3.7 Precipitation: clutter, attenuation, wavelength, the rain clutter control | Yes for rain. Snow, hail, cloud and dust are not separate cases |
-| 3.8 Radar horizon; **sub-refraction**, **super-refraction**; ducting | Yes since this check |
+| 3.8 Radar horizon; **sub-refraction**, **super-refraction**; ducting | Yes since this check. Since 13 Nov 2026, in the four real areas, land comes up over the horizon by its real height: high ground inland shows first and the coast seems to come towards the ship (3.8.1.1), with the refraction of the moment |
 | 3.9 False echoes: indirect, multiple, side lobe, interference, second trace, power cables | Yes, all six. Second-trace echoes move when the PRF changes, as the book says |
 
 ### 4. Automatic radar plotting aids: specified facilities
@@ -140,7 +140,7 @@ or outside ROC and ARPA).
 
 | Section | Simulator |
 |---------|-----------|
-| 8.2 Identifying targets and comparing with the chart; shadow areas; conspicuous targets | Partly: land shadows and racons are there; one scenario has a real coastline. There is no chart to compare with, and no rise and fall of tide |
+| 8.2 Identifying targets and comparing with the chart; shadow areas; conspicuous targets | Partly: land shadows and racons are there; four scenarios have a real coastline with real land heights, so shadow areas behind hills and headlands are real ones. There is no chart to compare with, and no rise and fall of tide |
 | 8.3 Position fixing by radar ranges and bearings; angle of cut | Yes (ROC fix exercise) |
 | 8.4 Parallel indexing: preparation, the index line, margins, progress monitoring, true-motion use, electronic lines, unplanned use | Yes (four index lines, navigation lines, radar exercise 10, clearing range). The **wheel-over position** (8.4.3.4) is only a debrief question |
 | 8.4.8 Collision avoidance while parallel indexing | Partly: possible in the pilotage and traffic exercises, not marked as such |

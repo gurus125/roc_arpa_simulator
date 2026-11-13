@@ -9,11 +9,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { AREAS, toLocal } from "./areas.mjs";
 
-const AREAS = [
-  // name of the constant, title, origin (the simulator's 0,0) and the box that is cut out, degrees.
-  { id: "MUMBAI", title: "Approaches to Mumbai", origin: { lat: 18 + 50 / 60, lon: 72 + 30 / 60 }, box: { south: 18.45, north: 19.35, west: 72.3, east: 73.1 } },
-];
 const TOLERANCE_NM = 0.03; // points nearer than this to the simplified line are left out
 const MIN_LENGTH_NM = 0.3; // shorter pieces (rocks, pond edges) are left out
 
@@ -25,8 +22,6 @@ if (!src) {
 const geo = JSON.parse(readFileSync(src, "utf8"));
 const polygons = geo.geometries.flatMap((g) => (g.type === "MultiPolygon" ? g.coordinates : [g.coordinates]));
 
-// Same plane-sailing conversion as core/nav.ts positionOfLatLon.
-const toLocal = (o, lat, lon) => ({ e: (lon - o.lon) * 60 * Math.cos((((o.lat + lat) / 2) * Math.PI) / 180), n: (lat - o.lat) * 60 });
 const inside = (b, [lon, lat]) => lat >= b.south && lat <= b.north && lon >= b.west && lon <= b.east;
 /** Where the segment p -> q leaves or enters the box (p inside, q outside, or the other way round). */
 function crossing(b, p, q) {

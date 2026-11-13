@@ -94,6 +94,21 @@ describe("scenario files", () => {
     expect(errs.some((e) => e.includes("aisStatic"))).toBe(true);
     expect(errs.some((e) => e.includes("paint"))).toBe(true);
   });
+  it("keeps a real area's terrain and origin, and checks them", () => {
+    for (const id of ["mumbai-approach", "goa-approach", "kochi-approach", "kutch-approach"]) {
+      const sc = SCENARIOS.find((x) => x.id === id)!;
+      const back = scenarioFromJson(scenarioToJson(sc));
+      if (!("scenario" in back)) throw new Error(`${id} did not validate`);
+      expect(back.scenario.terrain).toBe(sc.terrain);
+      expect(back.scenario.origin).toEqual(sc.origin);
+    }
+    const bad = JSON.parse(scenarioToJson(SCENARIOS.find((x) => x.id === "goa-approach")!));
+    bad.terrain = "atlantis";
+    bad.origin = { lat: 95, lon: 0 };
+    const errs = validateScenario(bad);
+    expect(errs.some((e) => e.includes("terrain"))).toBe(true);
+    expect(errs.some((e) => e.includes("origin"))).toBe(true);
+  });
 });
 
 describe("ARPA exercises: structure", () => {

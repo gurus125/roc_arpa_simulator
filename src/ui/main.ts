@@ -9,7 +9,7 @@ import { initInstructorUi } from "./instructor-ui";
 import { Link } from "./link";
 import { esc } from "./dom";
 import { ConsoleUi, initConsoleUi, radarKeyLabel } from "./console-ui";
-import { AppState, SCENARIO_ORIGIN, advance, createApp, resetCourseUp, resetTrueMotion, setDisplayMode, setRange } from "./app";
+import { AppState, advance, createApp, resetCourseUp, resetTrueMotion, setDisplayMode, setRange } from "./app";
 import { initRocUi } from "./roc-ui";
 import { initArpaUi } from "./arpa-ui";
 import { drawPpi, radarGeometry, readoutAt } from "./view";
@@ -1084,7 +1084,7 @@ function updateReadouts(): void {
     setText("osType", type ? type.name.split(",")[0]! : "Exercise ship");
     const dr = $("osDraught") as HTMLInputElement;
     if (document.activeElement !== dr) dr.value = String(store.data.ownShip.draughtM ?? type?.draughtM ?? "");
-    const ll = latLonOf(SCENARIO_ORIGIN, w0.own.pos);
+    const ll = latLonOf(w0.origin, w0.own.pos);
     setText("osPos", `${formatLatLon(ll.lat, "lat")}  ${formatLatLon(ll.lon, "lon")}`);
     const cg = ownCogSog(w0);
     setText("osCog", `${cg.course.toFixed(1).padStart(5, "0")}°`);
@@ -1210,6 +1210,20 @@ window.addEventListener("beforeunload", () => store.save());
   refraction: (): string => app.world.env.refraction ?? "standard",
   vectorSuppress: (): boolean => app.arpa.settings.vectorSuppress,
   aisFilter: (): number | null => app.ais.settings.sleepFilter.rangeNm,
+  /** Echoes on the picture now, by kind. */
+  hitKinds: (): Record<string, number> => {
+    const out: Record<string, number> = {};
+    for (const h of app.hits) out[h.hit.kind] = (out[h.hit.kind] ?? 0) + 1;
+    return out;
+  },
+  /** Put own ship somewhere (NM in the scenario's frame) and clear the picture, for pictures of the land. */
+  placeOwn: (e: number, n: number, heading: number): void => {
+    app.world.own.pos = { e, n };
+    app.world.own.heading = heading;
+    app.world.own.ordered.course = heading;
+    app.hits.length = 0;
+    resetTrueMotion(app);
+  },
   aisFilterLabel: (): string => aisFilterLabel(app.ais.settings.sleepFilter),
   headingLost: (): boolean => app.headingLost,
   lostWarning: (): boolean => app.arpa.settings.lostWarning,

@@ -247,8 +247,12 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
   back. Anything the ship does not send reads MISSING: a class B set (small craft) sends no
   navigational status, rate of turn, IMO number or voyage data, and reports less often (every 30 s
   or so). "Own ship AIS data" shows what own ship's AIS is sending.
-- **SCENARIO**: free-practice scenarios (one has 100 ships at once; one is on the real coastline
-  of the approaches to Mumbai); show target names (a study aid).
+- **SCENARIO**: free-practice scenarios (one has 100 ships at once; four are real areas, with the
+  real coastline and land heights: the approaches to Mumbai, Mormugao (Goa) and Kochi, and the Gulf of
+  Kutch); show target names (a study aid). In a real area the land paints as a radar sees it: far off
+  only the high ground shows, and the coast seems to come towards you as low land rises above the
+  horizon; hills cast radar shadow; a ship behind an island or a headland disappears from the picture
+  and from the ARPA until it comes out again.
 - **SETTINGS**: day or night display; telemotor 2 (faster rudder); own ship data.
 - **ROC EX**: radar observer exercises (plotting, position fixing, set and drift, clearing range,
   blind pilotage, traffic).
@@ -285,5 +289,7 @@ it, 40° to the left of its course: Red 40°.
 - The radar picture is simplified compared with a real set. Beamwidths and pulse lengths are those
   of one maker's set, taken as typical.
 - False echoes can be seen but the ARPA cannot acquire them; on a real ARPA they can be acquired.
-- Positions are not on a real chart. One scenario uses a real coastline (OpenStreetMap data, about
-  250 m accuracy) with no depths, lights or buoys; the others use invented coasts.
+- Positions are not on a real chart. Four scenarios use a real coastline (OpenStreetMap data, about
+  250 m accuracy) and real land heights (Copernicus DEM, 90 m) with no depths, lights or buoys; the
+  others use invented coasts. How strongly land returns is set by one figure that an instructor
+  should check against a real set (see RADAR-PICTURE.md).

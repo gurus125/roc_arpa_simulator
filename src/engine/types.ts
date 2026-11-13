@@ -1,6 +1,7 @@
 import { ShipMotion } from "../core/shipmodel";
 import { Vec2 } from "../core/vec";
 import { SetDrift } from "../core/current";
+import type { TerrainGrid } from "./terrain";
 
 export type TargetKind = "ship" | "small-craft" | "buoy" | "beacon";
 
@@ -38,6 +39,8 @@ export interface Target {
   height: number;
   /** Length of the vessel, metres (sets the size of the echo's glint). Default by kind: see `targetLengthM`. */
   lengthM?: number;
+  /** Beam of the vessel, metres. Left out: its catalogue type's typical beam, else a seventh of its length. */
+  beamM?: number;
   events: TargetEvent[];
   nextEvent: number;
   /**
@@ -235,6 +238,8 @@ export interface RadarSet {
 export interface CoastEdge {
   a: Vec2;
   b: Vec2;
+  /** Height of the coast along this edge, metres. */
+  heightM: number;
 }
 
 export interface CoastSample {
@@ -288,6 +293,10 @@ export interface World {
   depths: DepthArea[];
   /** Structures that give false echoes. */
   structures: Structure[];
+  /** Ground heights and land mask of a real area (see engine/terrain.ts); absent for drawn coastlines. */
+  terrain?: TerrainGrid;
+  /** Latitude and longitude of the frame's origin (0, 0), for positions shown in degrees and minutes. */
+  origin: { lat: number; lon: number };
 }
 
 export interface Scenario {
@@ -302,6 +311,13 @@ export interface Scenario {
   route?: Vec2[];
   depths?: DepthArea[];
   structures?: Structure[];
+  /**
+   * Real area whose ground heights the radar sees (an id in engine/real-terrain.ts, for example
+   * "mumbai"). Without it, or before its data is made, the coastlines paint at their own heights.
+   */
+  terrain?: string;
+  /** Latitude and longitude of the scenario's origin (0, 0). Left out: 18°50'N 072°30'E, off Mumbai. */
+  origin?: { lat: number; lon: number };
 }
 
 /** IMO MSC.192(79) 5.10.1: 0.25, 0.5, 0.75, 1.5, 3, 6, 12 and 24 NM. */

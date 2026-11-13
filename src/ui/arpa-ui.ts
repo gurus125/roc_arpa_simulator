@@ -7,7 +7,7 @@ import { Track, VECTOR_TIME_RANGE_MIN, ZoneSetting, arpaAvailableOnScale, ARPA_S
 import { World, measuredHeading } from "../engine/index";
 import { aisFilterLabel, aisFilterOn, ownShipAisData } from "../ais/index";
 import { formatLatLon, latLonOf } from "../core/nav";
-import { AppState, SCENARIO_ORIGIN } from "./app";
+import { AppState } from "./app";
 
 export type ClickMode = "acquire" | "select" | "cancel" | "ebl";
 
@@ -225,7 +225,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
   ownAisTick = (w) => {
     if (!ownAisShown) return;
     const o = ownShipAisData(w);
-    const ll = latLonOf(SCENARIO_ORIGIN, o.pos);
+    const ll = latLonOf(w.origin, o.pos);
     $("aisOwn").textContent = `Own ship's AIS (class ${o.cls}): MMSI ${o.mmsi}, call sign ${o.callSign}, ${o.navStatus}. Position ${formatLatLon(ll.lat, "lat", 3)} ${formatLatLon(ll.lon, "lon", 3)}. COG ${pad3(o.cog)}°, SOG ${o.sog.toFixed(1)} kn, heading ${pad3(o.heading)}°.`;
   };
   $("aisActAll").addEventListener("click", () => {

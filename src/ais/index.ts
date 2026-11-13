@@ -2,7 +2,7 @@ import { Vec2, add, angleDiffDeg, bearingOf, length, rotateVec, scale, sub, velo
 import { CpaResult, computeCpa } from "../core/cpa";
 import { TrialResult, trialManoeuvre } from "../core/trial";
 import { inSectorZone } from "../core/zones";
-import { World, ownCogSog, ownGroundVelocity, targetTypeById } from "../engine/index";
+import { TYPICAL_BEAM_M, World, ownCogSog, ownGroundVelocity, targetTypeById } from "../engine/index";
 import { ArpaSystem, capacityCautionAt } from "../arpa/index";
 
 /**
@@ -268,7 +268,7 @@ export class AisSystem {
         navStatus: a ? pick(st.navStatus, anchored ? "At anchor" : "Under way using engine") ?? "" : "",
         pos: { ...t.pos }, cog: t.course, sog: t.speed, heading: t.motion?.heading ?? t.course, time: w.time, intervalSec: iv,
         lostAfterSec: a ? aisLostAfterSec(t.speed, anchored) : aisClassBLostAfterSec(t.speed, cls), rot: a ? rot : null,
-        callSign: `SIM${String(t.id).padStart(3, "0")}`, lengthM, beamM: lengthM === null ? null : lengthM * AIS_BEAM_SHARE,
+        callSign: `SIM${String(t.id).padStart(3, "0")}`, lengthM, beamM: lengthM === null ? null : t.beamM ?? (t.typeId ? TYPICAL_BEAM_M[t.typeId] : undefined) ?? lengthM * AIS_BEAM_SHARE,
         imo: a ? pick(st.imo, simulatedImo(t.id)) : null,
         shipType: pick(st.shipType, (t.typeId ? AIS_SHIP_TYPE[t.typeId] : undefined) ?? (t.kind === "ship" ? "Cargo" : null)),
         destination: a ? pick(st.destination, null) : null,

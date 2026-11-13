@@ -4,7 +4,7 @@ import { alertRows } from "./alerts-view";
 import { formatLatLon, latLonOf } from "../core/nav";
 import { courseSpeedOf, normalizeDeg, sub, velocityOf } from "../core/vec";
 import { displayNmToWorld, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, radarPower, relativeWind, ringInterval, warmUpLeftSec } from "../engine/index";
-import { AppState, SCENARIO_ORIGIN } from "./app";
+import { AppState } from "./app";
 import { $ } from "./dom";
 import { readoutAt } from "./view";
 
@@ -370,7 +370,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     if (ppiEl.style.filter !== bright) ppiEl.style.filter = bright;
     // Own ship: heading and speed in large figures, each value with the sensor it comes from
     // (red when the instructor has failed that sensor, as the ARPA's own alarm already says).
-    const pos = latLonOf(SCENARIO_ORIGIN, w.own.pos);
+    const pos = latLonOf(w.origin, w.own.pos);
     const nav = (label: string, value: string, u: string, source: string, bad: boolean, cls = ""): string =>
       `<div class="nav ${cls}"><span class="cl">${label}</span><b>${value}</b>${unit(u)}<i class="src${bad ? " no" : ""}">${source}</i></div>`;
     put("cOwn",
@@ -386,7 +386,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     // Cursor: bearing (true and relative) and range as the radar reads them, and the position that
     // bearing and range give from own ship's position (so a gyro error shifts it, as on a real set).
     const cur = app.cursor ? readoutAt(app, displayNmToWorld(w, app.display, app.cursor.x, app.cursor.y)) : null;
-    const curPos = cur ? latLonOf(SCENARIO_ORIGIN, { e: w.own.pos.e + cur.range * Math.sin((cur.trueBearing * Math.PI) / 180), n: w.own.pos.n + cur.range * Math.cos((cur.trueBearing * Math.PI) / 180) }) : null;
+    const curPos = cur ? latLonOf(w.origin, { e: w.own.pos.e + cur.range * Math.sin((cur.trueBearing * Math.PI) / 180), n: w.own.pos.n + cur.range * Math.cos((cur.trueBearing * Math.PI) / 180) }) : null;
     put("cCur",
       `<div class="cline">` + pair("BRG", cur ? `${p3(cur.trueBearing)}${unit("°T")}` : dash, "big") + pair("REL", cur ? `${p3(cur.relBearing)}${unit("°")}` : dash) + pair("RNG", cur ? `${cur.range.toFixed(2)}${unit("NM")}` : dash, "big") + `</div>` +
       `<div class="cpos"><span class="cl">CURS</span><b>${curPos ? formatLatLon(curPos.lat, "lat", 3) : "--°--.---'"}</b><b>${curPos ? formatLatLon(curPos.lon, "lon", 3) : "---°--.---'"}</b></div>`);
@@ -471,7 +471,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
           field("STATE", v.lost ? "LOST" : v.dangerous ? "DANGER" : v.state === "activated" ? "ACTIVE" : "SLEEP", v.dangerous ? "no" : v.lost ? "wn" : "") + field("AGE", `${Math.round(v.ageSec)}${unit("s")}`) +
           // Identification, navigational status and reported position (IEC 62288 5.5.11.1); on request, the further data.
           // What the report does not carry is shown as MISSING.
-          (aisMore ? moreLine(v.report) : `<div class="tp none"><span class="pair"><span class="cl">MMSI</span> <b>${v.report.mmsi || "MISSING"}</b></span><span class="pair"><span class="cl">C/S</span> <b>${v.report.callSign || "MISSING"}</b></span><span class="pair"><b class="${v.report.navStatus ? "" : "wn"}">${(v.report.navStatus || "STATUS MISSING").replace(/</g, "&lt;").toUpperCase()}</b></span><span class="pair"><span class="cl">POSN</span> <b>${formatLatLon(latLonOf(SCENARIO_ORIGIN, v.report.pos).lat, "lat", 3)} ${formatLatLon(latLonOf(SCENARIO_ORIGIN, v.report.pos).lon, "lon", 3)}</b></span></div>`)
+          (aisMore ? moreLine(v.report) : `<div class="tp none"><span class="pair"><span class="cl">MMSI</span> <b>${v.report.mmsi || "MISSING"}</b></span><span class="pair"><span class="cl">C/S</span> <b>${v.report.callSign || "MISSING"}</b></span><span class="pair"><b class="${v.report.navStatus ? "" : "wn"}">${(v.report.navStatus || "STATUS MISSING").replace(/</g, "&lt;").toUpperCase()}</b></span><span class="pair"><span class="cl">POSN</span> <b>${formatLatLon(latLonOf(w.origin, v.report.pos).lat, "lat", 3)} ${formatLatLon(latLonOf(w.origin, v.report.pos).lon, "lon", 3)}</b></span></div>`)
         : `<div class="tp none"><span class="cl">NO TARGET SELECTED &nbsp; acquire or select a target</span></div>`);
   };
 

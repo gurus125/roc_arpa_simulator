@@ -67,11 +67,25 @@ export const TARGET_TYPES: TargetType[] = [
   { ...T("beacon", "Beacon or light structure", "beacon", 0, 15, 12, 0, 0, 0, 0), fixed: true },
 ];
 
+/**
+ * Typical beam of each catalogue type, metres: the usual breadth of ships of that class and length
+ * (for example Panamax 32.3 m, a VLCC about 60 m, an ultra-large container ship about 59 m). Typical
+ * figures for the class, not those of one ship. They set the width of the echo end-on and of the
+ * AIS outline.
+ */
+export const TYPICAL_BEAM_M: Record<string, number> = {
+  vlcc: 60, aframax: 44, "product-tanker": 32, "chemical-tanker": 20, lng: 46, lpg: 29,
+  "container-ul": 59, "container-pp": 43, "container-feeder": 23, "bulk-cape": 45, "bulk-panamax": 32.3, "bulk-handy": 27,
+  "general-cargo": 20, coaster: 14, roro: 28, "car-carrier": 32, cruise: 36, ferry: 25, "high-speed": 24, frigate: 15,
+  "offshore-supply": 18, dredger: 22, tug: 11, "tug-tow": 30, trawler: 9, "fishing-boat": 4, "pilot-boat": 5, yacht: 4,
+};
+
 export function targetTypeById(id: string | undefined): TargetType | undefined {
   return id === undefined ? undefined : TARGET_TYPES.find((t) => t.id === id);
 }
 
 /** The fields of a target that come from its catalogue type. */
-export function targetFromType(type: TargetType): Pick<Target, "kind" | "rcs" | "height" | "lengthM" | "typeId"> {
-  return { kind: type.kind, rcs: rcsForDetectionRange(type.detectNm), height: type.heightM, lengthM: type.lengthM, typeId: type.id };
+export function targetFromType(type: TargetType): Pick<Target, "kind" | "rcs" | "height" | "lengthM" | "typeId" | "beamM"> {
+  const beam = TYPICAL_BEAM_M[type.id];
+  return { kind: type.kind, rcs: rcsForDetectionRange(type.detectNm), height: type.heightM, lengthM: type.lengthM, typeId: type.id, ...(beam !== undefined ? { beamM: beam } : {}) };
 }

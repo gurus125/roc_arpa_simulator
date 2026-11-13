@@ -182,6 +182,32 @@ the position, for example
 or "low"). Left out, a ship gets a made-up IMO number and a type from its catalogue type, and no
 voyage data.
 
+### Real areas: coastlines and land heights
+
+Four real areas are built in: the approaches to Mumbai, Mormugao (Goa) and Kochi, and the Gulf of
+Kutch. A scenario file uses one with `"terrain": "mumbai"` (or `"goa"`, `"kochi"`, `"kutch"`) and its
+origin, for example `"origin": { "lat": 15.4167, "lon": 73.5 }` for Goa; positions in the file are then
+NM east and north of that origin. Start from one of the four scenarios in the editor to keep both.
+
+How land paints is set by one figure, `LAND_REFLECTIVITY` in `src/engine/terrain.ts` (now 10, a
+placeholder). If an experienced radar observer finds that a coast is seen too early or too late
+compared with a real set, that is the figure to change; see `docs/RADAR-PICTURE.md`.
+
+To add an area, or to make the data again, a developer needs the land-height tiles (Copernicus DEM
+GLO-90, free, with the credit given in the scenario descriptions). On a Windows PC, in PowerShell:
+
+    $ProgressPreference = 'SilentlyContinue'
+    $dir = "C:\path\to\radar-sim\terrain-src"
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    foreach ($t in "N18_00_E072_00","N18_00_E073_00","N19_00_E072_00","N19_00_E073_00") {
+      $n = "Copernicus_DSM_COG_30_${t}_DEM"
+      try { Invoke-WebRequest -Uri "https://copernicus-dem-90m.s3.amazonaws.com/$n/$n.tif" -OutFile "$dir\$n.tif" } catch { "no tile $t (sea)" }
+    }
+
+(one name per whole degree of latitude and longitude the area covers). Then add the area to
+`scripts/areas.mjs` and run `scripts/make-coast.mjs` and `scripts/make-terrain.mjs` as their first
+lines describe. The tiles themselves are not part of the simulator and need not be kept.
+
 ## 12. Locking a classroom PC to the simulator (kiosk mode)
 
 A trainee should not be able to leave the simulator for other programs during an assessment. The

@@ -1,7 +1,13 @@
 import { TARGET_TYPES, targetFromType } from "./targets";
 import { fromPolar } from "../core/vec";
 import { Coast, Scenario } from "./types";
-import { MUMBAI_COAST } from "./real-coasts";
+import { REAL_TERRAIN_CREDIT } from "./real-terrain";
+import { GOA_COAST, GOA_ORIGIN, KOCHI_COAST, KOCHI_ORIGIN, KUTCH_COAST, KUTCH_ORIGIN, MUMBAI_COAST, MUMBAI_ORIGIN } from "./real-coasts";
+
+/** What the real-area scenarios say about their data. */
+const REAL_AREA_NOTE =
+  "The coastline is real (about 250 m accuracy) and so are the land heights the radar sees (90 m cells: hills, cliffs, buildings and trees; low land far off shows little, and high ground behind it shows first). The ships, wind and current are invented, and there are no depths, lights or buoys: this is not a chart and not for navigation. " +
+  REAL_TERRAIN_CREDIT;
 
 /** Open sea. Cargo ship A reproduces the worked example on the phase 1 instructor sheet. */
 export const OPEN_SEA: Scenario = {
@@ -188,15 +194,19 @@ export const FALSE_ECHOES: Scenario = {
 
 /**
  * The approaches to Mumbai on a REAL coastline (OpenStreetMap data, about 250 m accuracy; see
- * real-coasts.ts). Own ship starts at the scenarios' origin, 18 50 N 072 30 E, about 18 NM west of
- * the harbour entrance. Only the coastline is real: the ships, wind and current are invented, and
- * there are no depths, lights or buoys. It is not a chart.
+ * real-coasts.ts) with the real land heights (real-terrain.ts). Own ship starts at the scenarios'
+ * origin, 18 50 N 072 30 E, about 18 NM west of the harbour entrance. The ships, wind and current
+ * are invented, and there are no depths, lights or buoys. It is not a chart.
  */
 export const MUMBAI_APPROACH: Scenario = {
   id: "mumbai-approach",
   name: "Approaches to Mumbai (real coastline)",
   description:
-    "Own ship is 18 NM west of Mumbai harbour, steering in. The coastline is real (data © OpenStreetMap contributors, about 250 m accuracy): Mumbai and its harbour to the east, the coast running south past Alibag. The ships, wind and current are invented, and there are no depths, lights or buoys: this is not a chart and not for navigation. Use the 12 and 24 NM ranges to pick up the land, and compare the picture with a chart of the area.",
+    "Own ship is 18 NM west of Mumbai harbour, steering in: Mumbai and its harbour to the east, the coast running south past Alibag. " +
+    REAL_AREA_NOTE +
+    " Use the 12 and 24 NM ranges to pick up the land, and compare the picture with a chart of the area.",
+  terrain: "mumbai",
+  origin: MUMBAI_ORIGIN,
   own: { heading: 80, speed: 12 },
   env: { seaState: 3, wind: { from: 250, speedKn: 14 }, current: { set: 10, drift: 0.8 } },
   coasts: MUMBAI_COAST,
@@ -211,4 +221,72 @@ export const MUMBAI_APPROACH: Scenario = {
   ],
 };
 
-export const SCENARIOS: Scenario[] = [OPEN_SEA, COASTAL, SAR, SECOND_TRACE, HEAVY_TRAFFIC, SHIP_TYPES_TRAFFIC, HUNDRED_SHIPS, FALSE_ECHOES, MUMBAI_APPROACH];
+/** Approaches to Mormugao, Goa: an iron-ore port with ships at anchor off the headland. Origin 15 25 N 073 30 E. */
+export const GOA_APPROACH: Scenario = {
+  id: "goa-approach",
+  name: "Approaches to Mormugao, Goa (real coast and land)",
+  description:
+    "Own ship is 15 NM west of Mormugao, steering in. Ore carriers lie at anchor off the headland, one is leaving, and fishing boats work the coast. The Western Ghats rise behind the coast to over 800 m. " + REAL_AREA_NOTE,
+  own: { heading: 90, speed: 12, pos: { e: 2, n: 0 } },
+  env: { seaState: 3, wind: { from: 270, speedKn: 14 }, current: { set: 160, drift: 0.5 } },
+  coasts: GOA_COAST,
+  terrain: "goa",
+  origin: GOA_ORIGIN,
+  targets: [
+    { id: 1, name: "Ore carrier at anchor", ...typed("bulk-cape"), pos: { e: 12.5, n: -1.8 }, course: 250, speed: 0, events: [] },
+    { id: 2, name: "Bulk carrier at anchor", ...typed("bulk-panamax"), pos: { e: 13.2, n: -0.4 }, course: 250, speed: 0, events: [] },
+    { id: 3, name: "Outbound bulk carrier", ...typed("bulk-handy"), pos: { e: 15.2, n: -1.2 }, course: 255, speed: 9, events: [], aisStatic: { destination: "QINGDAO", eta: "02 DEC 0800 UTC", draughtM: 9.8 } },
+    { id: 4, name: "Coastal tanker", ...typed("product-tanker"), pos: { e: 8, n: 14 }, course: 175, speed: 11, events: [] },
+    { id: 5, name: "Trawler", ...typed("trawler"), pos: { e: 9, n: 5 }, course: 200, speed: 6, events: [] },
+    { id: 6, name: "Fishing boat", ...typed("fishing-boat"), pos: { e: 11, n: -6 }, course: 330, speed: 5, events: [] },
+    { id: 7, name: "Fishing boat 2", ...typed("fishing-boat"), pos: { e: 6, n: -3 }, course: 60, speed: 4, events: [] },
+    { id: 8, name: "Inbound container feeder", ...typed("container-feeder"), pos: { e: 4, n: -14 }, course: 20, speed: 13, events: [], aisStatic: { destination: "MORMUGAO", eta: "13 NOV 1500 UTC", draughtM: 7.6 } },
+  ],
+};
+
+/** Approaches to Kochi: a container terminal, an LNG terminal and the naval base, with many fishing boats. Origin 09 58 N 075 55 E. */
+export const KOCHI_APPROACH: Scenario = {
+  id: "kochi-approach",
+  name: "Approaches to Kochi (real coast and land)",
+  description:
+    "Own ship is 16 NM west of the entrance to Kochi, steering in. A container ship is leaving, an LNG carrier is coming up from the south-west, a tanker waits at anchor, and fishing boats are everywhere. The coast is low: at first the radar sees the higher ground and the trees behind the beach, not the water's edge. " + REAL_AREA_NOTE,
+  own: { heading: 90, speed: 12, pos: { e: 3, n: 1 } },
+  env: { seaState: 3, wind: { from: 280, speedKn: 12 }, current: { set: 340, drift: 0.6 } },
+  coasts: KOCHI_COAST,
+  terrain: "kochi",
+  origin: KOCHI_ORIGIN,
+  targets: [
+    { id: 1, name: "Outbound container ship", ...typed("container-pp"), pos: { e: 16.5, n: 0.2 }, course: 265, speed: 12, events: [], aisStatic: { destination: "COLOMBO", eta: "14 NOV 1000 UTC", draughtM: 12.4 } },
+    { id: 2, name: "Tanker at anchor", ...typed("product-tanker"), pos: { e: 13.5, n: -1.5 }, course: 200, speed: 0, events: [] },
+    { id: 3, name: "Inbound LNG carrier", ...typed("lng"), pos: { e: 7, n: -9 }, course: 50, speed: 11, events: [], aisStatic: { destination: "KOCHI LNG", eta: "13 NOV 1700 UTC", draughtM: 11.5 } },
+    { id: 4, name: "Fishing boat", ...typed("fishing-boat"), pos: { e: 12, n: 4 }, course: 180, speed: 4, events: [] },
+    { id: 5, name: "Trawler", ...typed("trawler"), pos: { e: 14, n: -4.5 }, course: 0, speed: 7, events: [] },
+    { id: 6, name: "Fishing boat 2", ...typed("fishing-boat"), pos: { e: 9, n: 6 }, course: 250, speed: 5, events: [] },
+    { id: 7, name: "Naval frigate", ...typed("frigate"), pos: { e: 10, n: 10 }, course: 200, speed: 18, events: [], ais: false },
+  ],
+};
+
+/** Gulf of Kutch: Mundra, Kandla and the oil terminals of Vadinar and Sikka. Origin 22 36 N 069 36 E. */
+export const KUTCH_APPROACH: Scenario = {
+  id: "kutch-approach",
+  name: "Gulf of Kutch: Mundra and Kandla (real coast and land)",
+  description:
+    "Own ship is entering the Gulf of Kutch, bound for Kandla. Mundra port is on the north shore ahead; the oil terminals of Vadinar and Sikka are on the south shore. A VLCC is making for the Vadinar buoys, a container ship is leaving Mundra, and a tug is towing up the gulf. The land is low on both sides, with islands and reefs on the south side. " + REAL_AREA_NOTE,
+  own: { heading: 80, speed: 12, pos: { e: -12, n: 2 } },
+  env: { seaState: 2, wind: { from: 230, speedKn: 12 }, tidal: { floodSet: 75, maxRateKn: 2.5, hoursAfterSlackAtStart: 1 } },
+  coasts: KUTCH_COAST,
+  terrain: "kutch",
+  origin: KUTCH_ORIGIN,
+  targets: [
+    { id: 1, name: "VLCC for Vadinar", ...typed("vlcc"), pos: { e: -5, n: -2 }, course: 100, speed: 10, events: [], aisStatic: { destination: "VADINAR SBM", eta: "13 NOV 1600 UTC", draughtM: 21.2 } },
+    { id: 2, name: "Tanker at anchor", ...typed("aframax"), pos: { e: 2, n: -2 }, course: 240, speed: 0, events: [] },
+    { id: 3, name: "Outbound container ship", ...typed("container-pp"), pos: { e: 5, n: 5 }, course: 245, speed: 13, events: [], aisStatic: { destination: "JEBEL ALI", eta: "15 NOV 0600 UTC", draughtM: 13.1 } },
+    { id: 4, name: "Bulk carrier for Kandla", ...typed("bulk-panamax"), pos: { e: -4, n: 4 }, course: 70, speed: 12, events: [], aisStatic: { destination: "KANDLA", eta: "13 NOV 2000 UTC", draughtM: 12.0 } },
+    { id: 5, name: "Tug with tow", ...typed("tug-tow"), pos: { e: 8, n: 3 }, course: 85, speed: 6, events: [] },
+    { id: 6, name: "Fishing boat", ...typed("fishing-boat"), pos: { e: 0, n: 0.5 }, course: 300, speed: 4, events: [] },
+    { id: 7, name: "Fishing boat 2", ...typed("fishing-boat"), pos: { e: 10, n: -1.5 }, course: 120, speed: 5, events: [] },
+    { id: 8, name: "Coaster", ...typed("coaster"), pos: { e: 12, n: 4.5 }, course: 260, speed: 8, events: [] },
+  ],
+};
+
+export const SCENARIOS: Scenario[] = [OPEN_SEA, COASTAL, SAR, SECOND_TRACE, HEAVY_TRAFFIC, SHIP_TYPES_TRAFFIC, HUNDRED_SHIPS, FALSE_ECHOES, MUMBAI_APPROACH, GOA_APPROACH, KOCHI_APPROACH, KUTCH_APPROACH];
