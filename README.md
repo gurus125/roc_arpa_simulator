@@ -13,17 +13,18 @@ ARPA is switched off during ROC exercises.
 
 ## Screen layout
 
-Console style: the radar picture on the left; on the right a data panel that is always in view
-(range, rings, heading, speeds, mode, band and pulse, vectors, stabilisation, CPA/TCPA limits,
-past positions, trails, EBL/VRM, cursor, targets, simulator time, alarm), then Run / speed /
-radar standby, then a grid of menu keys. Only the controls of the chosen key are shown.
-Always in view as separate boxes: DISPLAY (range, rings, orientation, motion, stabilisation,
-trails), OWN SHIP, CURSOR, EBL / VRM (tick boxes with readouts; a ticked line follows the cursor,
-double-click locks it), GAIN / CLUTTER (gain, sea, rain, tune, each clutter control with AUTO;
-the automatic settings are placeholders), TARGETS (Acquire / Select / Cancel / Measure),
-VECTORS (buttons, no typing), TARGET DATA for the selected ARPA target and AIS TARGET DATA for
-the selected AIS target (Select, then click the AIS symbol).
-PPC / PAD keys in VECTORS draw potential points of collision or predicted areas of danger for
+The radar picture in the middle, as tall as the window allows, with three data panels down each side
+of it that are always in view. Left: PICTURE (radar on / standby, range, rings, band, AIS, orientation,
+motion, stabilisation, resets, pulse length), GAIN / CLUTTER (gain, sea, rain, tune, each clutter
+control with AUTO, the automatic settings being placeholders; brilliance; trails) and EBL / CURSOR
+(tick boxes with readouts, a ticked line following the cursor until a double-click locks it; the
+cursor's bearing, range and position; the PI / MAP key). Right: OWN SHIP, TARGET DATA (the selected
+ARPA target, or the selected AIS target) and VRM / ARPA (VRMs, vectors, PPC / PAD, CPA / TCPA
+limits, the ARPA's status, ALARM ACK and the alert, Acquire / Select / Cancel / Measure, MENU).
+Nothing is written over the picture (IEC 62288 4.3.3, 5.5.14). MENU opens a drawer over the
+right-hand side with a grid of menu keys; only the controls of the chosen key are shown, and
+CLOSE or Esc closes it.
+PPC / PAD keys in the VRM / ARPA panel draw potential points of collision or predicted areas of danger for
 steady tracks (the PAD is a simplified hexagon; makers' shapes differ). ARPA > Speed log input
 has "Manual speed". Own ship has a manoeuvring model (`src/core/shipmodel.ts`): four ship types, autopilot or hand
 steering with a rudder that moves at a limited rate, engine telegraph, turning circle, speed loss
@@ -114,7 +115,7 @@ browsers (needs Playwright). Separate PCs on a network have not been tried.
 Explanatory text is hidden until HELP is pressed. The data area (`src/ui/console-ui.ts`, styles in
 `src/ui/index.template.html`) is laid out the way ships' radars in general present their data: heading and
 speed in large figures with their sensor, position, cursor and target data as label, value and unit, settings in
-boxes that are clicked, gain and clutter as bars, short status lines in the corners of the picture, and the
+boxes that are clicked, gain and clutter as bars, status lines in the panels beside the picture, and the
 standard abbreviations of IMO SN.1/Circ.243/Rev.2. It is drawn larger on a large screen. It is a generic
 arrangement of our own, not a copy of any maker's screen, and no radar instructor has reviewed it.
 

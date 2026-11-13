@@ -129,7 +129,6 @@
   .ccol { display:flex; flex-direction:column; gap:4px; min-width:0; }
   .ccol > .cbox:last-of-type { flex:1; }
   #rngHold select { width:100%; min-width:70px; }
-  #ppiCorner input[type=checkbox] { width:1em !important; height:1em !important; min-width:0; }
   #side > * { flex:none; }
 
   .crow { display:flex; align-items:center; gap:5px; margin:1px 0; }
@@ -158,21 +157,6 @@
   @keyframes cflash { 50% { opacity:.25; } }
   /* EBL/VRM and target keys over the empty bottom-left corner of the picture; sizes follow the picture's width. */
   #wrap { position:relative; container-type:inline-size; }
-  #ppiCorner { position:absolute; left:0.5cqw; bottom:0.4cqw; font:clamp(8px, 1.5cqw, 12px)/1.3 ui-monospace, Consolas, monospace; display:flex; flex-direction:column; gap:0.4em; align-items:flex-start; pointer-events:none; }
-  #ppiCorner > * { pointer-events:auto; }
-  #ppiCorner #cMeas { min-width:15em; background:var(--box); border:1px solid var(--line); border-radius:5px; padding:0.2em 0.5em; }
-  #ppiCorner .mrow { display:grid; grid-template-columns:minmax(14px, 1.2em) 3.3em 1fr 2.6em; align-items:center; gap:0.25em; margin:0; cursor:pointer; }
-  #ppiCorner .mrow input { width:1em; height:1em; margin:0; }
-  #ppiCorner .mrow .cl { white-space:nowrap; }
-  #ppiCorner .mrow b { text-align:right; color:var(--bright); font-size:1.08em; white-space:nowrap; }
-  #ppiCorner .mrow i { font-style:normal; font-size:.8em; color:var(--accent); text-align:right; }
-  #ppiCorner .cl { color:var(--muted); }
-  #ppiCorner #cTgt .btns { display:flex; flex-wrap:nowrap; gap:0.3em; align-items:center; margin:0; }
-  #ppiCorner #cTgt button { font:600 .92em ui-monospace, Consolas, monospace; padding:0.2em 0.4em; white-space:nowrap; }
-  #ppiCorner #cTgt button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
-  #ppiCorner #cTgt .check { margin:0; display:flex; align-items:center; gap:0.25em; white-space:nowrap; }
-  #ppiCorner #cTgt .check input { width:1em; height:1em; margin:0; }
-  #ppiCorner #cTgt label { margin:0; font-size:.92em; color:var(--muted); }
   #bTd p { margin:2px 0 0; }
   #telegraph { display:grid !important; grid-template-columns:repeat(10, 1fr); gap:2px !important; }
   #telegraph button { padding:5px 0; font:600 9.5px ui-monospace, Consolas, monospace; white-space:nowrap; }
@@ -256,8 +240,8 @@
   #console #ringsKey { padding:1px 4px; flex:none; }
   #console .cbtns { gap:4px; margin:2px 0 0; }
   #console .cbtns button { flex:1; }
-  #console input[type=checkbox], #ppiCorner input[type=checkbox] { appearance:none; -webkit-appearance:none; width:11px; height:11px; min-width:11px; border:1px solid var(--clab); border-radius:0; background:transparent; margin:0; cursor:pointer; }
-  #console input[type=checkbox]:checked, #ppiCorner input[type=checkbox]:checked { background:var(--accent); border-color:var(--accent); box-shadow:inset 0 0 0 2px var(--cbg); }
+  #console input[type=checkbox] { appearance:none; -webkit-appearance:none; width:11px; height:11px; min-width:11px; border:1px solid var(--clab); border-radius:0; background:transparent; margin:0; cursor:pointer; }
+  #console input[type=checkbox]:checked { background:var(--accent); border-color:var(--accent); box-shadow:inset 0 0 0 2px var(--cbg); }
   /* Gain, sea, rain, tune: bars. The control is dragged or clicked like a slider. */
   #cGain .row { grid-template-columns:38px 1fr 26px 52px; gap:5px; margin:1px 0; }
   #cGain .row.two { grid-template-columns:38px 1fr; }
@@ -279,8 +263,6 @@
   #console #aisKey { flex:none; padding:1px 5px; }
   #console #cAisMore { margin-left:10px; padding:0 6px; font-size:10px; line-height:14px; }
   #cTd .tp.none.more { flex-wrap:wrap; justify-content:flex-start; column-gap:12px; }
-  #ppiCorner .mref { display:flex; justify-content:space-between; align-items:center; gap:0.4em; margin-top:0.15em; border-top:1px dotted var(--cline); padding-top:0.15em; }
-  #ppiCorner .mref button { font:600 .9em ui-monospace, Consolas, monospace; padding:0 0.5em; border-radius:0; min-width:4.2em; }
   #cCur .cpos { display:flex; gap:10px; align-items:baseline; }
   #cCur .cpos b { font-weight:600; }
   #console .cbox b.big { font-size:15px; }
@@ -296,12 +278,8 @@
   #cVecInfo { display:flex; flex-wrap:wrap; gap:0 16px; border-top:1px dotted var(--cline); margin-top:2px; padding-top:1px; }
   #console #arpaMsg { margin:1px 0 0; }
   /* EBL / VRM readouts and the cursor keys over the corner of the picture, and the menu keys: the same square look. */
-  #ppiCorner #cMeas { border-radius:0; background:var(--cbg); border-color:var(--cline); }
-  #ppiCorner #cTgt button { border-radius:0; }
   #cMenu button { border-radius:0; }
   /* On a large screen the data area is drawn larger, as on a radar's own display, in the room the square picture leaves free. */
-  @media (min-width:1560px) and (min-height:860px) { main { grid-template-columns:minmax(0, 1fr) 636px; } #console { zoom:1.2; } }
-  @media (min-width:1880px) and (min-height:1000px) { main { grid-template-columns:minmax(0, 1fr) 742px; } #console { zoom:1.4; } }
   .row { margin:3px 0; }
   @media (max-width: 900px) { body { overflow:auto; } main { grid-template-columns:1fr; height:auto; } #side { height:auto; } header { height:auto; flex-wrap:wrap; } }
   canvas[hidden], #readout[hidden] { display:none; }
@@ -312,6 +290,69 @@
   #login label { display:block; color:var(--muted); font-size:12px; margin-top:8px; }
   #banner { background:#3a2c08; color:var(--warn); padding:6px 14px; font-size:13px; }
   #banner[hidden] { display:none; }
+  /* ---- The radar screen (13 Nov 2026): the picture in the middle, as tall as the window allows; three data panels
+     down each side of it (picture settings, gain and clutter, EBL and cursor on the left; own ship, target data, VRM and
+     ARPA on the right); everything else in a menu drawer that opens over the right-hand side and closes again. Nothing is
+     written on the radar picture itself (IEC 62288 4.3.3, 5.5.14, 6.1.5). A generic arrangement of our own. ---- */
+  main { --colw:clamp(272px, calc((100vw - 100vh) / 2 + 14px), 600px); position:relative; grid-template-columns:var(--colw) minmax(0, 1fr) var(--colw); grid-template-areas:"l s r"; gap:6px; }
+  #stage { grid-area:s; align-items:center; }
+  #console { display:contents; }
+  .ccolumn, #side #menuHead, #side #cMenu { user-select:none; -webkit-user-select:none; }
+  .ccolumn { --z:1; zoom:var(--z); width:calc(var(--colw) / var(--z)); height:calc((100vh - 32px) / var(--z)); display:flex; flex-direction:column; justify-content:space-between; gap:6px; min-width:0; overflow:hidden; font:12px/1.3 Consolas, "Lucida Console", "DejaVu Sans Mono", ui-monospace, monospace; font-variant-numeric:tabular-nums; }
+  #colL { grid-area:l; } #colR { grid-area:r; }
+  #console .ccolumn > .cbox { border:1px solid var(--cline); background:var(--cbg); padding:0 8px 5px; flex:none; }
+  #console .ccolumn > .cbox > h3 { margin:0 -8px 4px; padding:2px 8px; align-items:center; }
+  #console #bDisp h3 #cTopSb { margin-left:auto; }
+  #console #bDisp h3 #radarSb { padding:1px 10px; font-size:11px; min-width:0; }
+  #console .crow .cl { width:46px; }
+  #console .cst { display:flex; flex-wrap:wrap; gap:2px 12px; margin-top:3px; border-top:1px dotted var(--cline); padding-top:2px; }
+  #console .cst b { font-weight:600; }
+  #console .cst b.wn { color:var(--warn); }
+  #console #cTop { display:flex; gap:4px; align-items:stretch; margin:4px 0 2px; padding:0; }
+  #console #cTop #ackKey { padding:2px 10px; font-size:12px; }
+  #console #cTgt .btns { display:flex; flex-wrap:wrap; gap:3px; margin:2px 0; }
+  #console #cTgt .check { margin:0 0 0 4px; display:flex; align-items:center; gap:4px; }
+  #console #cTgt label { margin:0; color:var(--clab); font-size:11px; }
+  #console #cTgt button.on { background:var(--accent); color:var(--onaccent); border-color:var(--accent); }
+  #console .mrow { grid-template-columns:14px 48px 1fr 40px; margin:2px 0; }
+  #console .mrow b { font-size:15px; color:var(--bright); }
+  #console .mrow i { font-style:normal; font-size:10px; color:var(--accent); text-align:right; }
+  #console .mref { display:flex; justify-content:space-between; align-items:center; gap:6px; margin:1px 0 3px; border-bottom:1px dotted var(--cline); padding-bottom:3px; }
+  #console .cmenu { justify-content:flex-end; margin-top:4px; }
+  #console #menuKey { background:var(--accent); color:var(--onaccent); border-color:var(--accent); padding:3px 22px; font-size:13px; flex:none; }
+  #console #menuKey.on { background:var(--btnon); color:var(--text); }
+  #console .cfoot { text-align:right; font-size:10px; color:var(--clab); margin-top:3px; letter-spacing:.06em; }
+  #console #cTd { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  /* Own ship in one column: label at the left, value at the right, then its unit and the sensor it comes from. */
+  #console #cOwn { grid-template-columns:1fr; row-gap:1px; }
+  #console #cOwn .nav { grid-template-columns:40px 1fr 24px 44px; }
+  #console #cOwn .nav.big b { font-size:22px; line-height:23px; }
+  #console #cOwn .nav.pos { grid-template-columns:40px 1fr 68px; }
+  #console #cOwn .nav.pos b { font-size:15px; }
+  #console #cOwn .navrow { grid-column:1; flex-wrap:wrap; justify-content:flex-start; column-gap:14px; }
+  #console #cTd .tp.none .cl { white-space:normal; }
+  #console #bTd h3 #cAisMore { margin-left:8px; }
+  /* The target data gives way (and scrolls) when the window is too low for everything, so the keys below it stay in view. */
+  #console .ccolumn > #bTd { flex:0 1 auto; min-height:64px; overflow-y:auto; }
+  #console #bOwn h3 #cTime { margin-left:auto; letter-spacing:.04em; }
+  #console #bOwn h3 #cTime b { font-weight:600; }
+  /* A low window: closer spacing, and the footer goes (the top bar says "not for navigation" as well). */
+  @media (max-height:700px) {
+    #console .ccolumn { gap:4px; }
+    #console .ccolumn > .cbox > h3 { margin-bottom:2px; padding:1px 8px; }
+    #console #cOwn .nav.big b { font-size:19px; line-height:20px; }
+    #console .cfoot { display:none; }
+  }
+  /* The menu drawer, over the right-hand side of the screen. */
+  #side { position:absolute; top:4px; right:6px; bottom:4px; width:min(560px, calc(100vw - 12px)); z-index:20; background:var(--bg); border:1px solid var(--accent); padding:6px; display:none; flex-direction:column; gap:5px; box-shadow:-14px 0 30px rgba(0,0,0,.55); height:auto; }
+  body.menu-open #side { display:flex; }
+  #menuHead { display:flex; align-items:center; gap:10px; flex:none; font:600 11px Consolas, ui-monospace, monospace; letter-spacing:.12em; color:var(--accent); }
+  #menuHead #menuTitle { color:var(--bright); letter-spacing:.06em; }
+  #menuHead #menuClose { margin-left:auto; padding:2px 12px; font:600 11px Consolas, ui-monospace, monospace; border-radius:0; }
+  /* A larger data area on a large screen. */
+  @media (min-width:1560px) and (min-height:860px) { .ccolumn { --z:1.15; } }
+  @media (min-width:1880px) and (min-height:1000px) { .ccolumn { --z:1.3; } }
+  @media (max-width: 900px) { main { grid-template-columns:1fr; grid-template-areas:"s" "l" "r"; } .ccolumn { height:auto; width:auto; zoom:1; } #side { position:fixed; } }
 </style>
 </head>
 <body>

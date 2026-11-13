@@ -39,7 +39,8 @@ checked this comparison.
 
 Also found while reading: the "ARPA STANDBY" and "ARPA not available on this range scale" messages
 were being drawn inside the radar circle's clip and so were never seen. They are now written in the
-corner of the picture (corrected on 13 Nov 2026 with the new data area).
+corner of the picture (corrected on 13 Nov 2026 with the new data area), and since the redesign of the
+screen the same day in the ARPA's status lines in the VRM / ARPA panel beside the picture.
 
 ## Chapter by chapter
 

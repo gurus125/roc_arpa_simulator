@@ -39,10 +39,10 @@ and no radar instructor has reviewed it.
 | 62288 5.5.10.1, Annex B | A tracked target's course and speed are CTW and STW (sea stabilised) or COG and SOG (ground stabilised); "course" is CRS | "CSE" and "SPD" | CTW / STW or COG / SOG by the stabilisation in use; CRS in the lists |
 | 62388 11.3.5.1 | A caution when the tracking capacity is about to be exceeded (nominal 95%), a warning when it is exceeded | Warning only | Caution at 19 of 20 targets; the warning as before |
 | 62288 Table 2 | Alarm: red, flashing, three short audible signals repeated every 7 s to 10 s. Warning: yellowish orange, flashing, two short signals. Caution: yellow, silent | Alarm sounded continuously; warning one long signal; warnings were yellow | The three patterns as in the table (alarm every 8 s); warnings orange, cautions yellow |
-| 62288 5.6.4.1 | The lost target warning can be switched off, and that it is off is shown | AIS only | Also for tracked targets (CPA/ALARM); "LOST TGT WARNING OFF" on the picture; with it off the lost symbol stays one minute |
+| 62288 5.6.4.1 | The lost target warning can be switched off, and that it is off is shown | AIS only | Also for tracked targets (CPA/ALARM); "LOST TGT WARNING OFF" shown (since 13 Nov 2026 beside the picture, in the VRM / ARPA panel); with it off the lost symbol stays one minute |
 | 62388 16.2.2.1 | Heading input lost: automatic change to unstabilised head-up within a minute, and an indication that only relative bearings can be used | The ARPA alarmed and dropped its tracks; the picture stayed as it was | Picture forced to H UP, relative motion; EBL readouts relative; "HDG FAIL: UNSTAB, REL BRG ONLY" on the picture |
 | 62388 13.5.1, Table 35 | One action, confirmed, puts the controls to the standard default settings | No such key | DEFAULT SETTINGS under SETTINGS (X band, 6 NM, rings off, one EBL and one VRM at 0.25 NM, true motion north-up, ground stabilised, trails 6 min, relative vectors 6 min, automatic acquisition off, AIS on, CPA 2 NM, TCPA 12 min) |
-| 62388 11.5.3.1, 62288 5.5.5.1 | Sleeping AIS targets can be filtered, with the filter shown; single targets cannot be removed | Show all or none | Filter by range (3, 6, 12 NM) under AIS LIST; "AIS FILTER" on the picture |
+| 62388 11.5.3.1, 62288 5.5.5.1 | Sleeping AIS targets can be filtered, with the filter shown; single targets cannot be removed | Show all or none | Filter by range (3, 6, 12 NM) under AIS LIST; "AIS FILTER" shown (since 13 Nov 2026 in the VRM / ARPA panel) |
 | 62288 5.5.11.1 | AIS target data: identification, navigational status, position, heading and rate of turn; what is absent shown as missing | Name, bearing, range, COG, SOG, CPA, TCPA | MMSI, navigational status, reported position and heading added; ROT shown as MISSING (the simulator's AIS reports carry none) |
 
 The earlier statement in this project that the priority of each alert was "this simulator's own
@@ -168,7 +168,7 @@ fail and fail it as they should.
 | 62388 Table 27 | Class B reporting intervals and lost target times | Class B "CS" and "SO" stations: 3 min / 18 min at 2 kn or less; CS 30 s / 180 s; SO 30 s / 180 s to 14 kn, 15 s / 90 s to 23 kn, 5 s / 30 s above. Small craft carry class B when the scenario gives them AIS |
 | 62388 11.6.1, 62288 5.5.11.1 | Further AIS data on request, with an indication in the data field that it is there; absent data shown as MISSING | A MORE key in the target data of a selected AIS target shows the class, IMO number, ship type, destination, ETA, draught, size and position accuracy; anything not sent reads MISSING (class B sends no status, rate of turn, IMO number or voyage data). The AIS LIST panel gives all of it in words |
 | 62388 11.6.1 (MSC.192/5.28.6) | Own ship's AIS data on request | "Own ship AIS data" key under AIS LIST |
-| 62388 11.5.3.1 | Filter for sleeping AIS targets; class only together with other factors; the criteria readily seen; a permanent indication | Hide sleeping targets beyond a range, passing wider than a CPA, with the CPA further ahead than a TCPA, or slower than a speed, for class A and B or class B only (the class alone does nothing). The criteria are written at the top right of the picture ("AIS FILTER RNG>6 CPA>2 CLASS B ONLY"), the AIS key reads AIS FILT, and the panel says what is hidden. Activated, dangerous, lost and selected targets are always drawn |
+| 62388 11.5.3.1 | Filter for sleeping AIS targets; class only together with other factors; the criteria readily seen; a permanent indication | Hide sleeping targets beyond a range, passing wider than a CPA, with the CPA further ahead than a TCPA, or slower than a speed, for class A and B or class B only (the class alone does nothing). The criteria are shown in the VRM / ARPA panel beside the picture ("AIS FILTER RNG>6 CPA>2 CLASS B ONLY"), the AIS key reads AIS FILT, and the panel says what is hidden. Activated, dangerous, lost and selected targets are always drawn |
 
 Scenario files can now give a target its AIS class (`aisClass`) and what its AIS sends
 (`aisStatic`: IMO number, ship type, destination, ETA, draught, navigational status, position
@@ -191,6 +191,17 @@ Read for this round: IEC 62288 Annex A symbols 1.2 to 1.5, IEC 62388 11.5.3.1 an
 | 62288 A.1 1.2 | Radar antenna position (optional): crossed lines 1 to 2 mm long at the antenna's place, only with own ship's outline | "Antenna position on own ship's outline" box; the antenna's distance ahead and to starboard of the reference point is entered under Own ship data (0 and 0 to start with). The picture stays referenced to the reference point, as a real radar corrects it (62388 8.2.2.1): the offset only places the mark |
 | 62388 11.5.3.1, test g) | Reports repeated by an AIS shore station are not processed while direct reports of the vessel come in; own ship's repeated reports never are | An instructor switch (ARPA tab, instructor faults) makes a shore station repeat every report it hears, own ship's included, 30 s late and every 10 s. They are counted and not used. A repeated report is used only for a vessel that is heard through the station alone, and never replaces a newer report. Test g) is run as written: a 24 kn target 2 NM off, five minutes, no repeated report displayed, no alarm |
 | 62388 11.3.14.4 to 11.3.14.7 (HSC) | The high-speed craft versions of TT scenarios 2 to 5: own ship turning at 20°/s; at 45 kn; at 70 kn with a 70 kn target; 60 kn slowing to 40 kn at 1 kn/s, radar at 40 rpm | Run as tests in `tests/iec-tt.test.ts`. All met (no sensor errors, as the standard runs them). In scenario 5 the simulator's own CPA and TCPA of the ten targets agree with the standard's Tables 21 and 22 to their last figure |
+
+## The screen redesigned (13 Nov 2026)
+
+| Standard | Requirement, in short | Now |
+|----------|----------------------|-----|
+| 62288 4.3.3 | The operational display area (the radar picture) kept separate from the user dialogue area | The picture in the middle of the screen, as tall as the window allows; three data panels down each side; the menu in a drawer over the right-hand side that is opened (MENU) and closed (CLOSE, MENU, Esc) by the user. Ship control, the exercise and the instructor pages are still in the menu: they move to their own window and page in the next steps |
+| 62288 5.5.14, 6.1.5 | Text must not hide the picture; anything laid over it is temporary and can be moved or taken off | No text is written over the picture any more: range, mode, pulse, heading failure, ARPA status, AIS filter and the rest are in the panels beside it. Only the menu drawer covers part of the picture, and only while it is open |
+
+The arrangement is our own and generic, not a copy of any maker's screen. On a window as wide as it
+is high or narrower (5:4, 4:3), the side panels take room from the picture: at 1280 x 1024 pixels the
+picture is 712 pixels across.
 
 ## Not met, and not done yet
 

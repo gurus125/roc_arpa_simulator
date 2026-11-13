@@ -499,35 +499,8 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.fillText("STANDBY", size / 2, size / 2 - 3 * hudM.lh);
   }
 
-  // Corner readouts, as on a radar screen: the range scale in large figures, the rings and the presentation
-  // mode at the top left; band and pulse length at the top right, with the ARPA's lines under it (drawArpaHud).
-  // The lines are short because the corners are the only room outside the circle.
-  // (Heading and speeds are in the own ship box; the bottom-left corner carries the EBL/VRM and target keys.)
-  const hud = hudText(size);
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = G("#8fd9a6");
-  ctx.font = `bold ${hud.big}px monospace`;
-  ctx.fillText(`${c.rangeNm} NM`, 8, hud.big);
-  ctx.font = `${hud.fs}px monospace`;
-  const orientLabel = ds.orientation === "north-up" ? "N UP" : ds.orientation === "head-up" ? "H UP" : "C UP";
-  ctx.fillText(`RINGS ${app.ringsOn ? `${fmtNm(step)} NM` : "OFF"}`, 8, hud.big + hud.lh);
-  ctx.fillText(`${orientLabel}  ${ds.motion === "relative" ? "RM" : "TM"}`, 8, hud.big + 2 * hud.lh);
-  ctx.fillText(ds.stabilisation === "sea" ? "SEA STAB" : "GND STAB", 8, hud.big + 3 * hud.lh);
-  ctx.textAlign = "right";
-  const pulse = pulseFor(c.rangeNm, c.pulse).name;
-  ctx.fillText(`${w.radar.band}-BAND  ${pulse === "short" ? "SP" : pulse === "medium" ? "MP" : "LP"}`, size - 8, hud.lh);
-  if (app.headingLost) {
-    // Steady, in the colour of a warning (the failure itself is alerted by the ARPA): two short lines under the
-    // presentation mode at the top left.
-    ctx.textAlign = "left";
-    ctx.fillStyle = G("#ffb347");
-    ctx.fillText("HDG FAIL: UNSTAB", 8, hud.big + 4 * hud.lh);
-    ctx.fillText("REL BRG ONLY", 8, hud.big + 5 * hud.lh);
-    ctx.textAlign = "right";
-  }
-  ctx.fillStyle = G("#58a56f");
-  ctx.fillText("TRAINING USE ONLY", size - 8, size - 8);
+  // The range, rings, presentation mode, band and pulse are shown in the PICTURE panel beside the picture,
+  // so the corners of the square stay clear (IEC 62288 4.3.3: the picture separate from the data).
   ctx.restore();
 }
 

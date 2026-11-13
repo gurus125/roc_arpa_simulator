@@ -21,14 +21,67 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   await p.getByText("Free practice without names").click();
   await p.waitForTimeout(300);
   const tag = `[${W}x${H}]`;
+  // The menu is a drawer over the right-hand side of the screen: open it to reach a menu key, close it to
+  // reach what it covers. A click on a control in the drawer opens it; a click on something it covers closes it.
+  const menuOpen = () => p.evaluate(() => document.body.classList.contains("menu-open"));
+  const openMenu = async () => {
+    if (!(await menuOpen())) await rawClick("#menuKey");
+  };
+  const closeMenu = async () => {
+    if (await menuOpen()) await rawClick("#menuClose");
+  };
+  const rawClick = p.click.bind(p);
+  p.click = async (sel, opts) => {
+    // Looked up and judged in one go: some lists are redrawn every second, so a handle can go stale.
+    const where = await p.evaluate((q) => {
+      const e = document.querySelector(q);
+      if (!e) return { inSide: false, covered: false };
+      const r = e.getBoundingClientRect();
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return { inSide: !!e.closest("#side"), covered: !e.closest("#side") && !!at?.closest("#side") };
+    }, sel).catch(() => ({ inSide: false, covered: false }));
+    if (where.inSide) await openMenu();
+    if (where.covered) await closeMenu();
+    return rawClick(sel, opts);
+  };
   const key = async (k) => {
-    await p.click(`#cMenu button[data-key=${k}]`);
+    await openMenu();
+    await rawClick(`#cMenu button[data-key=${k}]`);
     await p.waitForTimeout(500);
   };
   const topY = async (sel) => (await p.locator(sel).boundingBox()).y;
   const text = (sel) => p.$eval(sel, (e) => e.innerText.replace(/\s+/g, " "));
 
+  // The screen at the start: the picture in the middle with three data panels each side of it, the menu closed.
+  {
+    const lay = await p.evaluate(() => {
+      const r = (id) => document.getElementById(id).getBoundingClientRect();
+      const col = (id) => [...document.getElementById(id).children].map((e) => e.id);
+      const cols = [...document.querySelectorAll(".ccolumn")];
+      return {
+        ppi: r("ppi"), colL: r("colL"), colR: r("colR"), left: col("colL"), right: col("colR"), h: window.innerHeight, w: window.innerWidth,
+        menuShown: document.getElementById("side").offsetParent !== null, zoom: Number(getComputedStyle(cols[0]).zoom),
+        overflow: cols.flatMap((c) => [c, ...c.children]).filter((e) => e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1).map((e) => e.id),
+        onPicture: document.querySelectorAll("#ppiCorner").length,
+        pageScroll: document.documentElement.scrollWidth > window.innerWidth || document.documentElement.scrollHeight > window.innerHeight,
+      };
+    });
+    check(`${tag} picture in the middle, data panels left and right of it`, lay.colL.right <= lay.ppi.left + 1 && lay.colR.left >= lay.ppi.right - 1, JSON.stringify({ ppi: lay.ppi, l: lay.colL.right, r: lay.colR.left }));
+    check(`${tag} picture as tall as the window allows`, lay.ppi.height >= lay.h - 60, `${lay.ppi.height} of ${lay.h}`);
+    check(`${tag} left: picture, gain and clutter, EBL and cursor; right: own ship, target data, VRM and ARPA`, lay.left.join() === "bDisp,bGain,bCur" && lay.right.join() === "bOwn,bTd,bArpa", `${lay.left} | ${lay.right}`);
+    check(`${tag} every data panel fits, no page scroll`, lay.overflow.length === 0 && !lay.pageScroll, lay.overflow.join());
+    check(`${tag} nothing written over the picture, menu closed`, lay.onPicture === 0 && !lay.menuShown);
+    if (W >= 1880 && H >= 1000) check(`${tag} data panels drawn larger on a large screen`, lay.zoom >= 1.3, String(lay.zoom));
+    await rawClick("#menuKey");
+    const dr = await p.evaluate(() => ({ side: document.getElementById("side").getBoundingClientRect(), ppi: document.getElementById("ppi").getBoundingClientRect(), w: window.innerWidth }));
+    check(`${tag} MENU opens the menu over the right-hand side`, dr.side.width > 200 && dr.side.right >= dr.w - 12 && dr.side.left > dr.ppi.left, JSON.stringify(dr.side));
+    await p.keyboard.press("Escape");
+    check(`${tag} Esc closes the menu`, !(await menuOpen()));
+    await rawClick("#piMapKey");
+    check(`${tag} PI / MAP key opens the menu at the PI lines and maps`, (await menuOpen()) && /PI/.test(await p.$eval("#menuTitle", (e) => e.textContent)), await p.$eval("#menuTitle", (e) => e.textContent));
+  }
   // Every menu key shows at least one section, none squashed, and its first control can be reached.
+  await openMenu();
   for (const k of await p.$$eval("#cMenu button", (bs) => bs.filter((b) => b.offsetParent).map((b) => b.dataset.key))) {
     await key(k);
     const r = await p.evaluate(() => {
@@ -95,6 +148,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   check(`${tag} range + works`, (await p.$eval("#range", (e) => e.value)) === "12");
   check(`${tag} range scales go to 96 NM`, (await p.$$eval("#range option", (o) => o.map((x) => x.value))).includes("96"));
   // EBL follows the cursor and locks on a double click.
+  await closeMenu();
   const c = await p.locator("#ppi").boundingBox();
   await p.check("#eblOn");
   await p.mouse.move(c.x + c.width * 0.75, c.y + c.height * 0.25);
@@ -111,24 +165,17 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   {
     const o = await text("#cOwn");
     check(`${tag} own ship data: heading, speeds, sensors and position`, /HDG \d{3}\.\d ° GYRO STW [\d.]+ kn LOG COG \d{3}\.\d ° EPFS SOG [\d.]+ kn EPFS LAT \d\d°\d\d\.\d{3}'[NS] LON \d{3}°\d\d\.\d{3}'[EW]/.test(o), o);
-    check(`${tag} own ship data: steering, wind and time`, /STEER (AUTO|HAND)/.test(o) && /WIND/.test(o) && /TIME \d\d:\d\d:\d\d/.test(o), o);
+    check(`${tag} own ship data: steering, wind and time`, /STEER (AUTO|HAND)/.test(o) && /WIND/.test(o) && /TIME \d\d:\d\d:\d\d/.test(await text("#bOwn h3")), o);
     const abbr = await p.evaluate(() => ["orient", "motion", "stab", "trails", "arpaVec", "arpaGraphics"].map((id) => [...document.getElementById(id).options].map((x) => x.textContent).join("/")));
     check(`${tag} settings are shown by their abbreviations`, abbr.join(" ") === "N UP/H UP/C UP RM/TM GND/SEA OFF/REL/TRUE REL/TRUE OFF/PPC/PAD", abbr.join(" "));
     check(`${tag} pause, speed, day/night and help are in the top strip`, await p.evaluate(() => ["run", "speed", "nightKey", "cHelp"].every((id) => !!document.getElementById(id).closest("header") && document.getElementById(id).offsetParent !== null)));
     const fill = async () => p.$eval("#gain", (e) => e.style.getPropertyValue("--p"));
     const g0 = await p.$eval("#gain", (e) => e.value);
     check(`${tag} gain bar is filled to the gain setting`, (await fill()) === `${g0}%`, await fill());
-    const sizes = await p.evaluate(() => {
-      const r = (id) => document.getElementById(id).getBoundingClientRect();
-      return { console: r("console"), body: r("menuBody"), menu: r("cMenu"), own: r("bOwn"), td: r("bTd"), w: window.innerWidth, h: window.innerHeight };
-    });
-    check(`${tag} data area leaves room for the menu's controls`, sizes.body.height >= 140 && sizes.console.bottom <= sizes.body.top + 1 && sizes.menu.bottom <= sizes.h + 1, JSON.stringify({ body: sizes.body.height, console: sizes.console.height }));
-    check(`${tag} own ship data above target data, both the full width of the data area`, sizes.own.top < sizes.td.top && sizes.own.width > sizes.console.width * 0.95 && sizes.td.width > sizes.console.width * 0.95);
-    if (W >= 1880 && H >= 1000) check(`${tag} data area is drawn larger on a large screen`, sizes.console.width >= 700, String(sizes.console.width));
   }
 
-  // Top bar: radar on / standby and alarm acknowledge are at the top of the panel.
-  check(`${tag} radar key and alarm ack at the top`, (await topY("#radarSb")) < (await topY("#bDisp")) && (await topY("#ackKey")) < (await topY("#bDisp")));
+  // The radar on / standby key is in the heading of the picture panel; the alarm acknowledge key is in the ARPA panel.
+  check(`${tag} radar key at the top left, alarm ack in the ARPA panel`, await p.evaluate(() => !!document.getElementById("radarSb").closest("#bDisp h3") && !!document.getElementById("ackKey").closest("#bArpa")));
   await p.click("#radarSb");
   check(`${tag} radar standby key`, (await text("#radarSb")).includes("STANDBY"));
   await p.click("#radarSb");
@@ -138,19 +185,17 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   check(`${tag} auto sea sets the control`, (await p.$eval("#stc", (e) => e.value)) !== "0");
   await p.selectOption("#arpaVec", "true");
   await p.selectOption("#vecTimeSel", "12");
-  check(`${tag} vectors under trails`, (await p.$eval("#arpaVecT", (e) => e.value)) === "12" && (await topY("#arpaVec")) > (await topY("#trails")));
+  check(`${tag} vector keys in the ARPA panel`, (await p.$eval("#arpaVecT", (e) => e.value)) === "12" && (await p.evaluate(() => !!document.getElementById("vecTimeSel").closest("#bArpa"))));
   await p.selectOption("#arpaGraphics", "pad");
   check(`${tag} PAD graphics`, (await p.$eval("#arpaGraphics", (e) => e.value)) === "pad");
-  // EBL/VRM and the target keys are over the bottom-left corner of the picture.
-  const pb = await p.locator("#ppi").boundingBox();
-  const mb = await p.locator("#cMeas").boundingBox();
-  const tb = await p.locator("#cmAcq").boundingBox();
-  check(`${tag} EBL/VRM and target keys at the bottom left of the picture`, mb.x < pb.x + pb.width * 0.3 && mb.y > pb.y + pb.height * 0.7 && tb.y > pb.y + pb.height * 0.9 && tb.x < pb.x + pb.width * 0.2, JSON.stringify({ mb, tb }));
+  // The EBLs are in the EBL / cursor panel; the VRMs and the target keys in the VRM / ARPA panel.
+  check(`${tag} EBLs bottom left, VRMs and target keys bottom right`, await p.evaluate(() => !!document.getElementById("m_ebl").closest("#bCur") && !!document.getElementById("m_vrm").closest("#bArpa") && !!document.getElementById("cmAcq").closest("#bArpa")));
   check(`${tag} no AIS data panel, no separate targets or vectors box`, (await p.locator("#bAis, #bVec, #bTgt, #bMeas").count()) === 0);
 
   // Acquire the first target by its true position and read its data.
   const tgt = await p.evaluate(() => window.__simTest?.firstTargetScreen?.() ?? null);
   if (tgt) {
+    await closeMenu();
     await p.click("#cmAcq");
     await p.mouse.click(c.x + tgt.x, c.y + tgt.y);
     await p.waitForTimeout(600);

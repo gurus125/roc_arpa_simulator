@@ -3,10 +3,11 @@ import { AisReport, aisFilterOn } from "../ais/index";
 import { alertRows } from "./alerts-view";
 import { formatLatLon, latLonOf } from "../core/nav";
 import { courseSpeedOf, normalizeDeg, sub, velocityOf } from "../core/vec";
-import { displayNmToWorld, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, radarPower, relativeWind, ringInterval, warmUpLeftSec } from "../engine/index";
+import { displayNmToWorld, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, pulseFor, radarPower, relativeWind, ringInterval, warmUpLeftSec } from "../engine/index";
 import { AppState } from "./app";
 import { $ } from "./dom";
 import { readoutAt } from "./view";
+import { arpaStatusLines } from "./arpa-view";
 
 /**
  * Console layout: the radar picture on the left; on the right the working controls and data
@@ -68,7 +69,7 @@ export function radarKeyLabel(w: Parameters<typeof radarPower>[0]): string {
 
 export interface ConsoleUi {
   tick: (app: AppState) => void;
-  setMenu: (key: string) => void;
+  setMenu: (key: string, open?: boolean) => void;
   /** Called when something else changes the tab (starting an exercise, for example). */
   followTab: (tab: Tab) => void;
 }
@@ -90,26 +91,40 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   }
   const faultBox = side.querySelector<HTMLDetailsElement>("details.instr");
 
+  // The radar screen: the picture in the middle, three data panels down each side of it, and everything
+  // else in a menu drawer that opens over the right-hand side (MENU key) and closes again.
   const panel = document.createElement("div");
   panel.id = "console";
   panel.innerHTML = `
-    <div id="cTop" class="wide"><span id="cTopSb"></span><button id="ackKey" title="Acknowledge the alert shown (one at a time: alarms first)">ALARM ACK</button><span id="cTopAlarm"></span></div>
-    <div class="cbox wide" id="bOwn"><div id="cOwn"></div></div>
-    <div class="ccol">
-    <div class="cbox" id="bDisp"><h3>DISPLAY</h3>
+    <div id="colL" class="ccolumn">
+    <div class="cbox" id="bDisp"><h3>PICTURE <span id="cTopSb"></span></h3>
       <div class="crow"><span class="cl">RANGE</span><button id="rngDn" class="pm" title="Range scale down">−</button><span id="rngHold"></span><button id="rngUp" class="pm" title="Range scale up">+</button><button id="ringsKey" title="Range rings on / off">RINGS</button></div>
       <div class="crow"><span class="cl">BAND</span><span id="bandKeys" class="cbtns" style="margin:0"><button data-b="X">X BAND</button><button data-b="S">S BAND</button></span><button id="aisKey" title="AIS targets on the picture: on / off (a primary control, IEC 62388 13.3.1)">AIS</button></div>
       <div class="crow"><span class="cl">MODE</span><span id="hOrient"></span><span id="hMotion"></span><span id="hStab"></span></div>
+      <div class="crow"><span class="cl">RESET</span><span id="hReset"></span></div>
+      <div id="cPicSt" class="cst"></div>
+    </div>
+    <div class="cbox" id="bGain"><h3>GAIN / CLUTTER <span id="cProc" title="Signal processing in use: IR interference rejection, ENH echo stretch, SC/SC scan-to-scan correlation, MON performance monitor"></span></h3><div id="cGain"></div>
       <div class="crow"><span class="cl">TRAILS</span><span id="hTrails"></span><span id="hTrailMin"></span></div>
+    </div>
+    <div class="cbox" id="bCur"><h3>EBL / CURSOR</h3><div id="cEbl"></div><div id="cCur"></div>
+      <div class="cbtns"><button id="piMapKey" title="Parallel index lines, offset EBL, off-centre, navigation lines and marks">PI / MAP</button></div>
+    </div>
+    </div>
+    <div id="colR" class="ccolumn">
+    <div class="cbox" id="bOwn"><h3>OWN SHIP <span id="cTime"></span></h3><div id="cOwn"></div></div>
+    <div class="cbox" id="bTd"><h3>TARGET DATA <span id="cTgtKind"></span><span id="cTgtN"></span><button id="cAisMore" hidden title="Further AIS data: class, IMO number, ship type, destination, ETA, draught, size, position accuracy">MORE</button></h3><div id="cTd"></div></div>
+    <div class="cbox" id="bArpa"><h3>VRM / ARPA</h3><div id="cVrm"></div>
       <div class="crow"><span class="cl">VECTOR</span><span id="hVec"></span><span id="hVecT"><select id="vecTimeSel" title="Vector time">${VECTOR_TIMES.map((t) => `<option value="${t}">${t} min</option>`).join("")}</select></span></div>
-      <div class="crow"><span class="cl">DANGER</span><span id="hGfx"></span><span id="hReset"></span></div>
+      <div class="crow"><span class="cl">DANGER</span><span id="hGfx"></span></div>
+      <div id="cVecInfo"></div>
+      <div id="cArpaSt" class="cst"></div>
+      <div id="cTop"><button id="ackKey" title="Acknowledge the alert shown (one at a time: alarms first)">ALARM ACK</button><span id="cTopAlarm"></span></div>
+      <div id="cTgt"></div>
+      <div class="cbtns cmenu"><button id="menuKey" title="All other controls: ARPA, AIS, radar, display, scenario, settings ...">MENU</button></div>
+      <div class="cfoot">TRAINING USE ONLY · NOT FOR NAVIGATION</div>
     </div>
     </div>
-    <div class="ccol">
-    <div class="cbox" id="bGain"><h3>GAIN / CLUTTER <span id="cProc" title="Signal processing in use: IR interference rejection, ENH echo stretch, SC/SC scan-to-scan correlation, MON performance monitor"></span></h3><div id="cGain"></div></div>
-    <div class="cbox" id="bCur"><div id="cCur"></div></div>
-    </div>
-    <div class="cbox wide" id="bTd"><h3>TARGET DATA <span id="cTgtKind"></span><span id="cTgtN"></span><button id="cAisMore" hidden title="Further AIS data: class, IMO number, ship type, destination, ETA, draught, size, position accuracy">MORE</button></h3><div id="cTd"></div><div id="cVecInfo"></div></div>
     `;
   // The keys that work the simulator, not the radar, sit in the strip at the top of the page.
   const runBar = document.createElement("div");
@@ -119,11 +134,15 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   else panel.appendChild(runBar);
   const menu = document.createElement("div");
   menu.id = "cMenu";
-  // The chosen menu's controls scroll in their own area; the menu keys stay at the bottom of the panel.
+  // The menu drawer: its title and CLOSE key, the chosen menu's controls (scrolling), and the menu keys at the bottom.
   const body = document.createElement("div");
   body.id = "menuBody";
   while (side.firstChild) body.appendChild(side.firstChild);
-  side.append(panel, body, menu);
+  const head = document.createElement("div");
+  head.id = "menuHead";
+  head.innerHTML = `<b>MENU</b><span id="menuTitle"></span><button id="menuClose" title="Close the menu (Esc)">CLOSE ✕</button>`;
+  side.append(head, body, menu);
+  side.parentElement!.insertBefore(panel, side);
 
   // Display: the same selects, moved.
   $("rngHold").appendChild($("range"));
@@ -168,12 +187,6 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   $("rngDn").addEventListener("click", () => stepSelect("range", -1));
   $("rngUp").addEventListener("click", () => stepSelect("range", 1));
 
-  // EBL / VRM and the target keys sit over the empty bottom-left corner of the picture, so no panel space is used.
-  const corner = document.createElement("div");
-  corner.id = "ppiCorner";
-  corner.innerHTML = `<div id="cMeas"></div><div id="cTgt"></div>`;
-  $("ppi").parentElement!.appendChild(corner);
-
   // EBL / VRM: tick boxes only, each with its own large readout. Sliders stay out of sight.
   const lines: { line: Line; box: string; label: string }[] = [
     { line: "ebl", box: "eblOn", label: "EBL 1" },
@@ -188,11 +201,12 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     rowEl.appendChild($(l.box));
     old?.remove();
     rowEl.insertAdjacentHTML("beforeend", `<span class="cl">${l.label}</span><b class="big" id="m_${l.line}">OFF</b><i id="ms_${l.line}"></i>`);
-    $("cMeas").appendChild(rowEl);
+    // EBLs on the left of the picture, VRMs on the right.
+    $(l.line.startsWith("ebl") ? "cEbl" : "cVrm").appendChild(rowEl);
   }
 
   // EBL bearings can be read true or relative to the ship's head; the reference is shown in every readout.
-  $("cMeas").insertAdjacentHTML("beforeend", `<div class="mref"><span class="cl">EBL BRG</span><button id="eblRef" title="EBL bearings true (T) or relative to the ship's head (R)">TRUE</button></div>`);
+  $("cEbl").insertAdjacentHTML("beforeend", `<div class="mref"><span class="cl">EBL BRG</span><button id="eblRef" title="EBL bearings true (T) or relative to the ship's head (R)">TRUE</button></div>`);
   for (const id of ["eblBrg", "vrmRng", "ebl2Brg", "vrm2Rng", "arpaVec", "arpaVecT", "arpaGraphics"]) $(id).closest<HTMLElement>(".row")!.style.display = "none";
   // Vectors and danger graphics sit under Trails, in the same form: the same selects, moved.
   $("hVec").appendChild($("arpaVec"));
@@ -256,6 +270,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   strip.append($("arpaCancelAll"), autoAcq);
   tgtRow.remove();
   $("bTd").appendChild($("arpaMsg"));
+  // Rows in the order the right-hand panel lists them: VRMs, vectors, limits, status, alerts, target keys, MENU.
 
   // Run / speed / radar standby stay in view (the same controls, moved).
   for (const id of ["run", "speed"]) $("cRun").appendChild($(id));
@@ -283,9 +298,16 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   $("cRun").insertBefore(night, help);
 
   let current = "own";
-  const setMenu = (key: string): void => {
+  /** Open or close the menu drawer. */
+  const openMenu = (open: boolean): void => {
+    document.body.classList.toggle("menu-open", open);
+    $("menuKey").classList.toggle("on", open);
+  };
+  const setMenu = (key: string, open = true): void => {
     const k = KEYS.find((x) => x.key === key) ?? KEYS[0]!;
     current = k.key;
+    if (open) openMenu(true);
+    $("menuTitle").textContent = k.label;
     for (const b of $("cMenu").querySelectorAll<HTMLElement>("button")) b.classList.toggle("on", b.dataset["key"] === k.key);
     if (k.tab !== "top") setTab(k.tab);
     for (const t of tagged) t.el.style.display = t.pane === k.tab && k.sections.includes(t.title) ? "" : "none";
@@ -305,7 +327,16 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     setMenu(key);
     body.scrollTop = 0;
   });
-  setMenu("own");
+  setMenu("own", false);
+  $("menuKey").addEventListener("click", () => openMenu(!document.body.classList.contains("menu-open")));
+  $("menuClose").addEventListener("click", () => openMenu(false));
+  $("piMapKey").addEventListener("click", () => {
+    setMenu("meas");
+    body.scrollTop = 0;
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && document.body.classList.contains("menu-open")) openMenu(false);
+  });
 
   /** A label and its value kept together, for a row of several. */
   const pair = (label: string, value: string, cls = ""): string => `<span class="pair"><span class="cl">${label}</span> <b class="${cls}">${value}</b></span>`;
@@ -385,8 +416,10 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
       `<div class="navrow">` +
       pair("RUD", mo ? side1(mo.motion.rudder, 0.5, (x) => `${x.toFixed(0)}°`, "MID") : "---") + pair("ROT", mo ? side1(mo.motion.r * 60, 0.5, (x) => `${x.toFixed(0)}°/min`, "0") : "---") +
       pair("STEER", w.own.anchor ? "ANCHORED" : mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : "---") +
-      pair("WIND", rw ? `R${String(Math.round(rw.fromRel) % 360).padStart(3, "0")} ${rw.speedKn.toFixed(0)} kn` : "CALM") + pair("TIME", time) +
+      pair("WIND", rw ? `R${String(Math.round(rw.fromRel) % 360).padStart(3, "0")} ${rw.speedKn.toFixed(0)} kn` : "CALM") +
       `</div>`);
+    // The exercise clock, in the heading of the own ship panel.
+    put("cTime", `TIME <b>${time}</b>`);
 
     // Cursor: bearing (true and relative) and range as the radar reads them, and the position that
     // bearing and range give from own ship's position (so a gyro error shifts it, as on a real set).
@@ -425,6 +458,11 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     }
 
     put("cTgtN", arpaOn ? `${a.activeCount()} / ${a.cfg.maxTracks}` : app.roc ? "ARPA OFF" : "STANDBY");
+    // Pulse length in use, and the heading failure, under the picture settings; the ARPA's state in the ARPA panel.
+    const pl = pulseFor(c.rangeNm, c.pulse);
+    put("cPicSt", `<span class="pair"><span class="cl">PULSE</span> <b>${pl.name === "short" ? "SP" : pl.name === "medium" ? "MP" : "LP"} ${pl.microseconds} µs</b></span>` +
+      (app.headingLost ? ` <b class="wn">HDG FAIL: UNSTAB, REL BRG ONLY</b>` : ""));
+    put("cArpaSt", arpaStatusLines(app).map((l) => `<b class="${l.cls}">${l.text.replace(/</g, "&lt;")}</b>`).join(""));
     const vsel = $<HTMLSelectElement>("vecTimeSel");
     if (vsel.value !== String(s.vectorMinutes) && document.activeElement !== vsel) {
       if (![...vsel.options].some((o) => o.value === String(s.vectorMinutes))) vsel.add(new Option(`${s.vectorMinutes} min`, String(s.vectorMinutes)));
@@ -432,7 +470,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     }
     put("cVecInfo",
       pair("CPA LIM", `${s.cpaLimitNm}${unit("NM")}`) + pair("TCPA LIM", `${s.tcpaLimitMin}${unit("min")}`) +
-      pair("STAB", arpaOn ? a.stabLabel().replace(" STAB", "").replace(/[()]/g, "").replace("REF ", "") : "---") + pair("PAST", arpaOn && s.past.mode !== "off" ? `${s.past.mode === "true" ? "T" : "R"} ${s.past.points}x${s.past.intervalMin}m` : "OFF"));
+      pair("PAST", arpaOn && s.past.mode !== "off" ? `${s.past.mode === "true" ? "T" : "R"} ${s.past.points}x${s.past.intervalMin}m` : "OFF"));
 
     // Selected target. An ARPA track shows the values of its row in the target list (computed by the ARPA code);
     // with no track selected, a selected AIS target shows what its AIS report carries.
@@ -495,7 +533,8 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     followTab: (tab) => {
       const k = KEYS.find((x) => x.key === current);
       if (k && (k.tab === tab || (k.tab === "top" && tab === "radar"))) return;
-      setMenu(tab === "radar" ? "scen" : tab === "arpa" ? "acq" : tab);
+      // An exercise, ROC or instructor pane is something to read and work in: the drawer opens on it.
+      setMenu(tab === "radar" ? "scen" : tab === "arpa" ? "acq" : tab, tab === "ex" || tab === "roc" || tab === "instr");
     },
   };
 }

@@ -7,22 +7,32 @@ For training and study only. This is not a radar and must not be used for naviga
 Open `radar-simulator.html` in Chrome or Edge. Choose your batch and enter your name, or press
 "Free practice without names". Press F11 for full screen.
 
-The screen has the radar picture on the left and the data area on the right, laid out the way
-ships' radars in general present their data (it is not a copy of any one maker's screen). The
-keys at the bottom right open more controls. The strip at the very top of the page holds the keys
+The screen has the radar picture in the middle, as large as the window allows, with three data
+panels down each side of it, laid out the way ships' radars in general present their data (it is
+not a copy of any one maker's screen):
+
+| Left | Right |
+|---|---|
+| PICTURE: range, rings, band, AIS, mode, pulse length (top) | OWN SHIP (top) |
+| GAIN / CLUTTER, brilliance and trails (middle) | TARGET DATA of the selected target (middle) |
+| EBL / CURSOR, and the PI / MAP key (bottom) | VRM / ARPA: VRMs, vectors, alarms, target keys and MENU (bottom) |
+
+Nothing is written on the picture itself. The **MENU** key at the bottom right opens the menu over
+the right-hand side of the screen, with its keys along the bottom; **CLOSE**, MENU again or Esc
+closes it. The strip at the very top of the page holds the keys
 that work the simulator and not the radar: PAUSE / RUN, the speed of the clock, DAY / NIGHT and
 HELP. HELP shows a short explanation under every control; press it again to hide them.
 
-## 2. Top of the data area, and the corners of the picture
+## 2. RADAR key, alarms and own ship
 
 | Control | What it does |
 |---|---|
-| RADAR key | Switches the radar on from cold (RADAR: OFF), and between standby and transmit. Switched on from cold it warms up first (WARM UP and a countdown; about one and a half minutes here, never more than 4 minutes on a real set), then waits in STANDBY: press again to transmit. In standby there is no picture. SETTINGS, RADAR POWER OFF switches it off. |
-| ALARM ACK | Acknowledges the alert shown beside it, one at a time: alarms first, then the oldest warning. It flashes while an alert is waiting. The alert box beside it is red for an alarm, orange for a warning and yellow for a caution. |
+| RADAR key (top left, in the heading of the PICTURE panel) | Switches the radar on from cold (RADAR: OFF), and between standby and transmit. Switched on from cold it warms up first (WARM UP and a countdown; about one and a half minutes here, never more than 4 minutes on a real set), then waits in STANDBY: press again to transmit. In standby there is no picture. SETTINGS, RADAR POWER OFF switches it off. |
+| ALARM ACK (VRM / ARPA panel, bottom right) | Acknowledges the alert shown beside it, one at a time: alarms first, then the oldest warning. It flashes while an alert is waiting. The alert box beside it is red for an alarm, orange for a warning and yellow for a caution. |
 | PAUSE / RUN, 1x-10x (top strip) | Stops and starts the exercise clock, and sets how fast it runs. |
 | DAY / NIGHT (top strip) | Display colours for day or for a dark bridge (also under SETTINGS). |
 
-Own ship's data is under the top keys:
+Own ship's data is in the OWN SHIP panel at the top right:
 
 | Shown | Meaning |
 |---|---|
@@ -31,7 +41,8 @@ Own ship's data is under the top keys:
 | COG, SOG, with EPFS | Course and speed over the ground from the position-fixing system (GPS) |
 | LAT, LON | Own ship's position |
 | RUD, ROT, STEER | Rudder angle (P port, S starboard), rate of turn, and AUTO (autopilot) or HAND steering |
-| WIND, TIME | Relative wind (R045 is 45° on the starboard bow) and the exercise clock |
+| WIND | Relative wind (R045 is 45° on the starboard bow) |
+| TIME (in the heading of the panel) | The exercise clock |
 
 The small box after a value names the sensor it comes from. It turns red when that sensor has failed.
 
@@ -40,15 +51,16 @@ at the ship's position, and on the shortest range scales the ship's outline to s
 scale round the picture has a mark every 5° and a number every 30°.
 
 If the gyro compass fails, the picture changes by itself to head-up (unstabilised) with relative
-motion, "HDG FAIL: UNSTAB, REL BRG ONLY" is written at the top left, and the EBLs read relative
+motion, "HDG FAIL: UNSTAB, REL BRG ONLY" is shown in the PICTURE panel, and the EBLs read relative
 bearings only. That is what a real radar does when it loses its heading input.
 
-The corners of the picture carry the settings in short lines, as on a radar screen: top left the
-range scale in large figures, the ring interval, the orientation and motion (N UP RM) and the
-stabilisation of the picture; top right the band and pulse length (SP short, MP medium, LP long)
-and the ARPA's vector mode and time, speed input and CPA / TCPA limits.
+The settings are not written over the picture but kept in the panels beside it: the PICTURE panel
+shows the range scale, ring interval, band, orientation, motion and stabilisation, and the pulse
+length in use (SP short, MP medium, LP long); the VRM / ARPA panel shows the vector mode and time,
+the CPA / TCPA limits, the past positions setting, and the ARPA's status lines (its stabilisation
+and speed input, ARPA STANDBY, LOST TGT WARNING OFF, AIS FILTER, ANCHOR WATCH, TRIAL).
 
-## 3. DISPLAY box
+## 3. PICTURE panel (top left)
 
 The settings are boxes that are clicked; each shows the setting in use by its standard abbreviation.
 
@@ -60,10 +72,7 @@ The settings are boxes that are clicked; each shows the setting in use by its st
   are relative) or **C UP** (course-up); motion **RM** (relative motion, own ship fixed) or **TM**
   (true motion, own ship moves across the screen); stabilisation of the picture **GND** (ground) or
   **SEA**.
-- **TRAILS**: echo trails OFF, REL (relative) or TRUE, and their length.
-- **VECTOR**: REL (relative) or TRUE vectors of tracked targets, and the vector time.
-- **DANGER**: PPC (points of possible collision) or PAD (predicted areas of danger) graphics.
-  **C-UP RST** takes the present heading as the new course-up reference; **TM RST** puts own ship
+- **RESET**: **C-UP RST** takes the present heading as the new course-up reference; **TM RST** puts own ship
   back to the start of its run across the screen in true motion.
 - Under **SCENARIO**, Study aids: **Stern line** draws a thin dotted line from own ship
   astern to the edge of the picture. **Antenna position on own ship's outline** marks the radar
@@ -71,16 +80,16 @@ The settings are boxes that are clicked; each shows the setting in use by its st
   antenna is on the ship is entered under Own ship data (metres ahead of and to starboard of the
   reference point); the picture and every measurement stay referenced to the reference point.
 
-## 4. Measuring: EBL and VRM (bottom-left of the picture)
+## 4. Measuring: EBL (bottom left) and VRM (bottom right)
 
-Tick EBL 1 or VRM 1. The line follows the cursor over the picture and shows MOVE. Double-click
+The EBLs are in the EBL / CURSOR panel and the VRMs in the VRM / ARPA panel. Tick EBL 1 or VRM 1. The line follows the cursor over the picture and shows MOVE. Double-click
 the picture to lock it (LOCK). Untick and tick again to move it. EBL 2 and VRM 2 work the same
 way. The **EBL BRG** key under the readouts changes the EBL bearings between TRUE and REL
 (relative to the ship's head); every bearing ends in T or R so that you know which it is. The
-cursor line in the data area shows the true bearing (BRG), relative bearing (REL) and range (RNG)
+cursor line in the EBL / CURSOR panel shows the true bearing (BRG), relative bearing (REL) and range (RNG)
 of the cursor at all times, and under them (CURS) the latitude and longitude of the point it is on.
 
-More tools are under **PI / MAP**: four parallel index lines, an offset EBL origin, off-centre,
+More tools are under **PI / MAP** (the key at the bottom of the EBL / CURSOR panel opens the menu there): four parallel index lines, an offset EBL origin, off-centre,
 navigation lines and marks, and "Hold: graphics off". Each parallel index line can be cut short (Ahead and
 Astern, in NM from the point abeam of own ship), put parallel to the heading (HDG), and all can be
 switched on or off together. An offset EBL origin can stay fixed to the ground or be carried with
@@ -88,7 +97,7 @@ own ship. While that key is held (or key H), the
 heading line and every other line and symbol are taken off, leaving only the echoes and trails,
 so that a weak echo under a line can be seen.
 
-## 5. GAIN / CLUTTER box
+## 5. GAIN / CLUTTER panel (middle left)
 
 Each control is a bar: click or drag along it. The figure beside it is the setting, 0 to 100.
 
@@ -100,6 +109,7 @@ Each control is a bar: click or drag along it. The figure beside it is the setti
 - **TUNE**: tune for the highest METER reading.
 - **AUTO**: the set chooses the setting. Like a real automatic control it is a compromise.
 - **BRILL**: brightness of the radar picture.
+- **TRAILS**: echo trails OFF, REL (relative) or TRUE, and their length.
 
 The small letters in the heading of the box light up when a signal processing function is in use:
 IR (interference rejection), ENH (echo stretch), SC/SC (echo averaging from scan to scan), MON
@@ -110,19 +120,21 @@ performance monitor.
 
 ## 6. ARPA: tracking targets
 
-The target keys are along the bottom-left edge of the picture.
+The target keys are in the VRM / ARPA panel at the bottom right, under ALARM ACK and the alert box.
+The same panel has **VECTOR** (REL or TRUE vectors of tracked targets, and the vector time) and
+**DANGER** (PPC, points of possible collision, or PAD, predicted areas of danger).
 
 1. Press **Acquire**, then click an echo. A broken circle appears.
 2. After about one minute a faint (preliminary) vector appears. After about three minutes the
    vector is at full strength and the data is reliable.
-3. Press **Select** and click a target to see its data in the TARGET DATA box: target number,
+3. Press **Select** and click a target to see its data in the TARGET DATA panel (middle right): target number,
    bearing (BRG), range (RNG), course (CSE), speed (SPD), CPA, TCPA, and the bow crossing range
    and time (BCR, BCT), each with its unit. The course and speed are named CTW and STW (through
    the water) when the ARPA is sea stabilised, and COG and SOG (over the ground) when it is ground
    stabilised. TT after the heading means a tracked (radar) target, AIS an AIS target; for an AIS
    target the box also shows its MMSI, navigational status, reported position and heading, and
-   MISSING for anything its report does not carry. A yellow ? after a value means it is still preliminary. The line under the
-   data shows the CPA and TCPA limits, the ARPA's speed input and the past positions setting.
+   MISSING for anything its report does not carry. A yellow ? after a value means it is still preliminary. The VRM / ARPA
+   panel shows the CPA and TCPA limits, the past positions setting and the ARPA's speed input.
 4. **Cancel** drops one target; **Cancel all** drops them all. **Auto** acquires targets that
    enter a guard zone.
 
@@ -153,7 +165,7 @@ Alerts (IMO resolution MSC.302(87), IEC 62288 and IEC 62388) have three prioriti
 
 Alerts are acknowledged one at a time. Under **CPA/ALARM**, "Silence sound 30 s" stops the sound
 without acknowledging anything, and the lost target warning for tracked targets can be switched
-off ("LOST TGT WARNING OFF" is then written on the picture, and a lost target's symbol goes after
+off ("LOST TGT WARNING OFF" is then shown in the VRM / ARPA panel, and a lost target's symbol goes after
 a minute).
 
 Other ARPA keys: **PAST POS** (past positions), **GUARD** (guard zones and exclusion areas),
@@ -204,7 +216,7 @@ Press **SHIP**.
   gives no latitude and longitude, COG and SOG are blank, and the ARPA warns EPFS INPUT ABSENT. Fix
   the position by radar (exercise 23).
 
-The OWN SHIP box always shows heading, speed, course and speed made good, rudder, rate of turn
+The OWN SHIP panel always shows heading, speed, course and speed made good, rudder, rate of turn
 and relative wind.
 
 ## 7a. Things the picture does that are not ships
@@ -252,10 +264,10 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
   when it is further off than the range chosen, passes wider than the CPA chosen (or is opening),
   has its CPA further ahead than the TCPA chosen, or is slower than the speed chosen. "Apply to"
   narrows this to class B targets (small craft); on its own it filters nothing. While the filter is
-  on, "AIS FILTER" and its criteria are written at the top right of the picture and the AIS key
+  on, "AIS FILTER" and its criteria are shown in the VRM / ARPA panel and the AIS key
   reads AIS FILT. Activated, dangerous, lost and selected targets are always shown, and no single
   target can be taken off the picture.
-  **Further data**: with an AIS target selected, the MORE key in the TARGET DATA box shows its AIS
+  **Further data**: with an AIS target selected, the MORE key in the TARGET DATA panel shows its AIS
   class, IMO number, ship type, destination, ETA, draught, size and position accuracy; LESS goes
   back. Anything the ship does not send reads MISSING: a class B set (small craft) sends no
   navigational status, rate of turn, IMO number or voyage data, and reports less often (every 30 s

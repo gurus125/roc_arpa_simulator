@@ -442,48 +442,37 @@ export function hudText(size: number): { fs: number; lh: number; big: number } {
 }
 
 /**
- * ARPA text on the PPI (drawn outside the radar circle clip). The ARPA's settings are written in
- * short lines in the top right corner, under the band and pulse line that view.ts writes there:
- * the corners of the square are the only room outside the circle, and a long line would run
- * into the bearing scale.
+ * The ARPA's settings and state in short lines, for the ARPA panel beside the picture (they used to
+ * be written in a corner of the picture; the data panels now hold them, so no text sits on the
+ * radar picture: IEC 62288 5.5.14 and 6.1.5). `cls` is "wn" for a line that needs attention.
  */
-export function drawArpaHud(ctx: Ctx, app: AppState, size: number): void {
-  if (app.roc) return;
+export function arpaStatusLines(app: AppState): { text: string; cls: string }[] {
+  if (app.roc) return [{ text: "ARPA OFF DURING ROC EXERCISE", cls: "wn" }];
   const a = app.arpa;
   const s = a.settings;
-  const trialOn = s.trial.on;
-  const flash = Math.floor(app.wall * 2) % 2 === 0;
-  const hud = hudText(size);
-  ctx.save();
-  ctx.textAlign = "right";
-  ctx.font = `${hud.fs}px monospace`;
-  let y = 2 * hud.lh;
-  const line = (text: string): void => {
-    ctx.fillText(text, size - 8, y);
-    y += hud.lh;
-  };
-  if (s.standby) {
-    ctx.fillStyle = COL.lost;
-    ctx.font = `bold ${hud.fs}px monospace`;
-    line("ARPA STANDBY");
-  } else if (!arpaAvailableOnScale(app.world.radar.controls.rangeNm)) {
-    ctx.fillStyle = COL.lost;
-    line("ARPA NOT AVAILABLE");
-    line("ON THIS RANGE SCALE");
-    line("USE 3, 6, 12 OR 24 NM");
-  } else {
-    ctx.fillStyle = COL.track;
-    line(`VECTOR ${s.vectorMode === "true" ? "TRUE" : "REL"} ${s.vectorMinutes} MIN`);
+  const out: { text: string; cls: string }[] = [];
+  const line = (text: string, cls = ""): void => void out.push({ text, cls });
+  if (s.standby) line("ARPA STANDBY", "wn");
+  else if (!arpaAvailableOnScale(app.world.radar.controls.rangeNm)) line("ARPA NOT AVAILABLE ON THIS RANGE SCALE: USE 3, 6, 12 OR 24 NM", "wn");
+  else {
     line(a.stabLabel());
-    line(`CPA ${s.cpaLimitNm} NM  TCPA ${s.tcpaLimitMin} MIN`);
-    if (s.past.mode !== "off") line(`PAST ${s.past.mode === "true" ? "TRUE" : "REL"} ${s.past.points} x ${s.past.intervalMin} MIN`);
-    if (!s.lostWarning) line("LOST TGT WARNING OFF");
-    if (!app.ais.settings.lostAlarm) line("AIS LOST WARNING OFF");
+    if (!s.lostWarning) line("LOST TGT WARNING OFF", "wn");
+    if (!app.ais.settings.lostAlarm) line("AIS LOST WARNING OFF", "wn");
     if (app.ais.settings.on && aisFilterOn(app.ais.settings.sleepFilter)) line(`AIS FILTER ${aisFilterLabel(app.ais.settings.sleepFilter)}`);
     if (s.vectorSuppress) line("SAFE VECTORS OFF");
     if (s.anchorWatch.trackId !== null) line(`ANCHOR WATCH ${s.anchorWatch.trackId}`);
-    if (!s.showData) line("ARPA DATA OFF");
+    if (!s.showData) line("ARPA DATA OFF", "wn");
+    if (s.trial.on) line(`TRIAL ${String(Math.round(s.trial.course)).padStart(3, "0")}° ${s.trial.speed} kn`, "wn");
   }
+  return out;
+}
+
+/** On the picture itself only the trial manoeuvre's large T (IMO SN.1/Circ.243), drawn outside the radar circle clip. */
+export function drawArpaHud(ctx: Ctx, app: AppState, size: number): void {
+  if (app.roc) return;
+  const s = app.arpa.settings;
+  const trialOn = s.trial.on;
+  ctx.save();
   if (trialOn) {
     ctx.fillStyle = COL.trial;
     ctx.font = "bold 22px monospace";
@@ -493,13 +482,6 @@ export function drawArpaHud(ctx: Ctx, app: AppState, size: number): void {
     // A large T, steady, low on the picture (IMO SN.1/Circ.243: trial manoeuvre shown by a large T on screen).
     ctx.font = "bold 44px monospace";
     ctx.fillText("T", size / 2, size - 52);
-  }
-  const alarm = a.alarms.find((x) => !x.acked && x.kind !== "capacity-near");
-  if (alarm && flash) {
-    ctx.font = "bold 13px monospace";
-    ctx.textAlign = "center";
-    ctx.fillStyle = alarm.kind === "cpa" ? COL.danger : COL.lost;
-    ctx.fillText(alarm.text, size / 2, size - 28);
   }
   ctx.restore();
 }

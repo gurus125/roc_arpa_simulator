@@ -33,6 +33,8 @@ const open = async () => {
 };
 const text = (p, sel) => p.$eval(sel, (e) => e.innerText.replace(/\s+/g, " "));
 const key = async (p, k) => {
+  // The menu is a drawer: open it first.
+  if (!(await p.evaluate(() => document.body.classList.contains("menu-open")))) await p.click("#menuKey");
   await p.click(`#cMenu button[data-key=${k}]`);
   await p.waitForTimeout(300);
 };

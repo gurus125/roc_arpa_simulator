@@ -254,7 +254,7 @@ General requirements for every class (Section 2)
 |------|--------------------------|-----|
 | 2.1.1.1 to 2.1.1.3 | Equipment works like real equipment; where it is no specific make it follows the IMO performance standard (functions); accuracy, reaction times and limitations resemble real equipment | Partly: checked against A.823(19) and MSC.192(79) in COMPLIANCE-MATRIX.md, gaps listed there; several radar values are placeholders; no instructor has reviewed it |
 | 2.1.1.4 | User manual available to the learners | Met: docs/USER-MANUAL.md |
-| 2.1.1.5 | Emulated instruments: realistic grouping, proportions and scales; dimming; alarm sounds like real ones | Partly: day and night palettes, brilliance, alarm and whistle sounds. Since 13 Nov 2026 the data area is laid out as ships' radars in general present their data (large heading and speed with their sensor, position, cursor and target data with units, settings in boxes, bars for gain and clutter, status lines in the corners of the picture). A generic arrangement, not any maker's screen; not assessed by a radar instructor |
+| 2.1.1.5 | Emulated instruments: realistic grouping, proportions and scales; dimming; alarm sounds like real ones | Partly: day and night palettes, brilliance, alarm and whistle sounds. Since 13 Nov 2026 the data area is laid out as ships' radars in general present their data (large heading and speed with their sensor, position, cursor and target data with units, settings in boxes, bars for gain and clutter; status lines first in the corners of the picture, and since the redesign of 13 Nov 2026 in six panels beside a centred picture, with nothing written over it). A generic arrangement, not any maker's screen; not assessed by a radar instructor |
 | 2.1.1.6 | On a PC: starts easily; other programs, hot keys, closing and window controls disabled; no easy access to configuration files | Procedure written 12 Nov 2026 (INSTRUCTOR-MANUAL.md section 12): browser kiosk mode, with Windows assigned access to block Alt+F4 and Alt+Tab. Not tried on the academy's PCs |
 | 2.1.1.7 | Cloud-based use: remote desktop; instructor and students plan, assign and perform exercises; runs on a personal computer | Partly: runs on any PC in a browser; exercises reach other stations only over the local link, proved with separate browsers through the server on one machine |
 | 2.2.1.2 | Instructor can start, halt, reset and restart; change the environment; communicate with learners and follow their conversations; follow the exercise; plot tracks; inject failures | Mostly met (proved with separate browsers through the server on one machine, not on separate PCs): communication is typed, so there is no conversation to follow |
@@ -277,7 +277,7 @@ Documents DNV asks for (Table 1-6, 1.8, 1.9, Appendix A)
   limits and possible errors of real equipment, variety of conditions: partly, in COMPLIANCE-MATRIX.md
   and the manual.
 - Test programmes with acceptance criteria and their justification: not written. The 508 unit tests,
-  239 screen checks, 15 link checks and the exercise self-test are evidence, not a test programme in DNV's sense.
+  260 screen checks, 15 link checks and the exercise self-test are evidence, not a test programme in DNV's sense.
 - Change-log: git history only.
 - Appendix A, for each own-ship model: ship particulars, speed data (telegraph table, tactical
   diameter, crash stop), engine, propeller, rudder and autopilot data, all "modelled, documented and
