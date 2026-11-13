@@ -182,7 +182,7 @@ export function aisFilteredOut(v: AisTargetView, f: AisSleepFilter, selectedId: 
 export function ownShipAisData(w: World): { mmsi: string; callSign: string; cls: AisClass; navStatus: string; pos: Vec2; cog: number; sog: number; heading: number } {
   const cs = ownCogSog(w);
   return {
-    mmsi: "419000001", callSign: "SIMOWN", cls: "A", navStatus: w.own.speedThroughWater < 0.2 ? "At anchor" : "Under way using engine",
+    mmsi: "419000001", callSign: "SIMOWN", cls: "A", navStatus: w.own.anchor ? "At anchor" : "Under way using engine",
     pos: { ...w.own.pos }, cog: cs.course, sog: cs.speed, heading: w.own.heading,
   };
 }
@@ -234,6 +234,21 @@ export class AisSystem {
   private lastSample = -Infinity;
   /** Targets already activated by entering an activation zone, so that the warning is given once. */
   private zoneActivated = new Set<number>();
+  /**
+   * An AIS shore (base) station repeating the reports it hears, later and less often (instructor's
+   * setting). IEC 62388 11.5.3.1: when direct reports of a vessel are received, its repeated reports
+   * are not processed, and own ship's repeated reports never are. Repeated reports are known by the
+   * repeat indicator in the message; here they arrive through `receiveRepeated`.
+   */
+  shoreRepeat = { on: false, delaySec: 30, intervalSec: 10 };
+  /** Repeated reports received: used (no direct report of that vessel), not processed, and of those, own ship's. */
+  repeatStats = { received: 0, used: 0, ignored: 0, ownIgnored: 0 };
+  private repeatQueue: { deliverAt: number; report: AisReport | null }[] = [];
+  private nextRepeatAt = 0;
+  /** Time of the station's last round of repeats: each report it heard is repeated once, the latest of each vessel only. */
+  private lastRepeatAt = -Infinity;
+  /** Simulation time of the last DIRECT report of each vessel. */
+  private lastDirect = new Map<number, number>();
 
   /** Call after every simulation step: vessels with AIS transmit when their interval has run. */
   step(w: World): void {
@@ -250,7 +265,7 @@ export class AisSystem {
         this.lastHeading.set(t.id, { h: t.motion.heading, t: w.time, rot });
       }
       const cls: AisClass = t.aisClass ?? (t.kind === "ship" ? "A" : "B-CS");
-      const anchored = t.speed < 0.2;
+      const anchored = !!t.atAnchor || t.speed < 0.2;
       const turning = rot !== null && Math.abs(rot) >= AIS_TURNING_ROT;
       const last = this.reports.get(t.id);
       const iv = cls === "A" ? aisReportIntervalSec(t.speed, anchored, turning) : aisClassBIntervalSec(t.speed, cls);
@@ -263,6 +278,7 @@ export class AisSystem {
       // "Cargo" for a ship), no voyage data. Class B sends no navigational status, rate of turn, IMO
       // number or voyage data at all.
       const pick = <T,>(v: T | null | undefined, dflt: T | null): T | null => (v === undefined ? dflt : v);
+      this.lastDirect.set(t.id, w.time);
       this.reports.set(t.id, {
         id: t.id, mmsi: String(419000000 + t.id * 1117), name: t.name.toUpperCase(), cls,
         navStatus: a ? pick(st.navStatus, anchored ? "At anchor" : "Under way using engine") ?? "" : "",
@@ -277,6 +293,7 @@ export class AisSystem {
         posAccuracy: st.posAccuracy ?? (a ? "high" : "low"),
       });
     }
+    this.stepShoreRepeat(w);
     // Samples for the past positions of activated targets.
     if (w.time - this.lastSample >= AIS_PAST_SAMPLE_SEC - 1e-9) {
       this.lastSample = w.time;
@@ -292,6 +309,50 @@ export class AisSystem {
         this.history.set(r.id, h);
       }
     }
+  }
+
+  /** The shore station: every `intervalSec` it repeats what it last heard from each vessel and from own ship, `delaySec` late. */
+  private stepShoreRepeat(w: World): void {
+    if (!this.shoreRepeat.on) {
+      this.repeatQueue = [];
+      return;
+    }
+    if (w.time >= this.nextRepeatAt - 1e-9) {
+      this.nextRepeatAt = w.time + this.shoreRepeat.intervalSec;
+      const at = w.time + this.shoreRepeat.delaySec;
+      for (const r of this.reports.values()) {
+        if (this.lastDirect.get(r.id) === r.time && r.time > this.lastRepeatAt) this.repeatQueue.push({ deliverAt: at, report: { ...r, pos: { ...r.pos } } });
+      }
+      this.lastRepeatAt = w.time;
+      this.repeatQueue.push({ deliverAt: at, report: null }); // own ship's report, repeated back to her
+    }
+    while (this.repeatQueue.length > 0 && this.repeatQueue[0]!.deliverAt <= w.time + 1e-9) {
+      const q = this.repeatQueue.shift()!;
+      this.receiveRepeated(w, q.report);
+    }
+  }
+
+  /**
+   * A repeated report has been received (null: own ship's own report, repeated). It is processed only
+   * for a vessel of which no direct report is being received (IEC 62388 11.5.3.1); then it keeps its
+   * original time, so its position is carried forward by the time since, like any other report.
+   */
+  receiveRepeated(w: World, r: AisReport | null): void {
+    this.repeatStats.received++;
+    if (r === null) {
+      this.repeatStats.ignored++;
+      this.repeatStats.ownIgnored++;
+      return;
+    }
+    const direct = this.lastDirect.get(r.id);
+    const current = this.reports.get(r.id);
+    const directNow = direct !== undefined && current !== undefined && w.time - direct <= current.lostAfterSec;
+    if (directNow || (current !== undefined && current.time >= r.time)) {
+      this.repeatStats.ignored++;
+      return;
+    }
+    this.repeatStats.used++;
+    this.reports.set(r.id, { ...r, pos: { ...r.pos } });
   }
 
   /**

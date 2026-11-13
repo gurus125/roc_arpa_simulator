@@ -119,10 +119,16 @@ export function extractPlots(
 
   // Coastline, one plot per small cell.
   const cells = new Set<string>();
+  const maxR = cfg.maxRangeNm;
   for (const s of w.coastSamples) {
-    const v = sub(s.pos, w.own.pos);
+    // Most samples are far from any track: the cheap tests first.
+    const de = s.pos.e - w.own.pos.e;
+    const dn = s.pos.n - w.own.pos.n;
+    if (de > maxR || de < -maxR || dn > maxR || dn < -maxR) continue;
+    const v = { e: de, n: dn };
+    if (!wantLand(v)) continue;
     const r = length(v);
-    if (r > cfg.maxRangeNm || !wantLand(v)) continue;
+    if (r > maxR) continue;
     const key = `${Math.floor(s.pos.e / cfg.landCellNm)},${Math.floor(s.pos.n / cfg.landCellNm)}`;
     if (cells.has(key)) continue;
     const e = effectiveSignal(w, { rcs: rcsForDetectionRange(shorelineDetectionNm(s.heightM)), height: s.heightM, rangeNm: r, relBearing: relativeBearing(bearingOf(v), heading), pos: s.pos, kind: "coast" }, rx);

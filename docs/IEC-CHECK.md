@@ -85,8 +85,8 @@ known deviation they had: scenario 2's 1-minute relative speed is 0.75 kn agains
 
 ## Tracking: IEC 62388 TT scenarios 2 to 5
 
-`tests/iec-tt.test.ts` runs the other four tracking scenarios of 11.3.14 for standard ships (not
-high-speed craft). The standard runs them **without sensor errors**, so what they test is that the
+`tests/iec-tt.test.ts` runs the other four tracking scenarios of 11.3.14 for standard ships, and
+(since the fourth round, below) for high-speed craft too. The standard runs them **without sensor errors**, so what they test is that the
 tracker keeps hold of every target, never swaps two, follows manoeuvres and copes with a fading
 echo; course and speed must be within 3° and 5% or 1 kn.
 
@@ -180,13 +180,22 @@ digit).
 The limits of the setting-up exercise (radar 22) can now be changed by the instructor with the
 other scoring settings (Instructor tab); the placeholders stay the default.
 
+## Fourth round of changes (13 Nov 2026)
+
+Read for this round: IEC 62288 Annex A symbols 1.2 to 1.5, IEC 62388 11.5.3.1 and its test g) in
+11.5.3.2, and the HSC parts of 11.3.14.4 to 11.3.14.7 with Tables 18, 20, 21 and 22.
+
+| Standard | Requirement, in short | Now |
+|----------|----------------------|-----|
+| 62288 A.1 1.5 | Stern line (optional): thin, dotted, from the reference point astern to the bearing scale | "Stern line" box on the Radar tab |
+| 62288 A.1 1.2 | Radar antenna position (optional): crossed lines 1 to 2 mm long at the antenna's place, only with own ship's outline | "Antenna position on own ship's outline" box; the antenna's distance ahead and to starboard of the reference point is entered under Own ship data (0 and 0 to start with). The picture stays referenced to the reference point, as a real radar corrects it (62388 8.2.2.1): the offset only places the mark |
+| 62388 11.5.3.1, test g) | Reports repeated by an AIS shore station are not processed while direct reports of the vessel come in; own ship's repeated reports never are | An instructor switch (ARPA tab, instructor faults) makes a shore station repeat every report it hears, own ship's included, 30 s late and every 10 s. They are counted and not used. A repeated report is used only for a vessel that is heard through the station alone, and never replaces a newer report. Test g) is run as written: a 24 kn target 2 NM off, five minutes, no repeated report displayed, no alarm |
+| 62388 11.3.14.4 to 11.3.14.7 (HSC) | The high-speed craft versions of TT scenarios 2 to 5: own ship turning at 20°/s; at 45 kn; at 70 kn with a 70 kn target; 60 kn slowing to 40 kn at 1 kn/s, radar at 40 rpm | Run as tests in `tests/iec-tt.test.ts`. All met (no sensor errors, as the standard runs them). In scenario 5 the simulator's own CPA and TCPA of the ten targets agree with the standard's Tables 21 and 22 to their last figure |
+
 ## Not met, and not done yet
 
 | Standard | Requirement | State |
 |----------|-------------|-------|
-| 62388 8.2.2.1, 62288 A.1 1.2, 1.5 | Antenna position on own ship's outline, measurements from the consistent common reference point (CCRP); stern line (optional) | Not drawn: the simulator puts the antenna at the reference point, so there is no offset to correct |
-| 62388 11.5.3.1 | Reports repeated by AIS shore stations are not to be processed when direct reports are received | Not simulated: there are no repeater stations in the simulator |
-| 62388 11.3.14 | The high-speed craft versions of TT scenarios 2 to 5 | Only the standard-ship versions are run |
 | 62388 18.1.2 | A real radar must itself contain a target simulator for familiarisation | Noted only: this whole product is such a simulator, for no particular make |
 
 Outside the scope decided for this product (ROC and ARPA only): chart radar (clause 12),

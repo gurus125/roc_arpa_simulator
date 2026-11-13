@@ -371,22 +371,28 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     // Own ship: heading and speed in large figures, each value with the sensor it comes from
     // (red when the instructor has failed that sensor, as the ARPA's own alarm already says).
     const pos = latLonOf(w.origin, w.own.pos);
+    const noFix = !!w.sensors.gnssFailed;
     const nav = (label: string, value: string, u: string, source: string, bad: boolean, cls = ""): string =>
       `<div class="nav ${cls}"><span class="cl">${label}</span><b>${value}</b>${unit(u)}<i class="src${bad ? " no" : ""}">${source}</i></div>`;
     put("cOwn",
       nav("HDG", p3(measuredHeading(w)), "°", "GYRO", !app.roc && a.gyroFailed, "big") + nav("STW", logSpeed(w).toFixed(1), "kn", "LOG", !app.roc && a.logFailed, "big") +
-      nav("COG", p3(cog.course), "°", "EPFS", false) + nav("SOG", cog.speed.toFixed(1), "kn", "EPFS", false) +
-      `<div class="nav pos"><span class="cl">LAT</span><b>${formatLatLon(pos.lat, "lat", 3)}</b></div><div class="nav pos"><span class="cl">LON</span><b>${formatLatLon(pos.lon, "lon", 3)}</b></div>` +
+      // With the EPFS (GNSS) failed there is no position, course or speed over the ground.
+      (noFix
+        ? nav("COG", "---.-", "°", "EPFS", true) + nav("SOG", "--.-", "kn", "EPFS", true) +
+          `<div class="nav pos"><span class="cl">LAT</span><b class="no">NO FIX</b></div><div class="nav pos"><span class="cl">LON</span><b class="no">NO FIX</b></div>`
+        : nav("COG", p3(cog.course), "°", "EPFS", false) + nav("SOG", cog.speed.toFixed(1), "kn", "EPFS", false) +
+          `<div class="nav pos"><span class="cl">LAT</span><b>${formatLatLon(pos.lat, "lat", 3)}</b></div><div class="nav pos"><span class="cl">LON</span><b>${formatLatLon(pos.lon, "lon", 3)}</b></div>`) +
       `<div class="navrow">` +
       pair("RUD", mo ? side1(mo.motion.rudder, 0.5, (x) => `${x.toFixed(0)}°`, "MID") : "---") + pair("ROT", mo ? side1(mo.motion.r * 60, 0.5, (x) => `${x.toFixed(0)}°/min`, "0") : "---") +
-      pair("STEER", mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : "---") +
+      pair("STEER", w.own.anchor ? "ANCHORED" : mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : "---") +
       pair("WIND", rw ? `R${String(Math.round(rw.fromRel) % 360).padStart(3, "0")} ${rw.speedKn.toFixed(0)} kn` : "CALM") + pair("TIME", time) +
       `</div>`);
 
     // Cursor: bearing (true and relative) and range as the radar reads them, and the position that
     // bearing and range give from own ship's position (so a gyro error shifts it, as on a real set).
     const cur = app.cursor ? readoutAt(app, displayNmToWorld(w, app.display, app.cursor.x, app.cursor.y)) : null;
-    const curPos = cur ? latLonOf(w.origin, { e: w.own.pos.e + cur.range * Math.sin((cur.trueBearing * Math.PI) / 180), n: w.own.pos.n + cur.range * Math.cos((cur.trueBearing * Math.PI) / 180) }) : null;
+    // The cursor's position is worked from own ship's position, so there is none without the EPFS.
+    const curPos = cur && !noFix ? latLonOf(w.origin, { e: w.own.pos.e + cur.range * Math.sin((cur.trueBearing * Math.PI) / 180), n: w.own.pos.n + cur.range * Math.cos((cur.trueBearing * Math.PI) / 180) }) : null;
     put("cCur",
       `<div class="cline">` + pair("BRG", cur ? `${p3(cur.trueBearing)}${unit("°T")}` : dash, "big") + pair("REL", cur ? `${p3(cur.relBearing)}${unit("°")}` : dash) + pair("RNG", cur ? `${cur.range.toFixed(2)}${unit("NM")}` : dash, "big") + `</div>` +
       `<div class="cpos"><span class="cl">CURS</span><b>${curPos ? formatLatLon(curPos.lat, "lat", 3) : "--°--.---'"}</b><b>${curPos ? formatLatLon(curPos.lon, "lon", 3) : "---°--.---'"}</b></div>`);

@@ -37,7 +37,7 @@ then manoeuvre for a 1 NM CPA; result as a percentage of the required CPA, 80% n
 follow the Learnmarine plotting trainer the academy supplied as a reference; the situations are our own.
 RINGS on/off and DAY/NIGHT keys; 30-minute trails.
 Self-test (`src/train/robot.ts`): Instructor page > "Self-test of the exercises", or `npm run selftest`.
-Three robots (careful, wrong, idle) work all 22 ARPA, radar and plotting exercises and the marking is
+Three robots (careful, wrong, idle) work all 26 ARPA, radar and plotting exercises and the marking is
 compared with what should happen. It checks that the exercises run and are marked properly, not that
 the answer key is good seamanship. ROC exercises are not included.
 SETTINGS key: DAY / NIGHT display palettes (`src/ui/palette.ts`; day is dark blue with yellow echoes,
@@ -94,6 +94,18 @@ fading target (`paint` in a scenario); AIS class B with its Table 27 rates; furt
 the target data: class, IMO number, type, destination, ETA, draught, size, position accuracy, MISSING where not
 sent); own ship's AIS data; the sleeping-target filter by range, CPA, TCPA, speed and class; and the setting-up
 exercise's limits set by the instructor.
+Fourth round (13 Nov 2026): four marked exercises in the real areas (`src/train/port-exercises.ts`, tests
+`tests/port-exercises.test.ts`): 23 Mumbai, radar fix with the GNSS failed; 24 Goa, parallel index approach,
+anchoring and anchor watch; 25 Kochi, collision avoidance in restricted visibility off a low coast; 26 Gulf of
+Kutch, tidal stream, ground stabilisation and a meeting ship. For them: a GNSS (EPFS) failure (no position
+anywhere, EPFS INPUT ABSENT), anchoring (LET GO ANCHOR key, under 1 kn over the ground) with an anchor-drag fault,
+ships that lie at anchor without drifting (`atAnchor` in a scenario), and the exercise script can wait for a
+condition (the anchor drags ten minutes after it is let go). Printable marking sheets, one page per exercise, with
+empty boxes for the institute's tolerances, points and pass mark (`src/train/marking.ts`; Instructor tab >
+Marking sheets). A draft syllabus table, STCW A-II/1, Model Course 1.07 and DG Shipping Circular 5 of 2004 against
+the exercises, with the gaps: `docs/SYLLABUS-MATRIX.md` (no instructor has reviewed it). From IEC 62288 and
+62388: the stern line and the antenna position mark; AIS reports repeated by a shore station, not used while the
+vessel is heard directly (instructor switch); the high-speed-craft versions of TT scenarios 2 to 5, all met.
 Hardware control panel: keys for every radar function, changeable, and knob-box (game controller) inputs
 (`src/ui/panel-map.ts`, `src/ui/panel.ts`; SETTINGS > Control panel). No real panel has been tried.
 `npm run test:link` starts the classroom server and checks an instructor and four student displays in separate
@@ -109,7 +121,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 508 tests
+    npm test            # 539 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 
@@ -123,9 +135,10 @@ See `PLAN.md` for the full build plan.
 
 ## Added in phases 5 to 8
 
-- **ARPA exercises** tab: nine exercises with automatic checking and debrief questions.
+- **ARPA exercises** tab: 26 exercises with automatic checking and debrief questions: nine ARPA,
+  seven radar (four of them in the real areas) and ten manual plotting.
 - **Instructor** tab (PIN 0000 at first): batches, assignments, event injection, monitoring,
-  records, replay, CSV and printable reports, scoring settings, scenario editor.
+  records, replay, CSV and printable reports, scoring settings, printable marking sheets, scenario editor.
 - `npm run serve` starts a small classroom server so the instructor can monitor other PCs.
   Open the address it prints on every display. Classroom network only: it has no security.
 

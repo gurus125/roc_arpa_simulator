@@ -216,8 +216,8 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.fill("#inPin", "0000");
     await p.click("#inLoginBtn");
     await p.click("#stRun");
-    await p.waitForFunction(() => /PASSED|FAILED/.test(document.querySelector("#stMsg").textContent), null, { timeout: 90000 });
-    check(`${tag} self-test of the exercises passes`, /ALL \d+ EXERCISES PASSED/.test(await text("#stMsg")), await text("#stMsg"));
+    await p.waitForFunction(() => /PASSED|FAILED/.test(document.querySelector("#stMsg").textContent), null, { timeout: 180000 });
+    check(`${tag} self-test of the exercises passes`, /ALL 26 EXERCISES PASSED/.test(await text("#stMsg")), await text("#stMsg"));
 
     // 100 ships at once on programmed tracks: the scenario loads and the picture keeps moving.
     await key("scen");
@@ -459,6 +459,31 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.selectOption("#speed", "1");
     await p.click("#exFinish");
     await p.waitForTimeout(400);
+    // Exercise 23 starts with the GNSS failed: no position, course or speed over the ground anywhere.
+    await key("ex");
+    await p.click('#paneEx button[data-ex="radar-23"]');
+    await p.waitForTimeout(800);
+    const fix = await text("#cOwn");
+    check(`${tag} exercise 23: GNSS failed, NO FIX`, /LAT NO FIX/.test(fix) && /LON NO FIX/.test(fix) && /COG ---\.-/.test(fix), fix);
+    // The anchor cannot be let go with way on.
+    await key("own");
+    await p.click("#anchorKey");
+    await p.waitForTimeout(300);
+    check(`${tag} anchor: refused with way on`, /Too much way on/.test(await text("#anchorNow")) && (await text("#anchorKey")) === "LET GO ANCHOR", await text("#anchorNow"));
+    await key("ex");
+    await p.click("#exFinish");
+    await p.waitForTimeout(400);
+    // Stern line and antenna mark switch on without trouble (the picture is checked for script errors below).
+    await key("scen");
+    await p.check("#sternLine");
+    await p.check("#antMark");
+    await p.waitForTimeout(500);
+    await p.uncheck("#sternLine");
+    await p.uncheck("#antMark");
+    // Marking sheets: one choice per exercise, and "all".
+    await key("instr");
+    const sheets = await p.$$eval("#msEx option", (os) => os.length);
+    check(`${tag} marking sheets: all exercises listed`, sheets === 27, String(sheets));
     p.off("dialog", acceptAll);
   }
 

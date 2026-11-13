@@ -227,6 +227,131 @@ describe("IEC 62388 TT scenario 5: ten targets, one fading, own ship slowing dow
   });
 });
 
+/**
+ * The high-speed craft (HSC) versions (IEC 62388 11.3.14.4 to 11.3.14.7, Tables 15, 16, 18 and 20):
+ * an HSC radar turns at 40 rpm (7.3.4), own ship turns at 20°/s in scenario 2, runs at 45 kn in
+ * scenario 3, at 70 kn in scenario 4 and at 60 kn slowing to 40 kn at 1 kn/s in scenario 5. The
+ * expected CPA and TCPA in scenario 5 are the standard's own Tables 21 and 22.
+ */
+function setupHsc(own: { heading: number; speed: number }, targets: Tgt[]): { w: World; a: ArpaSystem; rng: () => number } {
+  const s = setup(own, targets);
+  s.w.radar.rpm = 40;
+  s.w.own.accelKnPerSec = 1;
+  return s;
+}
+
+describe("IEC 62388 TT scenario 2, HSC: own ship turning through 180° at 20°/s while stopped", () => {
+  for (const dir of [1, -1]) {
+    it(dir > 0 ? "clockwise" : "anticlockwise", () => {
+      const { w, a, rng } = setupHsc({ heading: 0, speed: 0 }, [tgt(1, 23, 8, 135, 30), tgt(2, 135, 5, 270, 20)]);
+      w.own.turnRateDegPerSec = 20;
+      a.step(w, rng);
+      const tracks = acquireAll(w, a);
+      run(w, a, rng, 150);
+      const lost: string[] = [];
+      const turn = turner(w, dir, 180);
+      run(w, a, rng, 150 + 9, () => lost.push(...continuous(tracks, w)), turn);
+      expect(Math.abs(angleDiffDeg(w.own.heading, 180))).toBeLessThan(0.01);
+      run(w, a, rng, 150 + 9 + 90, () => lost.push(...continuous(tracks, w)), turn);
+      console.log(`IEC TT2 HSC ${dir > 0 ? "clockwise" : "anticlockwise"}, 1.5 min after the turn: ${errors(w, tracks)}`);
+      expect(firsts(lost)).toEqual([]);
+      expect(accuracy(w, tracks)).toEqual([]);
+    });
+  }
+});
+
+describe("IEC 62388 TT scenario 3, HSC: own ship at 45 kn turning 180° while a target turns 60°", () => {
+  for (const dir of [1, -1]) {
+    it(dir > 0 ? "clockwise" : "anticlockwise", () => {
+      const { w, a, rng } = setupHsc({ heading: 0, speed: 45 }, [tgt(1, 23, 5, 180, 45), tgt(2, 340, 3, 0, 0), tgt(3, 180, 8, 0, 30)]);
+      a.step(w, rng);
+      const tracks = acquireAll(w, a);
+      run(w, a, rng, 150);
+      const lost: string[] = [];
+      const turn = turner(w, dir, 180);
+      const t3 = w.targets.find((x) => x.id === 3)!;
+      const start = w.time;
+      run(w, a, rng, start + 18, () => {
+        t3.course = (360 + dir * Math.min(60, (w.time - start) * 10)) % 360;
+        lost.push(...continuous(tracks, w));
+      }, turn);
+      run(w, a, rng, start + 18 + 90, () => lost.push(...continuous(tracks, w)), turn);
+      console.log(`IEC TT3 HSC ${dir > 0 ? "clockwise" : "anticlockwise"}, 1.5 min after the turns: ${errors(w, tracks)}`);
+      expect(firsts(lost)).toEqual([]);
+      expect(accuracy(w, tracks)).toEqual([]);
+    });
+  }
+});
+
+describe("IEC 62388 TT scenario 4, HSC: own ship at 70 kn and a 70 kn target passing a buoy", () => {
+  it("both are tracked without a swap, with course and speed right at 2, 5 and 7 minutes", () => {
+    const { w, a, rng } = setupHsc({ heading: 45, speed: 70 }, [tgt(1, 40, 5, 0, 0), tgt(2, 40, 10, 225, 70)]);
+    a.step(w, rng);
+    const tracks = acquireAll(w, a);
+    const lost: string[] = [];
+    for (const m of [2, 5, 7]) {
+      run(w, a, rng, m * 60, () => lost.push(...continuous(tracks, w)));
+      console.log(`IEC TT4 HSC at ${m} min: ${errors(w, tracks)}`);
+      expect(accuracy(w, tracks)).toEqual([]);
+    }
+    expect(firsts(lost)).toEqual([]);
+    // The buoy is 5 sin 5° = 0.44 NM off own ship's track.
+    const off = computeCpa(w.targets[0]!.pos, scale(velocityOf({ course: 45, speed: 70 }), -1));
+    expect(off.cpa).toBeCloseTo(5 * Math.sin((5 * Math.PI) / 180), 6);
+  });
+});
+
+describe("IEC 62388 TT scenario 5, HSC: ten targets, one fading, own ship slowing from 60 to 40 kn", () => {
+  it("tracked without a swap; course, speed, CPA and TCPA right; the scenario matches Tables 21 and 22", () => {
+    const T = [
+      tgt(1, 288, 4.47, 45, 20), tgt(2, 304, 5.1, 45, 30), tgt(3, 288, 6.71, 45, 40), tgt(4, 307, 7.07, 0, 0),
+      tgt(5, 357, 12.0, 225, 60), tgt(6, 315, 11.0, 225, 20, { paint: 0.5 }), tgt(7, 349, 14.4, 225, 40),
+      tgt(8, 313, 13.0, 0, 0), tgt(9, 313, 14.0, 0, 0), tgt(10, 313, 15.0, 0, 0),
+    ];
+    // IEC 62388 Table 21 (CPA, and TCPA at 3 min) and Table 22 (CPA after the speed change, and TCPA at 11 min).
+    const CPA_BEFORE = [0.67, 1.37, 0.78, 0.98, 0.63, 3.48, 0.08, 0.45, 0.49, 0.52];
+    const TCPA_3 = [1.19, 1.39, 2.55, 4.0, 5.47, 6.9, 8.98, 9.99, 10.99, 11.99];
+    const CPA_AFTER = [1.1, 0.79, 0.38, 0.98, 0.98, 3.85, 1.06, 0.45, 0.49, 0.52];
+    const TCPA_11 = [-7.87, -7.79, -6.02, -4.08, -2.43, -0.67, 2.2, 4.9, 6.4, 7.9];
+    const { w, a, rng } = setupHsc({ heading: 315, speed: 60 }, T);
+    a.step(w, rng);
+    const tracks = acquireAll(w, a);
+    const lost: string[] = [];
+    const problems: string[] = [];
+    for (const m of [3, 6, 11, 14]) {
+      run(w, a, rng, m * 60, () => {
+        if (w.time >= 7 * 60 && w.own.ordered.speed !== 40) w.own.ordered.speed = 40;
+        lost.push(...continuous(tracks, w));
+      });
+      problems.push(...accuracy(w, tracks).map((x) => `${m} min: ${x}`));
+      console.log(`IEC TT5 HSC at ${m} min: ${errors(w, tracks)}`);
+      const ownV = velocityOf({ course: w.own.heading, speed: w.own.speedThroughWater });
+      for (const [id, t] of tracks) {
+        const real = w.targets.find((x) => x.id === id)!;
+        const rel = sub(real.pos, w.own.pos);
+        const truth = computeCpa(rel, sub(velocityOf({ course: real.course, speed: real.speed }), ownV));
+        // The simulator's truth against the standard's tables (independent figures).
+        if (m === 3) {
+          expect(truth.cpa, `T${id} CPA at 3 min`).toBeCloseTo(CPA_BEFORE[id - 1]!, 1);
+          expect(truth.tcpaMinutes!, `T${id} TCPA at 3 min`).toBeCloseTo(TCPA_3[id - 1]!, 1);
+        }
+        if (m === 11) {
+          expect(Math.abs(truth.cpa - CPA_AFTER[id - 1]!), `T${id} CPA at 11 min`).toBeLessThan(0.02);
+          expect(Math.abs(truth.tcpaMinutes! - TCPA_11[id - 1]!), `T${id} TCPA at 11 min`).toBeLessThan(0.05);
+        }
+        if (truth.opening || truth.tcpaMinutes === null || !t.est) continue;
+        const range = length(rel);
+        const cpaTol = range < 6 ? Math.max(0.1, 0.05 * range) : 0.3;
+        if (Math.abs(t.est.cpa.cpa - truth.cpa) > cpaTol) problems.push(`${m} min: target ${id} CPA ${t.est.cpa.cpa.toFixed(2)} for ${truth.cpa.toFixed(2)}`);
+        if (Math.abs((t.est.cpa.tcpaMinutes ?? 99) - truth.tcpaMinutes) > 1) problems.push(`${m} min: target ${id} TCPA ${t.est.cpa.tcpaMinutes?.toFixed(1)} for ${truth.tcpaMinutes.toFixed(1)}`);
+      }
+    }
+    expect(w.own.speedThroughWater).toBeCloseTo(40, 1);
+    expect(firsts(lost)).toEqual([]);
+    expect(problems).toEqual([]);
+  });
+});
+
 describe("IEC 62388 11.3.9: a target painted on 5 out of 10 scans", () => {
   it("a paint of 0.5 gives every other scan; 0.3 gives 3 of every 10, evenly spread", () => {
     const a = {};

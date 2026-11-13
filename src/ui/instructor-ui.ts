@@ -3,7 +3,7 @@ import { IMO_TABLE2, Scenario, TARGET_TYPES, Target, TargetKind, clearTargetRout
 import { MAX_ROUTE_WAYPOINTS } from "../core/route";
 import { EXERCISES } from "../roc/index";
 import {
-  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, PLACEHOLDER_SCORING, SETUP_LIMITS, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
+  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, markingSheetsHtml, PLACEHOLDER_SCORING, SETUP_LIMITS, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
 } from "../train/index";
 import { AppState, rewind } from "./app";
 import { deletePictures, loadPictures } from "./picture-store";
@@ -196,7 +196,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
         <p class="hint">The score is a guide only. The assessor's decision is the prime criterion (STCW Code A-I/12, paragraph 8).</p>
         <div class="btns"><button id="inRecCsv">Result (CSV)</button><button id="inRecPrint">Report (print or save as PDF)</button><button id="inRecJson">Record (JSON)</button></div></div></section>
     <section><h2>Self-test of the exercises</h2>
-      <div class="btns"><button id="stRun">Run self-test (about 10 seconds)</button><span class="small" id="stMsg"></span></div>
+      <div class="btns"><button id="stRun">Run self-test (about half a minute)</button><span class="small" id="stMsg"></span></div>
       <table class="trk"><thead><tr><th></th><th>Exercise</th><th>Careful robot</th><th>Wrong robot</th><th>Idle robot</th></tr></thead><tbody id="stRows"></tbody></table>
       <ul class="alarms" id="stProblems"></ul>
       <p class="hint">Three robots work every ARPA, radar and plotting exercise in the background. The careful robot does what the briefing asks and answers from the answer key: it must get 100%. The wrong robot gives wrong answers: all must be rejected. The idle robot does nothing: it must not be credited. This checks that every exercise runs, can be completed and is marked properly. It does not check that the answer key is good seamanship. The ROC exercises are not included.</p>
@@ -204,6 +204,10 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     <section><h2>Scoring settings (placeholders)</h2><div class="grid2" id="inScore"></div>
       <div class="btns"><button id="inScoreSave">Save scoring</button><button id="inScoreReset">Reset to placeholders</button></div>
       <p class="hint">None of these values comes from an approved marking scheme. Leave the pass mark blank to report scores without pass or fail.</p></section>
+    <section><h2>Marking sheets</h2>
+      <div class="row two"><label for="msEx">Exercise</label><select id="msEx"></select></div>
+      <div class="btns"><button id="msPrint">Print marking sheet (or save as PDF)</button></div>
+      <p class="hint">One page per exercise for the institute to fill in: what the simulator checks and the value it uses now, with empty boxes for the institute's own tolerances, points and pass mark, the items the assessor judges, and the assessor's decision and signature. The values printed are the scoring settings above: placeholders until the institute changes them. The syllabus references on each sheet are a draft (docs/SYLLABUS-MATRIX.md).</p></section>
     <section><h2>Scenario editor</h2>
       <div class="row two"><label for="edBase">Start from</label><select id="edBase"></select></div>
       <div class="grid2"><div><label for="edName">Scenario name</label><input type="text" id="edName"></div><div><label for="edSea">Sea state (0-9)</label><input type="number" id="edSea" min="0" max="9"></div>
@@ -561,19 +565,29 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
   $("inCsvAll").addEventListener("click", () => download("exercise-records.csv", recordsCsv(st.data.records), "text/csv"));
   $("inRecCsv").addEventListener("click", () => viewing && download("exercise-result.csv", resultCsv(viewing), "text/csv"));
   $("inRecJson").addEventListener("click", () => viewing && download("exercise-record.json", JSON.stringify(viewing, null, 2), "application/json"));
-  $("inRecPrint").addEventListener("click", () => {
-    if (!viewing) return;
-    const html = reportHtml(viewing);
+  /** Open a document in a new window and print it; if the browser blocks the window, download it instead. */
+  const printDoc = (html: string, file: string, what: string): void => {
     const win = window.open("", "_blank");
     if (!win) {
-      download("exercise-report.html", html, "text/html");
-      msg("The browser blocked the print window, so the report was downloaded as a file: open it and print.");
+      download(file, html, "text/html");
+      msg(`The browser blocked the print window, so the ${what} was downloaded as a file: open it and print.`);
       return;
     }
     win.document.write(html);
     win.document.close();
     win.focus();
     setTimeout(() => win.print(), 300);
+  };
+  $("inRecPrint").addEventListener("click", () => {
+    if (viewing) printDoc(reportHtml(viewing), "exercise-report.html", "report");
+  });
+  // Marking sheets: every exercise, listed by number.
+  const sheetExercises = [...SELF_TEST_EXERCISES].sort((a, b) => a.number - b.number);
+  $("msEx").innerHTML = `<option value="">All exercises (${sheetExercises.length} pages)</option>` + sheetExercises.map((e) => `<option value="${esc(e.id)}">${e.number}. ${esc(e.title)}</option>`).join("");
+  $("msPrint").addEventListener("click", () => {
+    const id = $<HTMLSelectElement>("msEx").value;
+    const list = id ? sheetExercises.filter((e) => e.id === id) : sheetExercises;
+    printDoc(markingSheetsHtml(list, st.data.scoring), id ? `marking-sheet-${id}.html` : "marking-sheets.html", "marking sheet");
   });
   const drawRecs = (): void => {
     const sig = st.data.records.map((r) => r.id).join("|");
@@ -593,6 +607,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     { key: "gy", label: "Gyro error tolerance (°)", get: (c) => c.tol.errorDeg, set: (c, v) => (c.tol.errorDeg = v ?? c.tol.errorDeg) },
     { key: "dr", label: "Drift / log tolerance (kn)", get: (c) => c.tol.errorKn, set: (c, v) => (c.tol.errorKn = v ?? c.tol.errorKn) },
     { key: "set", label: "Set tolerance (°)", get: (c) => c.tol.setDeg, set: (c, v) => (c.tol.setDeg = v ?? c.tol.setDeg) },
+    { key: "brg", label: "Radar bearing / course to steer tolerance (°)", get: (c) => c.tol.bearingDeg, set: (c, v) => (c.tol.bearingDeg = v ?? c.tol.bearingDeg) },
     { key: "pq", label: "Points per question", get: (c) => c.points.question, set: (c, v) => (c.points.question = v ?? c.points.question) },
     { key: "pa", label: "Points per action", get: (c) => c.points.action, set: (c, v) => (c.points.action = v ?? c.points.action) },
     { key: "ps", label: "Points per safety outcome", get: (c) => c.points.safety, set: (c, v) => (c.points.safety = v ?? c.points.safety) },

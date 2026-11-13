@@ -1,7 +1,7 @@
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
 import { aisFilterLabel } from "../ais/index";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
-import { BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, setRadarTransmit, switchRadarOff, switchRadarOn } from "../engine/index";
+import { BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
 import { ARPA_EXERCISES, PLOT_RULES, ArpaExSession, ArpaExercise, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
 import { initTrainUi } from "./train-ui";
@@ -308,6 +308,8 @@ function applyControls(): void {
   app.trailMinutes = Number(sel("trailMin"));
   app.showShadow = chk("shadow");
   app.showNames = chk("names");
+  app.sternLine = chk("sternLine");
+  app.antennaMark = chk("antMark");
   setText("gainV", String(c.gain));
   setText("tuningV", String(c.tuning));
   setText("stcV", String(c.stc));
@@ -763,6 +765,21 @@ function setup(): void {
     os.draughtM = Number.isFinite(v) && v > 0 ? v : null;
     store.save();
   });
+  // The radar antenna's place from the reference point: it only places the antenna mark on the outline.
+  const antIn = (id: string, k: "antennaAheadM" | "antennaStbdM", limit: number): void => {
+    const el = $(id) as HTMLInputElement;
+    el.value = String(os[k] ?? 0);
+    el.addEventListener("change", () => {
+      const v = Number(el.value);
+      os[k] = Number.isFinite(v) ? Math.max(-limit, Math.min(limit, v)) : 0;
+      el.value = String(os[k]);
+      app.antennaOffsetM = { ahead: os.antennaAheadM ?? 0, stbd: os.antennaStbdM ?? 0 };
+      store.save();
+    });
+  };
+  antIn("osAntAhead", "antennaAheadM", 400);
+  antIn("osAntStbd", "antennaStbdM", 60);
+  app.antennaOffsetM = { ahead: os.antennaAheadM ?? 0, stbd: os.antennaStbdM ?? 0 };
 
   // Own ship: ship types, steering mode, telegraph.
   $("shipType").innerHTML = SHIP_TYPES.map((t) => `<option value="${t.id}">${t.name}</option>`).join("") + `<option value="simple">Exercise ship (${PLOT_RULES.turnDegPerMin}°/min, ${PLOT_RULES.speedKnPerMin} kn/min)</option>`;
@@ -791,6 +808,20 @@ function setup(): void {
       applyControls();
     });
   }
+  // Anchor: let go when nearly stopped, or weigh.
+  $("anchorKey").addEventListener("click", () => {
+    const w = app.world;
+    if (w.own.anchor) {
+      weighAnchor(w);
+      setText("anchorNow", "Anchor aweigh.");
+      app.recorder?.note(w, "Anchor weighed.");
+    } else if (letGoAnchor(w)) {
+      setSlider("ordSpeed", 0);
+      applyControls();
+      setText("anchorNow", "Anchor let go.");
+      app.recorder?.note(w, "Anchor let go.");
+    } else setText("anchorNow", `Too much way on: the anchor can be let go below ${ANCHOR_MAX_SOG_KN} kn over the ground.`);
+  });
   $("steerAuto").addEventListener("click", () => {
     // Back to the autopilot: it holds the present heading, rudder order cleared.
     setSlider("ordCourse", Math.round(measuredHeading(app.world)) % 360);
@@ -1072,6 +1103,8 @@ function updateReadouts(): void {
     setText("helmNow", mo ? `${mo.rudder > 0.5 ? "+" : ""}${mo.rudder.toFixed(0)}°` : "---");
     const swy = app.world.own.seaway;
     const side = (x: number, pos: string, neg: string): string => `${Math.abs(x).toFixed(0)}° ${Math.abs(x) < 0.5 ? "" : x > 0 ? pos : neg}`.trim();
+    setText("anchorKey", app.world.own.anchor ? "WEIGH ANCHOR" : "LET GO ANCHOR");
+    $("anchorKey").classList.toggle("on", !!app.world.own.anchor);
     setText("shipNow", mo ? `HDG ${pad3(measuredHeading(app.world))}   RUDDER ${sd(mo.rudder, "°")}   ROT ${sd(mo.r * 60, "°/min")}   STW ${mo.u.toFixed(1)} kn${swy ? `   ROLL ${side(swy.rollDeg, "S", "P")}   PITCH ${side(swy.pitchDeg, "bow down", "bow up")}` : ""}` : "");
   }
   // Hand steering: the autopilot is disengaged, so its course setting is shown as OFF and does not move.
@@ -1085,7 +1118,7 @@ function updateReadouts(): void {
     const dr = $("osDraught") as HTMLInputElement;
     if (document.activeElement !== dr) dr.value = String(store.data.ownShip.draughtM ?? type?.draughtM ?? "");
     const ll = latLonOf(w0.origin, w0.own.pos);
-    setText("osPos", `${formatLatLon(ll.lat, "lat")}  ${formatLatLon(ll.lon, "lon")}`);
+    setText("osPos", w0.sensors.gnssFailed ? "NO FIX (EPFS failed)" : `${formatLatLon(ll.lat, "lat")}  ${formatLatLon(ll.lon, "lon")}`);
     const cg = ownCogSog(w0);
     setText("osCog", `${cg.course.toFixed(1).padStart(5, "0")}°`);
     setText("osSog", `${cg.speed.toFixed(1)} kn`);

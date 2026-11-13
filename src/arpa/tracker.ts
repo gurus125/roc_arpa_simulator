@@ -141,8 +141,9 @@ export class ArpaSystem {
   gyroFailed = false;
   /** Instructor fault: the speed log gives no signal. The ARPA indicates the absent input (A.823(19) 3.9.2). */
   logFailed = false;
-  /** Number of alarms the operator has acknowledged (for exercise records). */
+  /** Number of alarms the operator has acknowledged, and of which kinds (for exercise records). */
   ackCount = 0;
+  ackedKinds = new Set<AlarmKind>();
   /** Number of self-tests run (for exercise records). */
   testCount = 0;
   /** The ARPA self-test in progress or just finished, or null. */
@@ -207,8 +208,8 @@ export class ArpaSystem {
   ownVelocity(w: World, stab: Stab = this.effectiveStab()): Vec2 {
     let sea: Vec2;
     if (this.settings.logMode === "gnss") {
-      // EPFS (GNSS): course and speed over the ground, independent of gyro and log.
-      sea = ownGroundVelocity(w);
+      // EPFS (GNSS): course and speed over the ground, independent of gyro and log. None when it has failed.
+      sea = w.sensors.gnssFailed ? { e: 0, n: 0 } : ownGroundVelocity(w);
     } else if (this.settings.logMode === "manual") {
       // Speed set by hand: whatever the operator entered, along the gyro heading. A wrong value
       // gives wrong true vectors and true course/speed; relative data and CPA/TCPA are unaffected.
@@ -325,7 +326,10 @@ export class ArpaSystem {
   ack(w: World, key: string): void {
     const a = this.alarms.find((x) => x.key === key);
     if (!a) return;
-    if (!a.acked) this.ackCount++;
+    if (!a.acked) {
+      this.ackCount++;
+      this.ackedKinds.add(a.kind);
+    }
     a.acked = true;
     if (a.kind === "lost" && a.trackId !== undefined) {
       this.tracks = this.tracks.filter((x) => x.id !== a.trackId);
@@ -385,6 +389,7 @@ export class ArpaSystem {
     results.push({ name: "Gyro heading input", ok: !this.gyroFailed, detail: this.gyroFailed ? "NO GYRO SIGNAL" : "signal present" });
     const logOk = Number.isFinite(logSpeed(w));
     results.push({ name: "Speed log input", ok: logOk, detail: logOk ? `${logSpeed(w).toFixed(1)} kn` : "NO LOG SIGNAL" });
+    results.push({ name: "EPFS (GNSS) input", ok: !w.sensors.gnssFailed, detail: w.sensors.gnssFailed ? "NO POSITION SIGNAL" : "position present" });
     const mem = this.activeCount() <= this.cfg.maxTracks;
     results.push({ name: "Target memory", ok: mem, detail: `${this.activeCount()} of ${this.cfg.maxTracks} in use` });
     this.test = { startedAt: w.time, results, targets };
@@ -495,10 +500,23 @@ export class ArpaSystem {
     const predicted = new Map<number, Vec2>();
     for (const t of this.tracks) predicted.set(t.id, this.predictRel(t, now));
     const preds = [...predicted.values()];
+    // Called for every piece of coastline in range, so kept cheap: no new objects for the near-track test.
+    const guardOn = s.guardZones.some((z) => z.on);
+    const gc = Math.cos((g * Math.PI) / 180);
+    const gs = Math.sin((g * Math.PI) / 180);
     const wantLand = (relTrue: Vec2): boolean => {
-      const rel = rotateVec(relTrue, g);
-      if (s.guardZones.some((z) => z.on && inSectorZone(rel, heading, z))) return true;
-      return preds.some((p) => length(sub(p, rel)) < 0.6);
+      if (guardOn && s.guardZones.some((z) => z.on && inSectorZone(rotateVec(relTrue, g), heading, z))) return true;
+      // The same rotation as rotateVec(relTrue, g), without making a new object.
+      const e = relTrue.e * gc + relTrue.n * gs;
+      const n = -relTrue.e * gs + relTrue.n * gc;
+      for (const p of preds) {
+        const de = p.e - e;
+        if (de > 0.6 || de < -0.6) continue;
+        const dn = p.n - n;
+        if (dn > 0.6 || dn < -0.6) continue;
+        if (de * de + dn * dn < 0.36) return true;
+      }
+      return false;
     };
     const plots = extractPlots(w, this.cfg, rng, wantLand);
     const uses = plots.map(() => 0);
@@ -823,6 +841,15 @@ export class ArpaSystem {
     const hasLog = this.alarms.some((a) => a.key === "logfail");
     if (logAbsent && !hasLog) this.raise(w, "logfail", "malfunction", "SPEED LOG INPUT ABSENT: true vectors and true course/speed are not valid. Relative data and CPA/TCPA remain valid.");
     if (!logAbsent && hasLog) this.alarms = this.alarms.filter((a) => a.key !== "logfail");
+    // EPFS (GNSS) lost: a sensor failure, so a warning (IEC 62388 alert table).
+    const gnss = !!w.sensors.gnssFailed;
+    const hasGnss = this.alarms.some((a) => a.key === "gnssfail");
+    if (gnss && !hasGnss) {
+      this.raise(w, "gnssfail", "malfunction", this.settings.logMode === "gnss"
+        ? "EPFS INPUT ABSENT: no position, and no speed input (EPFS mode): true vectors not valid. Fix the position by radar."
+        : "EPFS INPUT ABSENT: no position from the GNSS. Fix the position by radar or visual bearings.");
+    }
+    if (!gnss && hasGnss) this.alarms = this.alarms.filter((a) => a.key !== "gnssfail");
     // Memory full stays on until a target has been dropped.
     if (this.activeCount() < this.cfg.maxTracks) this.alarms = this.alarms.filter((a) => a.kind !== "capacity");
   }

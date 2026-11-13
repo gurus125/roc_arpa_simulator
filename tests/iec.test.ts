@@ -4,7 +4,7 @@ import { Scenario, World, createWorld, stepWorld } from "../src/engine/index";
 import {
   ARPA_PLACEHOLDERS, ArpaConfig, ArpaSystem, LOST_SYMBOL_SEC, alarmToneOn, alertPriority, capacityCautionAt, warningToneOn,
 } from "../src/arpa/index";
-import { ownOutline, ownShipSymbol } from "../src/ui/view";
+import { antennaMarkPx, ownOutline, ownShipSymbol } from "../src/ui/view";
 
 /**
  * Checks against IEC 62388:2013 (shipborne radar) and IEC 62288:2014 (presentation of
@@ -51,6 +51,16 @@ describe("IEC 62288 Annex A: own ship's symbol", () => {
     expect(ownOutline({ lengthM: 185.2, beamM: 18.52 }, 1000)).toBeNull();
     expect(ownOutline({ lengthM: 185.2, beamM: 18.52 }, 1200)).not.toBeNull(); // 12 pixels
     expect(ownOutline(null, 5000)).toBeNull();
+  });
+  it("the antenna mark (symbol 1.2) is 1 to 2 mm of crossed lines at the antenna's place, and only with the outline", () => {
+    // 92.6 m ahead and 9.26 m to starboard is 0.05 NM and 0.005 NM: at 1000 pixels to the mile, 50 and 5 pixels.
+    const m = antennaMarkPx({ ahead: 92.6, stbd: 9.26 }, { lengthM: 185.2, beamM: 37.04 }, 1000)!;
+    expect(m.x).toBeCloseTo(5, 9);
+    expect(m.y).toBeCloseTo(50, 9);
+    const mm = (2 * m.halfPx) / (96 / 25.4);
+    expect(mm).toBeGreaterThanOrEqual(1);
+    expect(mm).toBeLessThanOrEqual(2);
+    expect(antennaMarkPx({ ahead: 0, stbd: 0 }, { lengthM: 185.2, beamM: 18.52 }, 1000)).toBeNull();
   });
 });
 

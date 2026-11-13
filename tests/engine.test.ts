@@ -374,3 +374,33 @@ describe("trails", () => {
     expect(last.rel.e).toBeCloseTo(first.rel.e, 6);
   });
 });
+
+describe("ships at anchor", () => {
+  it("a ship at anchor stays put in a current; a ship that is only stopped drifts; an order to make way weighs the anchor", async () => {
+    const { TARGET_TYPES, targetFromType, orderTarget } = await import("../src/engine/index");
+    const { AisSystem } = await import("../src/ais/index");
+    const typed = targetFromType(TARGET_TYPES.find((t) => t.id === "bulk-handy")!);
+    const sc: Scenario = {
+      id: "anchor-test", name: "anchor", description: "", own: { heading: 0, speed: 0 }, env: { current: { set: 90, drift: 1 } }, coasts: [],
+      targets: [
+        { id: 1, name: "At anchor", ...typed, pos: { e: 3, n: 0 }, course: 0, speed: 0, events: [], atAnchor: true },
+        { id: 2, name: "Stopped", ...typed, pos: { e: -3, n: 0 }, course: 0, speed: 0, events: [] },
+      ],
+    } as unknown as Scenario;
+    const w = createWorld(sc);
+    const ais = new AisSystem();
+    for (let i = 0; i < 1800; i++) {
+      stepWorld(w, 1);
+      ais.step(w);
+    }
+    const [a, s] = [w.targets[0]!, w.targets[1]!];
+    // Half an hour in a 1 kn current setting east: the stopped ship has gone 0.5 NM east, the anchored one nowhere.
+    expect(a.pos).toEqual({ e: 3, n: 0 });
+    expect(a.speed).toBe(0);
+    expect(s.pos.e).toBeCloseTo(-2.5, 6);
+    expect(ais.reports.get(1)!.navStatus).toBe("At anchor");
+    expect(ais.reports.get(2)!.navStatus).toBe("Under way using engine");
+    orderTarget(a, { speed: 8 });
+    expect(a.atAnchor).toBeUndefined();
+  });
+});

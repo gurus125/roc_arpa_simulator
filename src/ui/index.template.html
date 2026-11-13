@@ -342,6 +342,7 @@
       <div class="btns"><span class="small">Steering</span><button id="steerAuto" class="on">AUTOPILOT</button><button id="steerHand">HAND STEERING</button></div>
       <div class="row"><label for="ordCourse">Autopilot course</label><input type="range" id="ordCourse" min="0" max="359" value="0"><span class="val" id="ordCourseV">000</span></div>
       <div class="btns" id="telegraph"></div>
+      <div class="btns"><span class="small">Anchor</span><button id="anchorKey" title="Let go the anchor (only with less than 1 kn over the ground), or weigh it">LET GO ANCHOR</button><span class="small" id="anchorNow"></span></div>
       <div class="btns"><span class="small">Engine order</span><button id="engDn" class="pm1">−</button><b id="ordSpeedV" style="min-width:60px;text-align:center">12</b><button id="engUp" class="pm1">+</button><span class="small">kn</span></div>
       <input type="range" id="ordSpeed" min="-10" max="25" step="0.5" value="12" hidden>
       <p id="shipNow" style="font:13px ui-monospace, Consolas, monospace; margin:4px 0"></p>
@@ -391,6 +392,7 @@
         <tr><td>MMSI number</td><td><input type="text" id="osMmsi" maxlength="9" inputmode="numeric"></td></tr>
         <tr><td>Length and beam</td><td><b id="osSize">---</b></td></tr>
         <tr><td>Ship type</td><td><b id="osType">---</b></td></tr>
+        <tr><td>Radar antenna from the reference point (m ahead, m to starboard)</td><td><input type="number" id="osAntAhead" min="-400" max="400" step="1" style="width:4.5em"> <input type="number" id="osAntStbd" min="-60" max="60" step="0.5" style="width:4em"></td></tr>
         <tr><td colspan="2" class="small">DYNAMIC DATA</td></tr>
         <tr><td>Ship position</td><td><b id="osPos">---</b></td></tr>
         <tr><td>COG</td><td><b id="osCog">---</b></td></tr>
@@ -514,6 +516,8 @@
         <h2>Study aids</h2>
         <div class="check"><input type="checkbox" id="shadow"><label for="shadow">Show blind sector astern</label></div>
         <div class="check"><input type="checkbox" id="names"><label for="names">Show target names</label></div>
+        <div class="check"><input type="checkbox" id="sternLine"><label for="sternLine">Stern line</label></div>
+        <div class="check"><input type="checkbox" id="antMark"><label for="antMark">Antenna position on own ship's outline</label></div>
       </section>
     </div>
 
@@ -623,6 +627,9 @@
           <div class="row"><label for="perf">Radar performance (%)</label><input type="range" id="perf" min="20" max="100" step="5" value="100"><span class="val" id="perfV">100</span></div>
           <div class="check"><input type="checkbox" id="logFail"><label for="logFail">Speed log FAILED (no signal: the ARPA shows SPEED LOG INPUT ABSENT)</label></div>
           <div class="check"><input type="checkbox" id="gyroFail"><label for="gyroFail">Gyro compass FAILED (ARPA gives an equipment malfunction alarm and loses all tracks)</label></div>
+          <div class="check"><input type="checkbox" id="gnssFail"><label for="gnssFail">EPFS (GNSS) FAILED (no position on the display or the cursor; the ARPA warns EPFS INPUT ABSENT)</label></div>
+          <div class="check"><input type="checkbox" id="anchorDrag"><label for="anchorDrag">Own ship's anchor DRAGGING (0.5 kn with the current; only while at anchor)</label></div>
+          <div class="check"><input type="checkbox" id="aisRepeat"><label for="aisRepeat">AIS shore station REPEATING reports (30 s late, every 10 s, own ship's too): the display must not use them while it hears the ships directly</label></div>
           <p class="small" id="faultNow"></p>
           <p class="hint">Positive = the instrument reads high. The ship's real motion is unchanged; the radar picture, heading, log speed and ARPA all use the wrong values. Not shown to the student anywhere else. The error changes gradually; while it is changing the ARPA vectors are disturbed, so allow one tracking window (3 min) after it stops before judging the effect.</p>
           <div class="check"><input type="checkbox" id="arpaTruth"><label for="arpaTruth">Show truth (real target, real CPA and course/speed)</label></div>

@@ -65,6 +65,11 @@ The settings are boxes that are clicked; each shows the setting in use by its st
 - **DANGER**: PPC (points of possible collision) or PAD (predicted areas of danger) graphics.
   **C-UP RST** takes the present heading as the new course-up reference; **TM RST** puts own ship
   back to the start of its run across the screen in true motion.
+- Under **SCENARIO**, Study aids: **Stern line** draws a thin dotted line from own ship
+  astern to the edge of the picture. **Antenna position on own ship's outline** marks the radar
+  antenna with a small cross, on the short range scales where own ship's outline is drawn. Where the
+  antenna is on the ship is entered under Own ship data (metres ahead of and to starboard of the
+  reference point); the picture and every measurement stay referenced to the reference point.
 
 ## 4. Measuring: EBL and VRM (bottom-left of the picture)
 
@@ -190,6 +195,14 @@ Press **SHIP**.
   keys shows where it is. Put it back to 0 to stop the turn.
 - **Telegraph keys**: engine orders from full astern to sea full. The ship gains and loses speed
   slowly.
+- **LET GO ANCHOR**: anchors the ship where she is. It works only when she is making less than
+  1 kn over the ground: take the way off first, with the engine astern if need be. At anchor the
+  engine is stopped, the AIS sends "At anchor" and the key reads **WEIGH ANCHOR**. The anchor can
+  drag (an instructor's fault, or in exercise 24): the ARPA's anchor watch on a fixed echo then gives
+  its alarm.
+- **If the GNSS (EPFS) fails** there is no position anywhere: the position reads NO FIX, the cursor
+  gives no latitude and longitude, COG and SOG are blank, and the ARPA warns EPFS INPUT ABSENT. Fix
+  the position by radar (exercise 23).
 
 The OWN SHIP box always shows heading, speed, course and speed made good, rudder, rate of turn
 and relative wind.
@@ -256,7 +269,8 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
 - **SETTINGS**: day or night display; telemotor 2 (faster rudder); own ship data.
 - **ROC EX**: radar observer exercises (plotting, position fixing, set and drift, clearing range,
   blind pilotage, traffic).
-- **ARPA EX**: ARPA exercises 1-9, radar exercises 10-11, manual plotting exercises 12-21.
+- **ARPA EX**: ARPA exercises 1-9, radar exercises 10-11, manual plotting exercises 12-21, switching on and
+  setting up 22, and radar exercises 23-26 on the real coasts (Mumbai, Goa, Kochi, Gulf of Kutch).
 - **INSTR**: instructor pages (PIN needed).
 
 - **SETTINGS**, User setting 1 and 2: Store keeps the present settings of the radar and ARPA

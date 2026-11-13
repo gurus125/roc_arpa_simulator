@@ -1,7 +1,7 @@
 import { CourseSpeed, Vec2, angleDiffDeg, bearingOf, courseSpeedOf, length, normalizeDeg, sub, velocityOf } from "../core/vec";
 import { CpaResult, computeCpa } from "../core/cpa";
 import { rule19Check } from "../core/colreg";
-import { alongTrack, crossTrackError } from "../core/nav";
+import { alongTrack, crossTrackError, distanceToSegment } from "../core/nav";
 import { Scenario, Target, World, currentVelocity, ownGroundVelocity, radarTransmitting } from "../engine/index";
 import { ArpaSystem } from "../arpa/index";
 
@@ -12,7 +12,7 @@ import { ArpaSystem } from "../arpa/index";
  * mark is applied unless the instructor sets one.
  */
 export interface ScoringConfig {
-  tol: { cpaNm: number; tcpaMin: number; courseDeg: number; speedKn: number; rangeNm: number; errorDeg: number; errorKn: number; setDeg: number };
+  tol: { cpaNm: number; tcpaMin: number; courseDeg: number; speedKn: number; rangeNm: number; errorDeg: number; errorKn: number; setDeg: number; bearingDeg: number };
   /** Points for each kind of item. */
   points: { question: number; action: number; safety: number };
   /** Percentage needed to pass, or null when the academy has not set one (then no pass/fail is shown). */
@@ -46,7 +46,8 @@ export const SETUP_LIMITS: SetupLimits = { speckleMin: 0.02, speckleMax: 0.25, t
 
 export const PLACEHOLDER_SCORING: ScoringConfig = {
   // Sized so that data read from a settled track (which carries the ARPA's own noise) is accepted.
-  tol: { cpaNm: 0.5, tcpaMin: 2, courseDeg: 7, speedKn: 1.5, rangeNm: 0.5, errorDeg: 1, errorKn: 0.7, setDeg: 15 },
+  // bearingDeg: radar bearings and courses to steer.
+  tol: { cpaNm: 0.5, tcpaMin: 2, courseDeg: 7, speedKn: 1.5, rangeNm: 0.5, errorDeg: 1, errorKn: 0.7, setDeg: 15, bearingDeg: 3 },
   points: { question: 10, action: 10, safety: 20 },
   passPercent: null,
   substantialTurnDeg: 30,
@@ -85,7 +86,7 @@ export interface Observed {
   navLines: number;
   /** The performance monitor was looked at while the radar was transmitting. */
   pmUsed: boolean;
-  /** Largest distance off the exercise's planned track while abeam of it, NM, and whether its end was passed. */
+  /** Largest distance off the exercise's planned track while abeam of it and under way, NM, and whether its end was passed. */
   maxXte: number;
   trackDone: boolean;
   /** Own speed (kn) at the moment of closest approach to each real target. */
@@ -93,6 +94,10 @@ export interface Observed {
   /** Largest alteration seen after the manoeuvre started. */
   maxTurnDeg: number;
   minSpeedRatio: number;
+  /** Closest own ship came to the land (any coastline), NM. */
+  minLandNm: number;
+  /** Where the anchor was first let go, if it was. */
+  anchorPos: Vec2 | null;
 }
 
 export interface TaskCtx {
@@ -127,8 +132,12 @@ export interface ActionTask extends TaskBase {
 /** Judged at the end from what happened. */
 export interface OutcomeTask extends TaskBase {
   kind: "outcome";
-  judge: (c: TaskCtx) => { ok: boolean; detail: string };
+  judge: OutcomeJudge;
+  /** What is checked, in words, with the limits in use (for the candidate's criteria and the marking sheet). Else the judge's own `rule`, else a general phrase. */
+  rule?: (cfg: ScoringConfig) => string;
 }
+/** An outcome judge. A reusable one also says in words what it checks (`rule`). */
+export type OutcomeJudge = ((c: TaskCtx) => { ok: boolean; detail: string }) & { rule?: (cfg: ScoringConfig) => string };
 export type ArpaTask = NumberTask | ChoiceTask | ActionTask | OutcomeTask;
 
 export interface ScriptStep {
@@ -136,6 +145,8 @@ export interface ScriptStep {
   /** Shown to the instructor only. */
   note: string;
   run: (w: World, a: ArpaSystem) => void;
+  /** Optional condition: the step runs at the first moment after `atSeconds` when this holds. Later steps wait for it. */
+  when?: (w: World, a: ArpaSystem) => boolean;
 }
 
 export interface ArpaExercise {
@@ -190,6 +201,13 @@ export interface ExerciseResult {
 // ---------------------------------------------------------------- truth helpers (instructor side)
 
 export const targetById = (w: World, id: number): Target | undefined => w.targets.find((t) => t.id === id);
+
+/** Distance from own ship to the nearest coastline, NM (Infinity when there is none). */
+export function distanceToLandNm(w: World): number {
+  let best = Infinity;
+  for (const e of w.edges) best = Math.min(best, distanceToSegment(w.own.pos, e.a, e.b));
+  return best;
+}
 
 /** Real CPA/TCPA of a target now (both ships over the ground). */
 export function truthCpa(w: World, id: number): CpaResult | null {
@@ -257,6 +275,7 @@ export class ArpaExSession {
       vecRelUsed: false, pastUsed: false, groundRef: null, acks: 0, tests: 0, cpaLimit: a.settings.cpaLimitNm,
       tcpaLimit: a.settings.tcpaLimitMin, minRange: {}, manoeuvre: null, maxTurnDeg: 0, minSpeedRatio: 1,
       pi: [], navLines: 0, pmUsed: false, maxXte: 0, trackDone: false, closeSpeed: {},
+      minLandNm: distanceToLandNm(w), anchorPos: null,
     };
     def.setup?.(a, w);
   }
@@ -277,11 +296,13 @@ export class ArpaExSession {
     if (tr) {
       const along = alongTrack(w.own.pos, tr.a, tr.b);
       const len = length(sub(tr.b, tr.a));
-      if (along >= 0 && along <= len) this.obs.maxXte = Math.max(this.obs.maxXte, Math.abs(crossTrackError(w.own.pos, tr.a, tr.b)));
+      if (along >= 0 && along <= len && !w.own.anchor) this.obs.maxXte = Math.max(this.obs.maxXte, Math.abs(crossTrackError(w.own.pos, tr.a, tr.b)));
       if (along > len) this.obs.trackDone = true;
     }
     while (this.nextScript < this.script.length && this.script[this.nextScript]!.atSeconds <= w.time) {
-      const s = this.script[this.nextScript++]!;
+      const s = this.script[this.nextScript]!;
+      if (s.when && !s.when(w, a)) break;
+      this.nextScript++;
       s.run(w, a);
       this.scriptLog.push({ time: w.time, note: s.note });
     }
@@ -305,6 +326,8 @@ export class ArpaExSession {
     o.tests = a.testCount;
     o.cpaLimit = st.cpaLimitNm;
     o.tcpaLimit = st.tcpaLimitMin;
+    o.minLandNm = Math.min(o.minLandNm, distanceToLandNm(w));
+    if (w.own.anchor && !o.anchorPos) o.anchorPos = { ...w.own.anchor.pos };
     for (const t of w.targets) {
       const r = length(sub(t.pos, w.own.pos));
       if (r < (o.minRange[t.id] ?? Infinity)) {
@@ -334,19 +357,14 @@ export class ArpaExSession {
 
   /** After the instructor takes the exercise back in time: scripted events later than `time` will fire again. */
   rewindTo(time: number): void {
-    this.nextScript = this.script.findIndex((s) => s.atSeconds > time);
-    if (this.nextScript < 0) this.nextScript = this.script.length;
+    // Steps run in order and each one logs once, so the steps still done are the ones logged by then.
     this.scriptLog = this.scriptLog.filter((e) => e.time <= time);
+    this.nextScript = this.scriptLog.length;
   }
 
   /** How each task will be judged, in words the candidate can read before starting (STCW A-I/12, 8.1 and 8.3). */
-  criteria(): { label: string; criterion: string; points: number }[] {
-    return this.def.tasks.map((t) => {
-      if (t.kind === "number") return { label: t.prompt, criterion: `Your value within ±${t.tol(this.cfg)} ${t.unit} of the real value at the moment you answer`, points: this.cfg.points.question };
-      if (t.kind === "choice") return { label: t.prompt, criterion: "The correct choice", points: this.cfg.points.question };
-      if (t.kind === "action") return { label: t.prompt, criterion: "Done at some time during the exercise", points: this.cfg.points.action };
-      return { label: t.prompt, criterion: "Judged from what actually happened, at the end", points: this.cfg.points.safety };
-    });
+  criteria(): TaskCriterion[] {
+    return taskCriteria(this.def, this.cfg);
   }
 
   /** Record the student's answer to a number or choice task. Returns false when it cannot be answered yet. */
@@ -407,11 +425,38 @@ export class ArpaExSession {
   }
 }
 
+/** How one task is judged, in words the candidate can read, and its points. */
+export interface TaskCriterion {
+  id: string;
+  label: string;
+  kind: ArpaTask["kind"];
+  criterion: string;
+  /** The limit applied, short (for example "±0.5 NM"), or "" when there is none. */
+  limit: string;
+  points: number;
+}
+
+/** How each task of an exercise will be judged with these settings (STCW A-I/12, 8.1 and 8.3). */
+export function taskCriteria(def: ArpaExercise, cfg: ScoringConfig): TaskCriterion[] {
+  return def.tasks.map((t) => {
+    const base = { id: t.id, label: t.prompt, kind: t.kind };
+    if (t.kind === "number") {
+      const lim = `±${t.tol(cfg)}${t.unit === "°" || t.unit === "'" ? "" : " "}${t.unit}`;
+      return { ...base, criterion: `Your value within ${lim} of the real value at the moment you answer`, limit: lim, points: cfg.points.question };
+    }
+    if (t.kind === "choice") return { ...base, criterion: "The correct choice", limit: "", points: cfg.points.question };
+    if (t.kind === "action") return { ...base, criterion: "Done at some time during the exercise", limit: "", points: cfg.points.action };
+    const rule = t.rule?.(cfg) ?? t.judge.rule?.(cfg);
+    return { ...base, criterion: rule ? `Judged at the end from what happened: ${rule}` : "Judged from what actually happened, at the end", limit: rule ?? "", points: cfg.points.safety };
+  });
+}
+
 // ---------------------------------------------------------------- reusable outcome judges
 
 /** Every ship passed no closer than the exercise's safe distance. */
-export function judgeSafePassing(def: Pick<ArpaExercise, "safeNm">): OutcomeTask["judge"] {
-  return (c) => {
+export function judgeSafePassing(def: Pick<ArpaExercise, "safeNm">): OutcomeJudge {
+  const rule = (): string => `every vessel passed no closer than ${def.safeNm} NM, and none is still closing inside it at the end`;
+  return Object.assign((c: TaskCtx) => {
     const ships = c.w.targets.filter((t) => t.kind === "ship" || t.kind === "small-craft");
     const worst = ships.map((t) => ({ t, r: c.obs.minRange[t.id] ?? Infinity })).sort((x, y) => x.r - y.r)[0];
     if (!worst) return { ok: true, detail: "no ships" };
@@ -419,12 +464,15 @@ export function judgeSafePassing(def: Pick<ArpaExercise, "safeNm">): OutcomeTask
     const ok = worst.r >= def.safeNm && still.length === 0;
     const more = still.length > 0 ? `; still closing inside ${def.safeNm} NM: ${still.map((id) => targetById(c.w, id)?.name).join(", ")}` : "";
     return { ok, detail: `closest: ${worst.t.name} ${worst.r.toFixed(2)} NM (needed ${def.safeNm} NM)${more}` };
-  };
+  }, { rule });
 }
 
 /** The avoiding action was substantial (Rule 8(b)) and, in restricted visibility, respected Rule 19(d). */
-export function judgeAction(restrictedVisibility: boolean): OutcomeTask["judge"] {
-  return (c) => {
+export function judgeAction(restrictedVisibility: boolean): OutcomeJudge {
+  const rule = (cfg: ScoringConfig): string =>
+    `a turn of at least ${cfg.substantialTurnDeg}° or a cut to ${Math.round((1 - cfg.substantialSpeedCut) * 100)}% of the speed or less (Rule 8(b))` +
+    (restrictedVisibility ? "; no turn to port for a vessel forward of the beam other than one being overtaken, and no turn towards a vessel abeam or abaft the beam (Rule 19(d))" : "");
+  return Object.assign((c: TaskCtx) => {
     const m = c.obs.manoeuvre;
     if (!m) return { ok: false, detail: "no alteration of course or speed was made" };
     const turn = c.obs.maxTurnDeg;
@@ -435,5 +483,5 @@ export function judgeAction(restrictedVisibility: boolean): OutcomeTask["judge"]
     if (restrictedVisibility && Math.abs(turn) >= 5) faults.push(...rule19Check(turn, m.threats.map((t) => ({ relBearing: t.relBearing }))).faults);
     const what = `${Math.abs(turn) >= 5 ? `turned ${Math.abs(turn).toFixed(0)}° to ${turn > 0 ? "starboard" : "port"}` : "no turn"}, speed to ${(c.obs.minSpeedRatio * 100).toFixed(0)}%`;
     return { ok: faults.length === 0, detail: faults.length === 0 ? what : `${what}. ${faults.join(" ")}` };
-  };
+  }, { rule });
 }

@@ -252,8 +252,8 @@ const EX6: ArpaExercise = {
       id: "alt", kind: "number", prompt: "Smallest alteration to starboard, to the nearest 10°, made now, that clears every ship by 2 NM", unit: "°",
       truth: (c) => (c.obs.manoeuvre ? null : minimalStarboardAlteration(c.w, 2)), tol: () => 10,
     },
-    { id: "act", kind: "outcome", prompt: "Action taken: early and large enough", judge: judgeAction(false) },
-    { id: "safe", kind: "outcome", prompt: "Every ship passed at 2 NM or more", judge: (c) => judgeSafePassing(EX6)(c) },
+    { id: "act", kind: "outcome", prompt: "Action taken, large enough to be readily apparent (timing: the assessor judges)", judge: judgeAction(false) },
+    { id: "safe", kind: "outcome", prompt: "Every ship passed at 2 NM or more", judge: (c) => judgeSafePassing(EX6)(c), rule: (cfg) => judgeSafePassing(EX6).rule?.(cfg) ?? "" },
   ],
   script: [],
   debrief: [
@@ -367,7 +367,7 @@ const EX9: ArpaExercise = {
     { id: "who", kind: "choice", prompt: "With which ship is a close-quarters situation developing (smallest CPA)?", choices: ["Ship X", "Ship Y", "Ship Z", "Ship AA"], correct: (c) => (c.obs.manoeuvre ? 0 : mostDangerous(c, [1, 2, 3, 4])) },
     { id: "trial", kind: "action", prompt: "Trial manoeuvre used before acting", done: (c) => c.obs.trialUsed },
     { id: "act", kind: "outcome", prompt: "Action complied with Rule 19(d) and was large enough (Rule 8)", judge: judgeAction(true) },
-    { id: "safe", kind: "outcome", prompt: "Every ship passed at 2 NM or more", judge: (c) => judgeSafePassing(EX9)(c) },
+    { id: "safe", kind: "outcome", prompt: "Every ship passed at 2 NM or more", judge: (c) => judgeSafePassing(EX9)(c), rule: (cfg) => judgeSafePassing(EX9).rule?.(cfg) ?? "" },
   ],
   script: [],
   debrief: [

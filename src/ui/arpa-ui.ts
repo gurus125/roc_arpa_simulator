@@ -4,7 +4,7 @@ import { SILENCE_SEC, alertSound, nextToAcknowledge } from "../arpa/index";
 import { acknowledge, alertRows } from "./alerts-view";
 import { createAlarmSound } from "./alarm-sound";
 import { Track, VECTOR_TIME_RANGE_MIN, ZoneSetting, arpaAvailableOnScale, ARPA_SCALES_NM } from "../arpa/index";
-import { World, measuredHeading } from "../engine/index";
+import { World, measuredHeading, setAnchorDrag } from "../engine/index";
 import { aisFilterLabel, aisFilterOn, ownShipAisData } from "../ais/index";
 import { formatLatLon, latLonOf } from "../core/nav";
 import { AppState } from "./app";
@@ -145,6 +145,10 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     inp("gyroErr").value = "0";
     inp("gyroFail").checked = false;
     inp("logFail").checked = false;
+    // An exercise may start with the GNSS failed: the box follows the world.
+    inp("gnssFail").checked = !!app.world.sensors.gnssFailed;
+    inp("anchorDrag").checked = false;
+    inp("aisRepeat").checked = app.ais.shoreRepeat.on;
     inp("hmErr").value = "0";
     inp("vrmErr").value = "0";
     inp("perf").value = "100";
@@ -172,6 +176,19 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     $(id).addEventListener("input", apply);
     $(id).addEventListener("change", apply);
   }
+  // GNSS failure and a dragging anchor are states of the world (an exercise may set them): the boxes
+  // change them only when clicked, and follow them otherwise (in tick).
+  $("gnssFail").addEventListener("change", () => {
+    api.getApp().world.sensors.gnssFailed = inp("gnssFail").checked;
+  });
+  $("anchorDrag").addEventListener("change", () => {
+    const w = api.getApp().world;
+    if (w.own.anchor) setAnchorDrag(w, inp("anchorDrag").checked ? 0.5 : 0);
+    else inp("anchorDrag").checked = false;
+  });
+  $("aisRepeat").addEventListener("change", () => {
+    api.getApp().ais.shoreRepeat.on = inp("aisRepeat").checked;
+  });
   // Ground stabilisation needs a fixed reference target: the selected track becomes the reference.
   $("arpaStab").addEventListener("change", () => {
     const app = api.getApp();
@@ -226,7 +243,11 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     if (!ownAisShown) return;
     const o = ownShipAisData(w);
     const ll = latLonOf(w.origin, o.pos);
-    $("aisOwn").textContent = `Own ship's AIS (class ${o.cls}): MMSI ${o.mmsi}, call sign ${o.callSign}, ${o.navStatus}. Position ${formatLatLon(ll.lat, "lat", 3)} ${formatLatLon(ll.lon, "lon", 3)}. COG ${pad3(o.cog)}°, SOG ${o.sog.toFixed(1)} kn, heading ${pad3(o.heading)}°.`;
+    // Without the EPFS the AIS has no position, course or speed over the ground to send.
+    const where = w.sensors.gnssFailed
+      ? "Position, COG and SOG NOT AVAILABLE (no EPFS input)."
+      : `Position ${formatLatLon(ll.lat, "lat", 3)} ${formatLatLon(ll.lon, "lon", 3)}. COG ${pad3(o.cog)}°, SOG ${o.sog.toFixed(1)} kn,`;
+    $("aisOwn").textContent = `Own ship's AIS (class ${o.cls}): MMSI ${o.mmsi}, call sign ${o.callSign}, ${o.navStatus}. ${where} heading ${pad3(o.heading)}°.`;
   };
   $("aisActAll").addEventListener("click", () => {
     const ais = api.getApp().ais;
@@ -307,6 +328,10 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
 
   const tick = (app: AppState): void => {
     ownAisTick(app.world);
+    if (inp("gnssFail").checked !== !!app.world.sensors.gnssFailed) inp("gnssFail").checked = !!app.world.sensors.gnssFailed;
+    const dragging = !!app.world.own.anchor && app.world.own.anchor.dragKn > 0;
+    if (inp("anchorDrag").checked !== dragging) inp("anchorDrag").checked = dragging;
+    if (inp("aisRepeat").checked !== app.ais.shoreRepeat.on) inp("aisRepeat").checked = app.ais.shoreRepeat.on;
     const w = app.world;
     const a = app.arpa;
     if (app.roc) {
@@ -328,7 +353,9 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     $("arpaStatus").textContent = sb ? "ARPA is in STANDBY: no targets are tracked or shown." :
       `${a.activeCount()} of ${a.cfg.maxTracks} targets tracked.` +
       (arpaAvailableOnScale(w.radar.controls.rangeNm) ? "" : ` ARPA is displayed only on the ${ARPA_SCALES_NM.join(", ")} NM range scales; tracking continues in the background.`);
-    $("faultNow").textContent = `Now: gyro ${w.sensors.gyroErrorDeg.toFixed(1)}°, log ${w.sensors.logErrorKn.toFixed(1)} kn (changes at ${w.sensors.rampPerMin.gyroDeg}°/min and ${w.sensors.rampPerMin.logKn} kn/min).`;
+    const rs = app.ais.repeatStats;
+    $("faultNow").textContent = `Now: gyro ${w.sensors.gyroErrorDeg.toFixed(1)}°, log ${w.sensors.logErrorKn.toFixed(1)} kn (changes at ${w.sensors.rampPerMin.gyroDeg}°/min and ${w.sensors.rampPerMin.logKn} kn/min).` +
+      (app.ais.shoreRepeat.on || rs.received > 0 ? ` AIS repeats received ${rs.received}: not used ${rs.ignored} (own ship's ${rs.ownIgnored}), used ${rs.used}.` : "");
     $<HTMLSelectElement>("arpaStab").value = a.settings.stabilisation;
     $("arpaRefNote").textContent = `True course and speed (CSE/SPD) are ${a.effectiveStab() === "ground" ? "GROUND" : "SEA"} stabilised: ${a.stabLabel()}.`;
     $("arpaStabStatus").textContent =

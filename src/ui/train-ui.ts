@@ -1,6 +1,7 @@
 import { ARPA_EXERCISES, ArpaExercise, ExerciseResult, PLOTTING_EXERCISES, RADAR_EXERCISES } from "../train/index";
 
-const ALL = [...ARPA_EXERCISES, ...RADAR_EXERCISES, ...PLOTTING_EXERCISES];
+/** Every exercise, listed by number. */
+const ALL = [...ARPA_EXERCISES, ...RADAR_EXERCISES, ...PLOTTING_EXERCISES].sort((a, b) => a.number - b.number);
 import { AppState } from "./app";
 import { $, esc, mmss } from "./dom";
 
@@ -38,7 +39,7 @@ export function initTrainUi(api: TrainUiApi): TrainUi {
   const pane = $("paneEx");
   pane.innerHTML = `
     <section><h2>ARPA and radar exercises</h2><div id="exList"></div>
-      <p class="hint">Exercises 1 to 9 are the ARPA exercises; 10 and 11 are radar navigation (parallel indexing, search and rescue). Each one loads its own traffic. Answers are checked against the real situation when you press Finish.</p></section>
+      <p class="hint">Exercises 1 to 9 are the ARPA exercises; 10 and 11 radar navigation (parallel indexing, search and rescue); 12 to 21 manual radar plotting; 22 switching on and setting up; 23 to 26 radar work on the real coasts of Mumbai, Goa, Kochi and the Gulf of Kutch. Each one loads its own traffic. Answers are checked against the real situation when you press Finish.</p></section>
     <section id="exRun" hidden><h2 id="exTitle"></h2><p class="small" id="exAim"></p><ol class="steps" id="exBrief"></ol>
       <p class="small" id="exClock"></p></section>
     <section id="exCrit" hidden><h2>How you will be assessed</h2><table class="res"><thead><tr><th>Item</th><th>Criterion</th><th>Pts</th></tr></thead><tbody id="exCritBody"></tbody></table>

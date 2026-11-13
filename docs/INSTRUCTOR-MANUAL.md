@@ -91,6 +91,9 @@ tracks" shows 100 ships running together. The ARPA tracks 20 targets at a time.
 | Radar performance (per cent) | Weak echoes are lost; the performance monitor shows it |
 | Speed log FAILED | The ARPA shows SPEED LOG INPUT ABSENT |
 | Gyro compass FAILED | The ARPA gives an equipment malfunction warning and loses all tracks; the picture goes to unstabilised head-up with relative motion, and bearings are relative only |
+| EPFS (GNSS) FAILED | No position anywhere: NO FIX in the position, no latitude and longitude at the cursor, COG and SOG blank, own ship's AIS sends no position, and the ARPA warns EPFS INPUT ABSENT. The trainee must fix by radar (exercise 23 starts this way) |
+| Own ship's anchor DRAGGING | Only while own ship is at anchor: she drags at 0.5 kn with the current. An anchor watch set on a fixed echo gives its alarm once she has moved the set distance (exercise 24 does this by itself ten minutes after anchoring) |
+| AIS shore station REPEATING | A shore station repeats every AIS report it hears, own ship's too, 30 s late and every 10 s. The display must not use them while it hears the ships directly (IEC 62388 11.5.3.1), so the trainee sees no change. The line under the faults counts the repeated reports received, not used and used |
 
 Positive values mean the instrument reads high. The ship's real motion does not change. An error
 comes on gradually; while it is changing the ARPA vectors are disturbed, so allow one tracking
@@ -141,14 +144,39 @@ exercise and the score. "Open" shows:
 - "Result (CSV)", "Report (print or save as PDF)" and "Record (JSON)". "Export all (CSV)" saves the
   whole list. Records are kept in this browser on this computer: export them to keep them.
 
-## 9. Scoring settings
+## 9. Scoring settings and marking sheets
 
 INSTR key, "Scoring settings (placeholders)". None of the values comes from an approved marking
 scheme. Enter the academy's own tolerances and pass mark, or leave the pass mark blank to report
-scores without pass or fail. The "Set-up" fields are the limits of radar exercise 22 (switching on
+scores without pass or fail. "Radar bearing / course to steer tolerance" applies to the radar
+exercises' bearings and courses to steer (exercises 10, 11, 23 and 24).
+
+INSTR key, "Marking sheets": choose one exercise or all of them and print (or save as PDF). Each is
+one A4 page: the items the simulator checks, how it judges each, and the value it uses now (the
+settings above), with empty boxes for the institute's own tolerance or limit and points; the
+items the assessor judges that the simulator does not (timing of the action, resuming course,
+communication, use of the controls); the pass mark; the assessor's decision, name, signature and
+date; and a line for whoever approves the marking scheme. The syllabus references on each sheet
+come from the draft table in `docs/SYLLABUS-MATRIX.md`, which no instructor has reviewed yet. When
+the institute has filled the sheets in, enter its tolerances and pass mark here; tolerances that
+are fixed in an exercise (for example the 0.25 NM track limit of exercises 10 and 24) are listed on
+the sheets and can be changed in the program only. The "Set-up" fields are the limits of radar exercise 22 (switching on
 and setting up): the lightest and heaviest noise speckle that count as a light speckle, how far
 from the best the tuning may be, the least brilliance, and the sea and rain settings that count as
 zero.
+
+## 9a. The exercises in the real areas (23 to 26)
+
+| No. | Exercise | What is set up | What is marked |
+|-----|----------|----------------|----------------|
+| 23 | Mumbai: radar fix with the GNSS failed | Own ship about 6 NM off the coast, 060° at 8 kn, GNSS failed from the start | Range and bearing of Malabar Point (18°56.9'N 072°47.5'E, from the coastline data), own ship's latitude and longitude, two questions, and at least 1 NM off the land all the time |
+| 24 | Goa: parallel index approach, anchoring and anchor watch | Track 090° to an anchor position at 15°24.0'N 073°42.0'E, current 160° 0.5 kn, a buoy laid for the exercise | Index line set, course to steer, the VRM range of Mormugao Point from the anchor position, track kept within 0.25 NM, anchored within 0.3 NM, anchor watch set on the buoy, and its alarm acknowledged when the anchor drags (ten minutes after it is let go) |
+| 25 | Kochi: collision avoidance in restricted visibility | A container ship nearly ahead, an LNG carrier on the starboard bow, fishing boats (one in a rain squall), a tanker at anchor | Ships tracked, CPA and TCPA, two questions, the action (Rule 8 size and Rule 19(d)), every vessel passed at 1 NM or more |
+| 26 | Gulf of Kutch: tidal stream and a meeting ship | Flood stream 075° growing from 1.2 kn, a tanker at anchor, a container ship meeting nearly end on (CPA 0.4 NM) | Ships tracked, the tanker made the ground reference, set and rate of the stream, the container ship's CPA and TCPA, two questions, the action, every vessel passed at 1 NM or more |
+
+The ships, current and stream are invented, the buoy in exercise 24 is laid for the exercise, and
+the reference points' positions come from the coastline data (about 250 m accuracy), not a chart.
+Every limit is a placeholder.
 
 ## 10. Checking the exercises: the self-test
 

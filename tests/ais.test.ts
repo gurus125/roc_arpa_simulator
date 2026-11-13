@@ -131,3 +131,42 @@ describe("radar: range scales, off-centring, racon and SART", () => {
     expect(scanWedge(w, 0, 359.9, () => 0.5).some((h) => h.kind === "racon")).toBe(false);
   });
 });
+
+describe("IEC 62388 11.5.3.1: reports repeated by an AIS shore station", () => {
+  it("test g): own ship's repeats and the delayed repeats of a 24 kn target are not displayed and give no CPA/TCPA or alarms", () => {
+    const w = world([ship(1, 45, 2, 270, 24)]);
+    const ais = new AisSystem();
+    ais.shoreRepeat = { on: true, delaySec: 30, intervalSec: 10 };
+    let worstAge = 0;
+    for (let i = 0; i < 300; i++) {
+      stepWorld(w, 1);
+      ais.step(w);
+      const views = ais.targets(w, null, LIM);
+      expect(views.map((v) => v.report.id)).toEqual([1]); // own ship never appears
+      worstAge = Math.max(worstAge, w.time - views[0]!.report.time);
+    }
+    // Direct reports of a vessel faster than 23 kn come every 2 s; a repeated one would be 30 s old or more.
+    expect(worstAge).toBeLessThanOrEqual(2 + 1e-9);
+    const st = ais.repeatStats;
+    expect(st.received).toBeGreaterThan(40);
+    expect(st.used).toBe(0);
+    expect(st.ownIgnored).toBeGreaterThanOrEqual(26);
+    expect(st.ignored).toBe(st.received);
+    expect(ais.alarms).toEqual([]);
+  });
+
+  it("a repeated report is used for a vessel heard only through the shore station, and an older one never replaces a newer", () => {
+    const w = world([ship(1, 45, 2, 270, 24)]);
+    const ais = new AisSystem();
+    stepWorld(w, 1);
+    ais.step(w);
+    const direct = ais.reports.get(1)!;
+    // Vessel 9 is out of direct range: only the station's repeat of it is received.
+    ais.receiveRepeated(w, { ...direct, id: 9, mmsi: "419099999", name: "FAR AWAY", time: w.time - 30 });
+    expect(ais.reports.get(9)!.name).toBe("FAR AWAY");
+    expect(ais.repeatStats.used).toBe(1);
+    ais.receiveRepeated(w, { ...direct, time: direct.time - 30, pos: { e: 50, n: 50 } });
+    expect(ais.reports.get(1)!.pos).toEqual(direct.pos);
+    expect(ais.repeatStats.ignored).toBe(1);
+  });
+});

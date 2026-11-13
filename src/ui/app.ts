@@ -78,6 +78,12 @@ export interface AppState {
   ringsOn: boolean;
   showShadow: boolean;
   showNames: boolean;
+  /** Own ship's stern line shown (IEC 62288 Annex A, symbol 1.5; optional). */
+  sternLine: boolean;
+  /** The radar antenna's position marked on own ship's outline (IEC 62288 Annex A, symbol 1.2; optional). */
+  antennaMark: boolean;
+  /** Where the radar antenna is from the reference point (CCRP), metres ahead and to starboard. The picture stays referenced to the CCRP. */
+  antennaOffsetM: { ahead: number; stbd: number };
   /** Cursor position on the display, NM from centre, or null. */
   cursor: { x: number; y: number } | null;
   /** The ROC exercise in progress, if any. */
@@ -119,7 +125,11 @@ export function rewind(app: AppState, seconds: number): number | null {
   app.world = structuredClone(snap.world);
   app.snapshots = app.snapshots.filter((s) => s.time <= snap.time);
   app.arpa = new ArpaSystem(app.world, app.arpa.cfg, settings);
+  // The AIS starts empty too, keeping its settings and the instructor's shore-station setting.
+  const oldAis = app.ais;
   app.ais = new AisSystem();
+  app.ais.settings = oldAis.settings;
+  app.ais.shoreRepeat = { ...oldAis.shoreRepeat };
   app.arpaSelected = null;
   app.hits = [];
   app.trails.clear();
@@ -167,6 +177,9 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     startUtcMs: Date.now(),
     showShadow: false,
     showNames: false,
+    sternLine: false,
+    antennaMark: false,
+    antennaOffsetM: { ahead: 0, stbd: 0 },
     cursor: null,
     roc: null,
     advanceTo: null,

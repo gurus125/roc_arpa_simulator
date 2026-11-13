@@ -1,6 +1,7 @@
 import { angleDiffDeg, bearingOf, length, sub } from "../core/vec";
 import { courseToSteer } from "../core/current";
 import { SAR, Scenario, noiseSpeckle, radarTransmitting, switchRadarOff } from "../engine/index";
+import { PORT_EXERCISES } from "./port-exercises";
 import { ArpaExercise, SETUP_LIMITS, TaskCtx, targetById } from "./session";
 
 /**
@@ -51,10 +52,11 @@ const EX10: ArpaExercise = {
     { id: "nav", kind: "action", prompt: "A navigation line drawn on the radar picture", done: (c) => c.obs.navLines >= 1 },
     {
       id: "cts", kind: "number", prompt: "Course to steer to make good 000° at the present speed", unit: "°", circular: true,
-      truth: (c) => courseToSteer(0, c.w.own.speedThroughWater, c.w.env.current)?.heading ?? null, tol: () => 3,
+      truth: (c) => courseToSteer(0, c.w.own.speedThroughWater, c.w.env.current)?.heading ?? null, tol: (cfg) => cfg.tol.bearingDeg,
     },
     {
       id: "xte", kind: "outcome", prompt: "Kept within 0.25 NM of the track until past the light",
+      rule: () => "the end of the track reached, never more than 0.25 NM off it",
       judge: (c) => ({ ok: c.obs.trackDone && c.obs.maxXte <= 0.25, detail: `${c.obs.trackDone ? "track completed" : "track NOT completed"}; furthest off track ${c.obs.maxXte.toFixed(2)} NM` }),
     },
     { id: "why", kind: "choice", prompt: "The echo of the light moves from the index line towards own ship's heading line. What is happening?", choices: ["The ship is being set towards the light", "The ship is being set away from the light", "The light has moved", "The gyro has failed"], correct: () => 0 },
@@ -82,11 +84,12 @@ const EX11: ArpaExercise = {
   tasks: [
     { id: "where", kind: "choice", prompt: "On the line of 12 dots, where is the survival craft?", choices: ["At the dot nearest own ship", "At the dot furthest from own ship", "In the middle of the line", "It cannot be known"], correct: () => 0 },
     { id: "rng", kind: "number", prompt: "Range of the SART now", unit: "NM", truth: (c) => (targetById(c.w, 1) ? length(sub(targetById(c.w, 1)!.pos, c.w.own.pos)) : null), tol: (cfg) => cfg.tol.rangeNm },
-    { id: "brg", kind: "number", prompt: "True bearing of the SART now", unit: "°", circular: true, truth: (c) => (targetById(c.w, 1) ? bearingOf(sub(targetById(c.w, 1)!.pos, c.w.own.pos)) : null), tol: () => 3 },
+    { id: "brg", kind: "number", prompt: "True bearing of the SART now", unit: "°", circular: true, truth: (c) => (targetById(c.w, 1) ? bearingOf(sub(targetById(c.w, 1)!.pos, c.w.own.pos)) : null), tol: (cfg) => cfg.tol.bearingDeg },
     { id: "racon", kind: "choice", prompt: "Which Morse letter does the racon show?", choices: ["K (dash dot dash)", "N (dash dot)", "O (dash dash dash)", "T (dash)"], correct: () => 0 },
     { id: "band", kind: "choice", prompt: "Why is nothing seen of the SART on S band?", choices: ["A SART answers 9 GHz (X band) radar only", "S band has too short a range", "S band cannot show dots", "The SART battery is flat"], correct: () => 0 },
     {
       id: "close", kind: "outcome", prompt: "Closed the survival craft to 0.5 NM or less, at 6 kn or less when closest",
+      rule: () => "closest approach to the survival craft 0.5 NM or less, at a speed of 6 kn or less",
       judge: (c) => {
         const r = c.obs.minRange[1] ?? Infinity;
         const sp = c.obs.closeSpeed[1] ?? Infinity;
@@ -169,6 +172,10 @@ const EX22: ArpaExercise = {
     { id: "pm", kind: "action", prompt: "Performance checked with the performance monitor", done: (c) => c.obs.pmUsed },
     {
       id: "final", kind: "outcome", prompt: "At the end: transmitting, gain giving a light speckle, tuning right",
+      rule: (cfg) => {
+        const l = cfg.setup ?? SETUP_LIMITS;
+        return `transmitting; noise speckle ${l.speckleMin} to ${l.speckleMax} of the picture; tuning within ${l.tuningTol} of the best (0 to 100 scale)`;
+      },
       judge: (c) => {
         const n = noiseSpeckle(c.w.radar.controls, c.w.radar.tuningOptimum);
         const off = c.w.radar.controls.tuning - c.w.radar.tuningOptimum;
@@ -191,4 +198,5 @@ const EX22: ArpaExercise = {
   ],
 };
 
-export const RADAR_EXERCISES: ArpaExercise[] = [EX10, EX11, EX22];
+/** With the exercises in the four real areas (23 to 26). */
+export const RADAR_EXERCISES: ArpaExercise[] = [EX10, EX11, EX22, ...PORT_EXERCISES];

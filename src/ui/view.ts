@@ -18,6 +18,17 @@ export const ownShipSymbol = {
 };
 
 /**
+ * The radar antenna mark (IEC 62288 Annex A, symbol 1.2): crossed lines 1 to 2 mm long in all, at the
+ * antenna's place on own ship's outline. Returns its centre in pixels from the reference point (x to
+ * starboard, y ahead) and the half-length of each line, or null when the outline is not shown.
+ */
+export function antennaMarkPx(offsetM: { ahead: number; stbd: number }, type: Pick<ShipType, "lengthM" | "beamM"> | null, pxPerNm: number): { x: number; y: number; halfPx: number } | null {
+  if (!ownOutline(type, pxPerNm)) return null;
+  // 6 pixels in all: 1.6 mm at 3.78 pixels to the millimetre.
+  return { x: (offsetM.stbd / 1852) * pxPerNm, y: (offsetM.ahead / 1852) * pxPerNm, halfPx: 3 };
+}
+
+/**
  * Own ship's outline to the scale of the picture, as points in pixels (x to starboard, y ahead)
  * round the middle of the ship, or null when the ship's beam would show smaller than 3 mm or the
  * ship's size is not known. `pxPerNm` is the scale of the picture.
@@ -253,6 +264,16 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.moveTo(own.x, own.y);
     ctx.lineTo(own.x + hd.dx * R * 2, own.y + hd.dy * R * 2);
     ctx.stroke();
+    // Stern line (IEC 62288 Annex A, symbol 1.5, optional): thin and dotted, from the reference point astern to the bearing scale.
+    if (app.sternLine) {
+      ctx.lineWidth = 1;
+      ctx.setLineDash([1.5, 3]);
+      ctx.beginPath();
+      ctx.moveTo(own.x, own.y);
+      ctx.lineTo(own.x - hd.dx * R * 2, own.y - hd.dy * R * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }
 
   if (gfx) {
@@ -369,7 +390,21 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   ctx.moveTo(own.x - hd.dy * beamHalf, own.y + hd.dx * beamHalf);
   ctx.lineTo(own.x + hd.dy * beamHalf, own.y - hd.dx * beamHalf);
   ctx.stroke();
-  const shape = ownOutline(w.own.model ? shipTypeById(w.own.model.typeId) : null, k);
+  const ownType = w.own.model ? shipTypeById(w.own.model.typeId) : null;
+  const shape = ownOutline(ownType, k);
+  // Radar antenna position (symbol 1.2, optional): only with the outline. The picture itself stays referenced to the reference point.
+  const ant = app.antennaMark ? antennaMarkPx(app.antennaOffsetM, ownType, k) : null;
+  if (ant) {
+    const ax = own.x + hd.dx * ant.y - hd.dy * ant.x;
+    const ay = own.y + hd.dy * ant.y + hd.dx * ant.x;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(ax - ant.halfPx, ay);
+    ctx.lineTo(ax + ant.halfPx, ay);
+    ctx.moveTo(ax, ay - ant.halfPx);
+    ctx.lineTo(ax, ay + ant.halfPx);
+    ctx.stroke();
+  }
   if (shape) {
     ctx.lineWidth = 2;
     ctx.beginPath();

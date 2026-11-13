@@ -35,7 +35,11 @@ export interface StoreData {
   maxStudentsPerDisplay: number;
   targetHoursPerPair: number | null;
   /** Own ship particulars and voyage data typed in by the user (as on an AIS). Starting values are placeholders, not a real ship. */
-  ownShip: { name: string; callSign: string; imo: string; mmsi: string; draughtM: number | null; hazardous: string; destination: string; eta: string };
+  ownShip: {
+    name: string; callSign: string; imo: string; mmsi: string; draughtM: number | null; hazardous: string; destination: string; eta: string;
+    /** Where the radar antenna is from the reference point (CCRP), metres ahead (+) and to starboard (+). Only places the antenna mark on the outline. Older stores: absent, read as 0. */
+    antennaAheadM?: number; antennaStbdM?: number;
+  };
   /** Display palette. */
   displayMode: "day" | "night";
   /** Keys of a hardware control panel chosen by the user, by function (see ui/panel-map.ts). Empty: the default keys. */
@@ -61,7 +65,7 @@ export function emptyStore(): StoreData {
     version: 1, pin: DEFAULT_PIN, batches: [], records: [], scenarios: [], maps: {}, mapMarks: {},
     scoring: JSON.parse(JSON.stringify(PLACEHOLDER_SCORING)) as ScoringConfig,
     pairSeconds: {}, maxStudentsPerDisplay: 2, targetHoursPerPair: null,
-    ownShip: { name: "TRAINING SHIP", callSign: "TRNG1", imo: "0000000", mmsi: "000000000", draughtM: null, hazardous: "None", destination: "", eta: "" },
+    ownShip: { name: "TRAINING SHIP", callSign: "TRNG1", imo: "0000000", mmsi: "000000000", draughtM: null, hazardous: "None", destination: "", eta: "", antennaAheadM: 0, antennaStbdM: 0 },
     displayMode: "day",
     panelKeys: {},
     userSettings: [null, null],
@@ -81,7 +85,12 @@ export class Store {
       const raw = kv?.getItem(STORE_KEY);
       if (raw) {
         const d = JSON.parse(raw) as Partial<StoreData>;
-        if (d && d.version === 1) this.data = { ...emptyStore(), ...d, scoring: { ...emptyStore().scoring, ...(d.scoring ?? {}) } };
+        if (d && d.version === 1) {
+          // Tolerances and points added in later versions keep their placeholders.
+          const def = emptyStore().scoring;
+          const sc: Partial<ScoringConfig> = d.scoring ?? {};
+          this.data = { ...emptyStore(), ...d, scoring: { ...def, ...sc, tol: { ...def.tol, ...(sc.tol ?? {}) }, points: { ...def.points, ...(sc.points ?? {}) } } };
+        }
       }
     } catch {
       // Unreadable data: start empty rather than stop the simulator.

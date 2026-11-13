@@ -213,7 +213,7 @@ export const MUMBAI_APPROACH: Scenario = {
   targets: [
     { id: 1, name: "Outbound container ship", ...typed("container-pp"), pos: { e: 14, n: 2.4 }, course: 262, speed: 14, events: [], aisStatic: { destination: "COLOMBO", eta: "16 NOV 0400 UTC", draughtM: 11.8 } },
     { id: 2, name: "Inbound tanker", ...typed("product-tanker"), pos: { e: -4, n: -6 }, course: 62, speed: 11, events: [], aisStatic: { destination: "MUMBAI", eta: "13 NOV 1800 UTC", draughtM: 10.2 } },
-    { id: 3, name: "Bulk carrier at anchor", ...typed("bulk-handy"), pos: { e: 12.5, n: -1.5 }, course: 250, speed: 0, events: [] },
+    { id: 3, name: "Bulk carrier at anchor", ...typed("bulk-handy"), pos: { e: 12.5, n: -1.5 }, course: 250, speed: 0, events: [], atAnchor: true },
     { id: 4, name: "Coaster", ...typed("coaster"), pos: { e: 9, n: -12 }, course: 2, speed: 10, events: [] },
     { id: 5, name: "Fishing boat", ...typed("fishing-boat"), pos: { e: 6, n: 4 }, course: 190, speed: 5, events: [] },
     { id: 6, name: "Fishing boat 2", ...typed("fishing-boat"), pos: { e: 8, n: -3.5 }, course: 350, speed: 4, events: [] },
@@ -233,8 +233,8 @@ export const GOA_APPROACH: Scenario = {
   terrain: "goa",
   origin: GOA_ORIGIN,
   targets: [
-    { id: 1, name: "Ore carrier at anchor", ...typed("bulk-cape"), pos: { e: 12.5, n: -1.8 }, course: 250, speed: 0, events: [] },
-    { id: 2, name: "Bulk carrier at anchor", ...typed("bulk-panamax"), pos: { e: 13.2, n: -0.4 }, course: 250, speed: 0, events: [] },
+    { id: 1, name: "Ore carrier at anchor", ...typed("bulk-cape"), pos: { e: 12.5, n: -1.8 }, course: 250, speed: 0, events: [], atAnchor: true },
+    { id: 2, name: "Bulk carrier at anchor", ...typed("bulk-panamax"), pos: { e: 13.2, n: -0.4 }, course: 250, speed: 0, events: [], atAnchor: true },
     { id: 3, name: "Outbound bulk carrier", ...typed("bulk-handy"), pos: { e: 15.2, n: -1.2 }, course: 255, speed: 9, events: [], aisStatic: { destination: "QINGDAO", eta: "02 DEC 0800 UTC", draughtM: 9.8 } },
     { id: 4, name: "Coastal tanker", ...typed("product-tanker"), pos: { e: 8, n: 14 }, course: 175, speed: 11, events: [] },
     { id: 5, name: "Trawler", ...typed("trawler"), pos: { e: 9, n: 5 }, course: 200, speed: 6, events: [] },
@@ -257,7 +257,7 @@ export const KOCHI_APPROACH: Scenario = {
   origin: KOCHI_ORIGIN,
   targets: [
     { id: 1, name: "Outbound container ship", ...typed("container-pp"), pos: { e: 16.5, n: 0.2 }, course: 265, speed: 12, events: [], aisStatic: { destination: "COLOMBO", eta: "14 NOV 1000 UTC", draughtM: 12.4 } },
-    { id: 2, name: "Tanker at anchor", ...typed("product-tanker"), pos: { e: 13.5, n: -1.5 }, course: 200, speed: 0, events: [] },
+    { id: 2, name: "Tanker at anchor", ...typed("product-tanker"), pos: { e: 13.5, n: -1.5 }, course: 200, speed: 0, events: [], atAnchor: true },
     { id: 3, name: "Inbound LNG carrier", ...typed("lng"), pos: { e: 7, n: -9 }, course: 50, speed: 11, events: [], aisStatic: { destination: "KOCHI LNG", eta: "13 NOV 1700 UTC", draughtM: 11.5 } },
     { id: 4, name: "Fishing boat", ...typed("fishing-boat"), pos: { e: 12, n: 4 }, course: 180, speed: 4, events: [] },
     { id: 5, name: "Trawler", ...typed("trawler"), pos: { e: 14, n: -4.5 }, course: 0, speed: 7, events: [] },
@@ -279,7 +279,7 @@ export const KUTCH_APPROACH: Scenario = {
   origin: KUTCH_ORIGIN,
   targets: [
     { id: 1, name: "VLCC for Vadinar", ...typed("vlcc"), pos: { e: -5, n: -2 }, course: 100, speed: 10, events: [], aisStatic: { destination: "VADINAR SBM", eta: "13 NOV 1600 UTC", draughtM: 21.2 } },
-    { id: 2, name: "Tanker at anchor", ...typed("aframax"), pos: { e: 2, n: -2 }, course: 240, speed: 0, events: [] },
+    { id: 2, name: "Tanker at anchor", ...typed("aframax"), pos: { e: 2, n: -2 }, course: 240, speed: 0, events: [], atAnchor: true },
     { id: 3, name: "Outbound container ship", ...typed("container-pp"), pos: { e: 5, n: 5 }, course: 245, speed: 13, events: [], aisStatic: { destination: "JEBEL ALI", eta: "15 NOV 0600 UTC", draughtM: 13.1 } },
     { id: 4, name: "Bulk carrier for Kandla", ...typed("bulk-panamax"), pos: { e: -4, n: 4 }, course: 70, speed: 12, events: [], aisStatic: { destination: "KANDLA", eta: "13 NOV 2000 UTC", draughtM: 12.0 } },
     { id: 5, name: "Tug with tow", ...typed("tug-tow"), pos: { e: 8, n: 3 }, course: 85, speed: 6, events: [] },

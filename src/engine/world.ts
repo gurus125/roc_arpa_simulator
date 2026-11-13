@@ -60,7 +60,40 @@ export function ownWaterVelocity(w: World): Vec2 {
 }
 
 export function ownGroundVelocity(w: World): Vec2 {
+  const an = w.own.anchor;
+  if (an) return velocityOf({ course: an.dragSet, speed: an.dragKn });
   return add(ownWaterVelocity(w), currentVelocity(w));
+}
+
+/** Most speed over the ground at which the anchor may be let go, knots (this simulator's limit). */
+export const ANCHOR_MAX_SOG_KN = 1;
+
+/**
+ * Let go the anchor. Refused (returns false) when the ship is still making more than
+ * ANCHOR_MAX_SOG_KN over the ground or is already at anchor. The engine is stopped.
+ */
+export function letGoAnchor(w: World): boolean {
+  const o = w.own;
+  if (o.anchor || length(ownGroundVelocity(w)) > ANCHOR_MAX_SOG_KN + 1e-9) return false;
+  o.anchor = { pos: { ...o.pos }, dragKn: 0, dragSet: 0, since: w.time };
+  o.ordered.speed = 0;
+  o.speedThroughWater = 0;
+  if (o.model) o.model.motion = { ...o.model.motion, u: 0, v: 0, r: 0, engine: 0 };
+  return true;
+}
+
+/** Weigh the anchor: the ship is free again, stopped in the water. */
+export function weighAnchor(w: World): void {
+  delete w.own.anchor;
+}
+
+/** Instructor fault: the anchor drags at `kn` knots (0 stops it) towards `set` (default: with the current, else the wind, else 180). */
+export function setAnchorDrag(w: World, kn: number, set?: number): void {
+  const an = w.own.anchor;
+  if (!an) return;
+  const cur = courseSpeedOf(currentVelocity(w));
+  an.dragKn = Math.max(0, kn);
+  an.dragSet = set ?? (cur.speed > 0.05 ? cur.course : w.env.wind ? normalizeDeg(w.env.wind.from + 180) : 180);
 }
 
 /**
@@ -184,7 +217,12 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
 export function stepWorld(w: World, dtSec: number): void {
   stepRadarPower(w);
   const o = w.own;
-  if (o.model) {
+  if (o.anchor) {
+    // At anchor: engine stopped, heading held, no way through the water.
+    o.ordered.speed = 0;
+    o.speedThroughWater = 0;
+    if (o.model) o.model.motion = { ...o.model.motion, u: 0, v: 0, r: 0, engine: 0 };
+  } else if (o.model) {
     const type = shipTypeById(o.model.typeId);
     const m0 = o.model.motion;
     const rudder = o.model.steering === "auto" ? autopilotRudder(type, angleDiffDeg(o.ordered.course, o.heading), m0.r, m0.u) : o.model.rudderOrder;
@@ -223,7 +261,14 @@ export function stepWorld(w: World, dtSec: number): void {
     if (t.route) followRoute(t);
     const m = t.motion;
     const type = m ? targetTypeById(t.typeId) : undefined;
-    if (m && type) {
+    if (t.atAnchor) {
+      // Held by her anchor: no way, and not set by the current.
+      if (m) {
+        m.stw = 0;
+        m.drift = { e: 0, n: 0 };
+      }
+      t.speed = 0;
+    } else if (m && type) {
       // Catalogue type: steers through the water, turns and changes speed gradually, set by the current, blown by the wind.
       const turn = type.turnDegPerSec * dtSec;
       m.heading = normalizeDeg(m.heading + clamp(angleDiffDeg(m.orderedCourse, m.heading), -turn, turn));
@@ -249,6 +294,7 @@ export function stepWorld(w: World, dtSec: number): void {
  * speed gradually; any other target changes at once.
  */
 export function orderTarget(t: Target, o: { course?: number; speed?: number }): void {
+  if (o.speed !== undefined && o.speed > 0) delete t.atAnchor;
   if (t.motion) {
     if (o.course !== undefined) t.motion.orderedCourse = normalizeDeg(o.course);
     if (o.speed !== undefined) t.motion.orderedSpeed = Math.max(0, o.speed);

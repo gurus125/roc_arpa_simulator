@@ -53,6 +53,7 @@ export const SCENARIO_SCHEMA = {
           transponder: { enum: ["racon", "sart", "ramark"] },
           raconCode: { type: "string", pattern: "^[.-]{1,5}$" },
           ais: { type: "boolean" },
+          atAnchor: { type: "boolean" },
           lengthM: { type: "number", minimum: 0 },
           height: { type: "number", minimum: 0 },
           events: {
@@ -146,6 +147,7 @@ export function validateScenario(x: unknown): string[] {
       need(t["lengthM"] === undefined || (isNum(t["lengthM"]) && t["lengthM"] >= 0), `${n}: lengthM must not be negative.`);
       need(t["raconBand"] === undefined || ["X", "S", "both"].includes(t["raconBand"] as string), `${n}: raconBand must be X, S or both.`);
       need(t["ais"] === undefined || typeof t["ais"] === "boolean", `${n}: ais must be true or false.`);
+      need(t["atAnchor"] === undefined || typeof t["atAnchor"] === "boolean", `${n}: atAnchor must be true or false.`);
       need(t["paint"] === undefined || (isNum(t["paint"]) && t["paint"] > 0 && t["paint"] <= 1), `${n}: paint must be above 0 and at most 1 (the share of scans the target is seen on).`);
       need(t["aisClass"] === undefined || ["A", "B-CS", "B-SO"].includes(t["aisClass"] as string), `${n}: aisClass must be "A", "B-CS" or "B-SO".`);
       const st = t["aisStatic"];

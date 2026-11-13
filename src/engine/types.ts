@@ -100,6 +100,12 @@ export interface Target {
   paint?: number;
   /** Programmed route, if any. A timed course order (an event with a course) ends it. */
   route?: TargetRoute;
+  /**
+   * Lying at anchor: she stays where she is over the ground whatever the current (a ship that is
+   * only stopped drifts with it), and her AIS sends "At anchor". An order to make way weighs the
+   * anchor. Simplified: she does not swing round her anchor.
+   */
+  atAnchor?: boolean;
 }
 
 export interface Coast {
@@ -188,6 +194,12 @@ export interface OwnShip {
    * heading, degrees. The phases are the engine's own. See core/seaway.
    */
   seaway?: { rollDeg: number; pitchDeg: number; yawDeg: number; heaveM: number; rollPhase: number; encounterPhase: number };
+  /**
+   * At anchor: the ship stays where the anchor was let go (her heading as it was), unless the anchor
+   * drags, when she moves over the ground at `dragKn` towards `dragSet` (an instructor fault).
+   * Simplified: she does not swing round the anchor.
+   */
+  anchor?: { pos: Vec2; dragKn: number; dragSet: number; /** Simulation time the anchor was let go, s. */ since: number };
   model?: { typeId: string; steering: "auto" | "hand"; rudderOrder: number; motion: ShipMotion; /** Steering gear power units (telemotors) running: 1 (default) or 2. */ steeringUnits?: 1 | 2 };
 }
 
@@ -270,6 +282,11 @@ export interface Sensors {
   target?: { gyroErrorDeg: number; logErrorKn: number };
   /** Ramp rates: degrees per minute and knots per minute. Placeholder values. */
   rampPerMin: { gyroDeg: number; logKn: number };
+  /**
+   * The electronic position-fixing system (EPFS, GNSS) has failed: no position, course or speed over
+   * the ground reaches the radar, the ARPA or the AIS. The ship's position must be fixed by radar.
+   */
+  gnssFailed?: boolean;
 }
 
 /** Atmospheric refraction other than ducting (Bole and Dineley 3.8.1 to 3.8.3). */

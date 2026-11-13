@@ -1,9 +1,10 @@
-import { ArpaSystem } from "../arpa/index";
+import { ANCHOR_WATCH_DEFAULT_NM, ArpaSystem } from "../arpa/index";
 import { courseToSteer } from "../core/current";
 import { bearingOf, length, normalizeDeg, rotateVec, sub } from "../core/vec";
-import { World, createWorld, setShipModel, stepWorld, RADAR_WARM_UP_SEC, setRadarTransmit, switchRadarOn } from "../engine/index";
+import { World, createWorld, letGoAnchor, ownGroundVelocity, setShipModel, stepWorld, RADAR_WARM_UP_SEC, setRadarTransmit, switchRadarOn } from "../engine/index";
 import { ARPA_EXERCISES } from "./arpa-exercises";
 import { PLOTTING_EXERCISES } from "./plotting-exercises";
+import { GOA_ANCHOR, GOA_PI_NM } from "./port-exercises";
 import { RADAR_EXERCISES } from "./radar-exercises";
 import { ArpaExSession, ArpaExercise, ExerciseResult } from "./session";
 
@@ -149,6 +150,48 @@ const PLANS: Record<string, Plan> = {
     },
     finishAt: 6000,
     done: (k) => (k.s.obs.minRange[1] ?? Infinity) <= 0.3,
+  },
+  "radar-23": {
+    // Fix by radar (the answers), then stand off from the land in good time.
+    steps: [{ at: 900, run: (k) => void (k.w.own.ordered.course = 240) }],
+    finishAt: 3600,
+  },
+  "radar-24": {
+    steps: [{ at: 0, run: (k) => void (k.ui.pi = [{ on: true, bearing: 90, range: -GOA_PI_NM }]) }],
+    every: (k) => {
+      const w = k.w;
+      if (w.own.anchor) {
+        // At anchor: an anchor watch on the buoy once its track is steady.
+        if (k.a.settings.anchorWatch.trackId === null) {
+          const id = k.trackOf(4);
+          if (id === null) k.acquire(4);
+          else k.a.setAnchorWatch(w, id, ANCHOR_WATCH_DEFAULT_NM);
+        }
+        return;
+      }
+      // Steer the course that makes good 090, corrected by the index line. Reduce speed in steps, take
+      // the way off with the engine astern, and let go when stopped over the ground at the position.
+      const togo = GOA_ANCHOR.e - w.own.pos.e;
+      const cts = courseToSteer(90, Math.max(1, w.own.speedThroughWater), w.env.current)?.heading ?? 90;
+      w.own.ordered.course = normalizeDeg(cts + Math.max(-15, Math.min(15, (w.own.pos.n - GOA_ANCHOR.n) * 60)));
+      if (togo <= 0.25) w.own.ordered.speed = w.own.speedThroughWater > 0.5 ? -5 : 0;
+      else if (togo <= 1.2) w.own.ordered.speed = 3;
+      else if (togo <= 3) w.own.ordered.speed = 6;
+      if (Math.abs(togo) < 0.3 && length(ownGroundVelocity(w)) < 1) letGoAnchor(w);
+    },
+    finishAt: 6000,
+    done: (k) => k.a.ackedKinds.has("anchor"),
+  },
+  "radar-25": {
+    steps: [all, { at: 300, run: trial(130, 12) }, { at: 310, run: trialOff }, { at: 360, run: (k) => void (k.w.own.ordered.course = 130) }],
+    finishAt: 2400,
+  },
+  "radar-26": {
+    steps: [all, { at: 300, run: (k) => {
+      const id = k.trackOf(1);
+      if (id !== null) k.a.designateGroundRef(k.w, id);
+    } }, { at: 360, run: (k) => void (k.w.own.ordered.course = 120) }],
+    finishAt: 2400,
   },
 };
 

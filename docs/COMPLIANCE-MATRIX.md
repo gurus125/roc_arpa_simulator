@@ -17,6 +17,10 @@ certificate, a type approval or an approval by DG Shipping. Not checked, because
 were not supplied: the DG Shipping guideline, and the academy's own exercise sheets and marking
 scheme. STCW section B-I/12 (guidance) was not checked.
 
+**Syllabus mapping (draft, 13 Nov 2026):** `docs/SYLLABUS-MATRIX.md` maps STCW Table A-II/1, every
+topic of Model Course 1.07 and DG Shipping Training Circular 5 of 2004 to the exercises, says how each
+is marked, and lists the gaps. No instructor has reviewed it.
+
 Status words: **Yes** = simulated and tested. **Partly** = simulated with the limits stated.
 **No** = not built. **n/a** = hardware, installation or documentation matter, not a simulator function.
 
@@ -106,16 +110,16 @@ stations, simulating radar that meets the IMO standards.
 | Plotting table and charts beside each station | n/a | Classroom equipment. A plotting board is on screen |
 | 2-1 Radar setting up and adjustment | Yes | Tuning, gain, clutter, brilliance, range scales |
 | 2.2 Accurate measurement of ranges and bearings | Yes | EBL, VRM, cursor, range rings |
-| 3-1 Radar position fixing | Yes | ROC exercise |
+| 3-1 Radar position fixing | Yes | ROC exercise; marked exercise 23 (Mumbai, real coast, GNSS failed: range, bearing, latitude and longitude checked, and the distance kept off the land) |
 | 3.2 Radar navigation aids (racon, SART) | Yes | |
-| 3-2 Parallel index line navigation | Yes | Exercise 10, marked on the index line set and on track keeping |
+| 3-2 Parallel index line navigation | Yes | Exercises 10 and 24 (Goa approach and anchoring), marked on the index line set, track keeping and, in 24, the anchor position |
 | 3-3 Radar maps, navigation lines and routes | Partly | Navigation lines (exercise 10). No routes on the radar |
 | 3.5 Electronic chart overlay | No | Lecture topic in the course |
 | 4-1 to 4-4 Manual plotting: triangle, CPA/TCPA, effects of course and speed changes, plotting report | Partly | Plotting exercise and collision avoidance exercise. No separate marked report sheet |
 | 5 and 6 ARPA / target tracking operation, errors, tests, over-reliance | Yes | Nine ARPA exercises |
 | 5.2, 5.3, 6.2 AIS display and association | Partly | See MSC.192(79) 5.26 to 5.30 |
 | 7-1 Collision avoidance with COLREGs | Yes | ARPA exercises 6 and 9, ROC traffic exercise. Rule 19(d) is checked automatically |
-| Part E assessment | Partly | Automatic marking with placeholder tolerances; no pass mark set |
+| Part E assessment | Partly | Automatic marking with placeholder tolerances; no pass mark set. Printable marking sheets (Instructor tab), one page per exercise, with boxes for the institute's own tolerances, points and pass mark and the assessor's decision. The appendix 6 sample checklists are mapped in `docs/SYLLABUS-MATRIX.md`, not applied |
 
 ## 4. Model Course 1.08 (management level)
 
@@ -146,7 +150,7 @@ stations, simulating radar that meets the IMO standards.
 | 7.4 | Exercises monitored; pre- and post-exercise evaluation reports | Partly | Monitoring and a post-exercise report. No pre-exercise evaluation form |
 | 7.5-7.6 | Effective debriefing; peer assessment encouraged | Yes | Replay, debrief questions, the trainees' own review, peer comments and goals, kept on the record |
 | 7.7 | Exercises designed and tested for their objectives | Partly | Tested by automated tests; not yet tried by an instructor with trainees |
-| 8.1, 8.3 | Performance and assessment criteria explicit and available to candidates | Yes | Shown before each exercise |
+| 8.1, 8.3 | Performance and assessment criteria explicit and available to candidates | Yes | Shown before each exercise, with each outcome's rule in words; and on the printable marking sheets |
 | 8.2 | Criteria reliable, uniform and objective | Partly | Automatic checks are uniform; the tolerances are placeholders |
 | 8.5 | Scoring used with caution until validated | Yes | The score is marked provisional everywhere it appears |
 | 8.6 | Prime criterion: the assessor is satisfied the task was done safely and effectively | Yes | Assessor's decision, name and remarks on each record and report |

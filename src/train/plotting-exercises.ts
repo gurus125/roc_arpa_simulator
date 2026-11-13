@@ -102,10 +102,13 @@ const make = (d: Def): ArpaExercise => {
       { id: "tcpa0", kind: "number", prompt: "Most dangerous target: TCPA from now", unit: "min", truth: (c) => (c.obs.manoeuvre ? null : (truthCpa(c.w, mostDangerous(c) ?? -1)?.tcpaMinutes ?? null)), tol: (cfg) => cfg.tol.tcpaMin },
       { id: "crs0", kind: "number", prompt: "Most dangerous target: true course", unit: "°", circular: true, truth: (c) => truthThroughWater(c.w, mostDangerous(c) ?? -1)?.course ?? null, tol: (cfg) => cfg.tol.courseDeg },
       { id: "spd0", kind: "number", prompt: "Most dangerous target: true speed", unit: "kn", truth: (c) => truthThroughWater(c.w, mostDangerous(c) ?? -1)?.speed ?? null, tol: (cfg) => cfg.tol.speedKn },
-      { id: "result", kind: "outcome", prompt: `Every target passed at the required ${PLOT_RULES.requiredCpaNm} NM (result at least ${PLOT_RULES.minimumPercent}%)`, judge: judgeCpa },
-      { id: "time", kind: "outcome", prompt: `Manoeuvre made at ${PLOT_RULES.manoeuvreAtMin} minutes, not before`, judge: judgeTime },
-      { id: "port", kind: "outcome", prompt: "No turn to port", judge: judgeNoPort },
-      { id: "manual", kind: "outcome", prompt: "Worked by manual plotting (ARPA not used)", judge: judgeManual },
+      {
+        id: "result", kind: "outcome", prompt: `Every target passed at the required ${PLOT_RULES.requiredCpaNm} NM (result at least ${PLOT_RULES.minimumPercent}%)`, judge: judgeCpa,
+        rule: () => `every target past and clear, and the closest approach at least ${PLOT_RULES.minimumPercent}% of ${PLOT_RULES.requiredCpaNm} NM`,
+      },
+      { id: "time", kind: "outcome", prompt: `Manoeuvre made at ${PLOT_RULES.manoeuvreAtMin} minutes, not before`, judge: judgeTime, rule: () => `the first change of course or speed not before ${PLOT_RULES.manoeuvreAtMin} minutes` },
+      { id: "port", kind: "outcome", prompt: "No turn to port", judge: judgeNoPort, rule: () => "no turn of 5° or more to port" },
+      { id: "manual", kind: "outcome", prompt: "Worked by manual plotting (ARPA not used)", judge: judgeManual, rule: () => "no target tracked by the ARPA" },
     ],
     script: [],
     debrief: [
