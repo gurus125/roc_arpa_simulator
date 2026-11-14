@@ -349,7 +349,7 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
   blind pilotage, traffic).
 - **ARPA EX**: ARPA exercises 1-9, radar exercises 10-11, manual plotting exercises 12-21, switching on and
   setting up 22, and radar exercises 23-26 on the real coasts (Mumbai, Goa, Kochi, Gulf of Kutch).
-- **INSTR**: instructor pages (PIN needed).
+- The instructor's pages are not on your display: the instructor has a station of his or her own.
 
 - **SETTINGS**, User setting 1 and 2: Store keeps the present settings of the radar and ARPA
   controls; Recall puts them back (each asks you to confirm).

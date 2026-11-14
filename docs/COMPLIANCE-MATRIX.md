@@ -106,7 +106,7 @@ stations, simulating radar that meets the IMO standards.
 
 | Item | Status | Note |
 |------|--------|------|
-| Instructor station and at least two own-ship stations | Yes | Any number of displays. The instructor starts a linked exercise on all of them: same scenario, same moment, each own ship shown to the others as a radar target with AIS. Linked exercises run at 1x; each display keeps its own copy of the scenario traffic, started together |
+| Instructor station and at least two own-ship stations | Yes | A separate instructor station (`radar-simulator.html#instructor`) with its own PIN screen and tabs: it watches every display, sends pauses, exercises, faults, weather and messages, receives every display's records, and keeps the batches and scoring that it sends to the displays. The student displays have no instructor pages. Any number of displays. The instructor starts a linked exercise on all of them: same scenario, same moment, each own ship shown to the others as a radar target with AIS. Linked exercises run at 1x; each display keeps its own copy of the scenario traffic, started together |
 | Plotting table and charts beside each station | n/a | Classroom equipment. A plotting board is on screen |
 | 2-1 Radar setting up and adjustment | Yes | Tuning, gain, clutter, brilliance, range scales |
 | 2.2 Accurate measurement of ranges and bearings | Yes | EBL, VRM, cursor, range rings |

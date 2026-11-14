@@ -1,5 +1,5 @@
 // Link test: several displays working together through the classroom server.
-// Starts the server, opens one instructor and four student displays in SEPARATE browser
+// Starts the server, opens the instructor station (/instructor) and four student displays in SEPARATE browser
 // profiles (so they can only reach each other through the server, as separate PCs would),
 // and checks monitoring, a linked exercise, pause/run, messages and recovery after the
 // server is stopped and started again. Run with `npm run test:link` after `npm run build`.
@@ -21,13 +21,17 @@ const listen = () => new Promise((res) => {
 });
 let server = await listen();
 const browser = await chromium.launch();
-const open = async () => {
+const open = async (station = false) => {
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
   const p = await ctx.newPage();
   p.errs = [];
   p.on("pageerror", (e) => p.errs.push(e.message));
-  await p.goto(`http://localhost:${PORT}/`);
-  await p.getByText("Free practice without names").click();
+  await p.goto(`http://localhost:${PORT}/${station ? "instructor" : ""}`);
+  if (station) {
+    // The instructor station asks for the PIN, then shows its CLASSROOM.
+    await p.fill("#stPin", "0000");
+    await p.click("#stLoginBtn");
+  } else await p.getByText("Free practice without names").click();
   await p.waitForTimeout(200);
   return p;
 };
@@ -47,12 +51,9 @@ const until = async (fn, ms = 15000) => {
   return false;
 };
 
-const instr = await open();
+const instr = await open(true);
 const students = [];
 for (let i = 0; i < STUDENTS; i++) students.push(await open());
-await key(instr, "instr");
-await instr.fill("#inPin", "0000");
-await instr.click("#inLoginBtn");
 const stations = () => instr.$$eval("#inStations canvas", (c) => c.length);
 
 check("instructor display is linked through the server", (await text(instr, "#inLinkMode")).includes("server"), await text(instr, "#inLinkMode"));
@@ -61,9 +62,9 @@ check(`instructor sees all ${STUDENTS} student displays`, await until(async () =
 // A linked exercise: every display loads the scenario and sees the other own ships as targets.
 const before = await students[0].evaluate(() => window.__simTest.targetCount());
 await instr.click("#inLinked");
-await key(instr, "instr"); // starting the exercise shows the radar keys; go back to the instructor page
 const counts = async () => Promise.all(students.map((p) => p.evaluate(() => window.__simTest.targetCount())));
-check("linked exercise: every student display shows the other own ships as targets", await until(async () => (await counts()).every((n) => n >= before + STUDENTS)), `targets before ${before}, now ${(await counts()).join(",")}`);
+// The station is not a ship: each display sees the other displays' own ships.
+check("linked exercise: every student display shows the other own ships as targets", await until(async () => (await counts()).every((n) => n >= before + STUDENTS - 1)), `targets before ${before}, now ${(await counts()).join(",")}`);
 
 // Pause and run all displays.
 const running = async () => Promise.all(students.map((p) => text(p, "#run")));
@@ -77,6 +78,18 @@ await instr.fill("#inMsgText", "Reduce to 3 NM range");
 await instr.click("#inMsgSend");
 const banners = async () => Promise.all(students.map((p) => text(p, "#banner")));
 check("instructor's message is shown on every student display", await until(async () => (await banners()).every((t) => t.includes("Reduce to 3 NM range"))), (await banners()).join(" | "));
+
+// The station starts an exercise on every display; a display's finished exercise comes back to the station's records.
+await instr.selectOption("#inExSel", "arpa-1");
+await instr.click("#inExAll");
+const titles = async () => Promise.all(students.map((p) => p.$eval("#exTitle", (e) => e.textContent)));
+check("an exercise started from the station runs on every display", await until(async () => (await titles()).every((t) => /^1\. /.test(t))), (await titles()).join(" | "));
+await key(students[0], "ex");
+await students[0].click("#exFinish");
+await instr.click('#topTabs button[data-st="recs"]');
+const recs = () => text(instr, "#inRecs");
+check("the finished exercise's record reaches the station", await until(async () => /ARPA 1:/.test(await recs())), await recs());
+await instr.click('#topTabs button[data-st="class"]');
 
 // The server stops (power cut, cable out) and comes back: the displays find it again by themselves.
 // Connections still open are cut at once (waiting for them to end could hang the test).

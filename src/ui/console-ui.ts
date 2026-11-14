@@ -37,7 +37,7 @@ interface Key {
   instructor?: boolean;
 }
 
-const KEYS: Key[] = [
+const ALL_KEYS: Key[] = [
   { key: "own", label: "SHIP", sections: ["Own ship", "Hand steering"], tab: "top" },
   { key: "meas", label: "PI / MAP", sections: ["Measure"], tab: "top" },
   { key: "gain", label: "RADAR", sections: ["Radar controls"], tab: "radar" },
@@ -91,7 +91,9 @@ export interface ConsoleUi {
   followTab: (tab: Tab) => void;
 }
 
-export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<Line, boolean>, elsewhere: (key: string) => boolean = () => false): ConsoleUi {
+export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<Line, boolean>, station = false, elsewhere: (key: string) => boolean = () => false): ConsoleUi {
+  // A student display has no instructor pages: the INSTR and FAULTS keys are on the instructor station only.
+  const KEYS = ALL_KEYS.filter((k) => station || (k.key !== "instr" && k.key !== "fault"));
   const side = $("side");
   /** Range rings shown (kept here so the choice survives a change of scenario). */
   let ringsOn = true;
@@ -354,7 +356,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
   const syncTabs = (): void => {
     const open = document.body.classList.contains("menu-open");
     const on = open ? (TOP_OF[current] ?? "radar") : "radar";
-    for (const b of document.querySelectorAll<HTMLElement>("#topTabs button")) b.classList.toggle("on", b.dataset["top"] === on);
+    for (const b of document.querySelectorAll<HTMLElement>("#topTabs button[data-top]")) b.classList.toggle("on", b.dataset["top"] === on);
   };
   /** Open or close the menu drawer. */
   const openMenu = (open: boolean): void => {

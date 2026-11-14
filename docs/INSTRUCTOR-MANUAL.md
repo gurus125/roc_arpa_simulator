@@ -4,35 +4,52 @@ Training and study use only. Not for navigation. This simulator holds no approva
 The learner's manual is `USER-MANUAL.md`; read that first for the radar and ARPA controls. This
 manual covers what only the instructor does.
 
-## 1. Starting and the normal starting state
+## 1. Starting: the student displays and the instructor station
 
-1. Open `radar-simulator.html` in Chrome or Edge on each display. For several computers working
-   together, see section 7.
-2. At the first screen, enter the trainees' names and batch, or choose "Free practice without names".
-3. A newly opened simulator starts in this state: radar ON, X band, 6 NM range, north-up, relative
-   motion, gain 50, sea and rain clutter 0, ARPA on with no targets acquired, simulation running
-   at 1x. Loading a scenario puts gain, clutter, brilliance, EBL, VRM and parallel index lines back
-   to this state. Day or night colours stay as last chosen.
-4. Press the INSTR key (bottom right) and enter the instructor PIN. The first PIN is 0000: change it
-   after logging in ("New PIN", 4 to 8 digits). The PIN only keeps trainees out of the instructor
-   pages in class. It is not real security.
-5. "Log out (student view)" returns the display to what a trainee sees. Do this before a trainee
-   uses a display you have logged in on.
+The instructor works at an **instructor station** of his or her own. The trainees' displays have no
+instructor pages at all: no INSTR or FAULTS key and no PIN box.
 
-After logging in, the FAULTS key also appears at the bottom, and the instructor sections open
-under the INSTR key.
+1. **Student displays.** Open `radar-simulator.html` in Chrome or Edge on each display. At the first
+   screen the trainees choose their batch and names, or "Free practice without names".
+2. **Instructor station.** On the instructor's PC open the same file with `#instructor` after it:
+   `radar-simulator.html#instructor` (with the classroom server, the address it prints followed by
+   `/instructor`). It asks for the instructor PIN. The first PIN is 0000: change it under BATCHES,
+   "Instructor access" ("New PIN", 4 to 8 digits). The PIN only keeps trainees out of the station in
+   class; it is not real security. The person icon at the top right logs out.
+3. The station's tabs:
+
+| Tab | What is there |
+|-----|---------------|
+| CLASSROOM | Every display that is reporting, with a small picture and its state, and for each: Pause, Run, Start exercise, Send faults, Clear faults. Beside it, what goes to all displays: pause and run, an exercise to start, the faults to send, the weather, a linked exercise, a typed message |
+| RECORDS | The records of every display's finished exercises (each display sends its record to the station when an exercise is finished, and again when the trainees save their debrief notes), with the replay, the reports and the assessor's decision |
+| EXERCISES | Scoring settings, marking sheets, the self-test of the exercises |
+| BATCHES | Batches, students and assigned exercises; display limits; the instructor PIN |
+| SCENARIOS | The scenario editor |
+| OWN RADAR | The station's own radar, as a trainee's: to try a scenario, programme target tracks (MENU, INSTR), set faults on it (MENU, FAULTS) and start a linked exercise with it |
+
+4. The station sends its batches, assignments and scoring settings to every display every few
+   seconds, so the displays' login lists and their marking follow the station's. Keep them on the
+   station: changes made on a display are replaced by the station's.
+5. The station and the displays find each other by themselves: through the browser on one PC, or
+   through the classroom server for several PCs (section 7). The station is not a ship: it does not
+   report as a display and its own ship is never a target on a trainee's radar.
+
+A newly opened simulator starts in this state: radar ON, X band, 6 NM range, north-up, relative
+motion, gain 50, sea and rain clutter 0, ARPA on with no targets acquired, simulation running at
+1x. Loading a scenario puts gain, clutter, brilliance, EBL, VRM and parallel index lines back to
+this state. Day or night colours stay as last chosen.
 
 ## 2. Running an exercise
 
 | To do this | Use |
 |------------|-----|
-| Choose what the trainees work on | SCENARIO key (free practice), ROC EX key (radar observer exercises), ARPA EX key (ARPA and manual plotting exercises) |
+| Choose what the trainees work on | On the station, CLASSROOM: choose the exercise and press "Start exercise" on a display's card, or "Start this exercise on all displays". On a display: SCENARIO key (free practice), ROC EX key (radar observer exercises), ARPA EX key (ARPA and manual plotting exercises), or the ship control window |
 | Halt and continue | PAUSE / RUN key in the strip at the top of the page |
 | Run faster | The speed box beside PAUSE: 1x, 2x, 5x, 10x |
 | Start again from the beginning | "Restart" in the SCENARIO key, or open the exercise again |
-| Go back in time | INSTR key, "Take exercise back 2 min", "Back 5 min", "Back 10 min". The ships, weather and faults return to that moment so that the trainees can try again. The simulator keeps one state a minute for the last 40 minutes |
+| Go back in time | Station, OWN RADAR, MENU, INSTR: "Take exercise back 2 min", "Back 5 min", "Back 10 min" (on the station's own radar). The ships, weather and faults return to that moment. The simulator keeps one state a minute for the last 40 minutes. Taking a trainee's display back from the station is not offered yet |
 
-Batches and assignments (INSTR key, "Batches, students and assignments"): add a batch, type the
+Batches and assignments (station, BATCHES, "Batches, students and assignments"): add a batch, type the
 trainees' names one per line, tick the exercises assigned to the batch, and save. "Students per
 display" and "Hours per pair" are the academy's limits to set; nothing is enforced unless entered.
 
@@ -44,13 +61,14 @@ super-refraction with about 140%), interference from another radar, wind directi
 drift, and a tidal stream (maximum rate, direction of the flood, hours after slack at the start).
 Changes act at once.
 
-To set the weather on every linked display together, use INSTR key, "Monitor other displays",
-"Set this weather on all displays".
+To set the weather on every display together, use the station's CLASSROOM, "Set this weather on all
+displays".
 
 ## 4. Targets
 
-All of this is under INSTR key, "Inject events (this display)". Every injection is written to the
-exercise record.
+All of this is on the station, OWN RADAR, MENU, INSTR, "Inject events (this display)": it acts on the
+station's own radar (for example to prepare a linked exercise). Every injection is written to the
+exercise record. Altering a target on a trainee's display from the station is not offered yet.
 
 Alter a target: choose it in "Target", type a new course and/or speed, press "Alter target now".
 A ship of a catalogue type comes round and changes speed gradually; a plain target changes at once.
@@ -80,7 +98,11 @@ only on a display logged in as instructor, never on a trainee's.
 Each of up to 100 targets can have its own track. The scenario "Traffic: 100 ships on programmed
 tracks" shows 100 ships running together. The ARPA tracks 20 targets at a time.
 
-## 5. Faults (FAULTS key)
+## 5. Faults
+
+On the station, CLASSROOM, "Faults to send": set the faults, then "Send faults" on one display's card,
+or "Send these faults to all displays"; "Clear faults" puts them all back to normal. The trainees
+are not told. (On the station's own radar the same faults are under MENU, FAULTS.)
 
 | Fault | What the trainee sees |
 |-------|-----------------------|
@@ -104,9 +126,9 @@ TCPA, course and speed, and counts target swaps. It is shown only on this displa
 
 ## 6. Following the trainees
 
-On one computer the instructor watches the same screen. With linked displays (section 7), INSTR
-key, "Monitor other displays" shows a small picture and the state of every display, with Pause,
-Run, "Gyro +3°" (a gyro error on that display) and "Clear fault" for each, and Pause and Run for all. "Message to all displays" sends a typed message. Trainees answer with the
+The station's CLASSROOM shows a small picture and the state of every display (exercise, time,
+heading and speed, tracks, answers, alarms), with Pause, Run, Start exercise, Send faults and Clear
+faults for each, and Pause and Run for all. "Message to all displays" sends a typed message. Trainees answer with the
 VHF/SIGNAL key (typed messages; there is no voice channel in this simulator).
 
 ## 7. Several displays working together
@@ -115,20 +137,23 @@ Other browser tabs on the same computer link by themselves. For several computer
 
 1. On one PC, in the simulator's folder, run `npm run serve`.
 2. Open the address it prints in the browser of every display.
-3. Load a scenario on the instructor's display, then press "Start a LINKED exercise on all displays
-   with the scenario loaded here". Every display loads the scenario at the same moment, each own
+3. Open the instructor station at the address followed by `/instructor`.
+4. Load a scenario on the station's OWN RADAR, then in CLASSROOM press "Start a LINKED exercise on all
+   displays with the scenario loaded here". Every display loads the scenario at the same moment, each own
    ship starts at a different position 5 NM from the scenario start, and every own ship is a target
    on the others' radar. A linked exercise runs at 1x.
 
 This has been proved with five separate browsers going through the server on one machine
-(`npm run test:link`): monitoring, a linked exercise, pause and run, messages, and finding the
+(`npm run test:link`): monitoring, a linked exercise, pause and run, messages, an exercise started from
+the station, a finished exercise's record reaching the station, and finding the
 server again after it has been stopped and started. It has not been tried on separate PCs over a
 classroom network: do that before a class. If the server stops, each display shows "server out of
 reach (trying again)" and links up again by itself when the server is back.
 
 ## 8. Records, replay and assessment
 
-INSTR key, "Records, replay and reports" lists every finished exercise with the trainees, the
+Station, RECORDS, "Records, replay and reports" lists every finished exercise (from every display that
+reached the station, and the station's own) with the trainees, the
 exercise and the score. "Open" shows:
 
 - the replay: own ship's track in green and the targets' in yellow, with the events and alarms up
@@ -146,12 +171,12 @@ exercise and the score. "Open" shows:
 
 ## 9. Scoring settings and marking sheets
 
-INSTR key, "Scoring settings (placeholders)". None of the values comes from an approved marking
+Station, EXERCISES, "Scoring settings (placeholders)". None of the values comes from an approved marking
 scheme. Enter the academy's own tolerances and pass mark, or leave the pass mark blank to report
 scores without pass or fail. "Radar bearing / course to steer tolerance" applies to the radar
 exercises' bearings and courses to steer (exercises 10, 11, 23 and 24).
 
-INSTR key, "Marking sheets": choose one exercise or all of them and print (or save as PDF). Each is
+Station, EXERCISES, "Marking sheets": choose one exercise or all of them and print (or save as PDF). Each is
 one A4 page: the items the simulator checks, how it judges each, and the value it uses now (the
 settings above), with empty boxes for the institute's own tolerance or limit and points; the
 items the assessor judges that the simulator does not (timing of the action, resuming course,
@@ -180,7 +205,7 @@ Every limit is a placeholder.
 
 ## 10. Checking the exercises: the self-test
 
-INSTR key, "Self-test of the exercises", "Run self-test". Three robots work every ARPA, radar and
+Station, EXERCISES, "Self-test of the exercises", "Run self-test". Three robots work every ARPA, radar and
 plotting exercise, the setting-up exercise 22 included. The careful robot follows the briefing and must score 100%; the wrong robot
 gives wrong answers, which must all be rejected; the idle robot does nothing and must not be
 credited. This checks that every exercise runs, can be completed and is marked properly. It does
@@ -189,7 +214,7 @@ after any change of scoring settings.
 
 ## 11. Making scenarios
 
-INSTR key, "Scenario editor": start from an existing scenario, set own ship's heading and speed,
+Station, SCENARIOS, "Scenario editor": start from an existing scenario, set own ship's heading and speed,
 sea state and current, list the targets (bearing and range from own ship's start, course, speed,
 one optional alteration at a given minute), then "Load in simulator" or "Save to library". Saved
 scenarios appear in the free practice list. "Download JSON" and "Open JSON file" move scenarios

@@ -8,7 +8,7 @@ import {
 import { AppState, rewind } from "./app";
 import { deletePictures, loadPictures } from "./picture-store";
 import { $, download, esc, inputValue, mmss } from "./dom";
-import { Link, StationStatus } from "./link";
+import { FAULT_IDS, Link, StationStatus } from "./link";
 import { resultHtml } from "./train-ui";
 
 export interface InstructorApi {
@@ -23,12 +23,35 @@ export interface InstructorApi {
   who: () => { students: string[]; batchId: string };
   /** Do on this display what the "startLinked" command does on the others. */
   startLinkedHere: (scenarioJson: string) => void;
+  /** This page is the instructor station (its pages are shown under their own tabs, not in the menu). */
+  station: boolean;
 }
 
 export interface InstructorUi {
   tick: (app: AppState) => void;
   refresh: () => void;
+  /** A record has come in (from a display): list the records again. */
+  recordsChanged: () => void;
 }
+
+/** Every exercise a display can be told to start: the ARPA, radar and plotting exercises, then the ROC exercises. */
+const REMOTE_EXERCISES = [
+  ...[...ARPA_EXERCISES, ...RADAR_EXERCISES, ...PLOTTING_EXERCISES].sort((a, b) => a.number - b.number).map((e) => ({ id: e.id, label: `${e.number}. ${e.title}` })),
+  ...EXERCISES.map((e) => ({ id: `roc-${e.id}`, label: `ROC: ${e.name}` })),
+];
+/** The faults an instructor can send to a display: id, label, and for a number its range and step. */
+const REMOTE_FAULTS: { id: (typeof FAULT_IDS)[number]; label: string; min?: number; max?: number; step?: number; off: number | boolean }[] = [
+  { id: "gyroErr", label: "Gyro error (°)", min: -5, max: 5, step: 0.5, off: 0 },
+  { id: "logErr", label: "Log error (kn)", min: -3, max: 3, step: 0.1, off: 0 },
+  { id: "hmErr", label: "Heading marker error (°)", min: -5, max: 5, step: 0.5, off: 0 },
+  { id: "vrmErr", label: "VRM error (%)", min: -10, max: 10, step: 1, off: 0 },
+  { id: "perf", label: "Radar performance (%)", min: 20, max: 100, step: 5, off: 100 },
+  { id: "logFail", label: "Speed log failed", off: false },
+  { id: "gyroFail", label: "Gyro compass failed", off: false },
+  { id: "gnssFail", label: "EPFS (GNSS) failed", off: false },
+  { id: "anchorDrag", label: "Anchor dragging", off: false },
+  { id: "aisRepeat", label: "AIS shore station repeating", off: false },
+];
 
 const RCS: Record<TargetKind, { rcs: number; height: number }> = {
   ship: { rcs: 1, height: 20 }, "small-craft": { rcs: 0.04, height: 4 }, buoy: { rcs: 0.015, height: 3 }, beacon: { rcs: 0.5, height: 15 },
@@ -171,6 +194,14 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <p class="hint">"Taking the exercise back" returns the ships, weather and faults to that moment so the trainees can try again. Sensor faults (gyro, log, gyro failure) are in the Instructor box on the ARPA tab. Weather, sea state and current are on the Radar tab. Every injection is written to the exercise record.</p></section>
     <section><h2>Monitor other displays</h2><p class="small" id="inLinkMode"></p><div id="inStations"></div>
       <div class="btns"><button id="inAllPause">Pause all</button><button id="inAllRun">Run all</button></div>
+      <div class="row two" style="margin-top:8px"><label for="inExSel">Exercise</label><select id="inExSel">${REMOTE_EXERCISES.map((e) => `<option value="${e.id}">${esc(e.label)}</option>`).join("")}</select></div>
+      <div class="btns"><button id="inExAll">Start this exercise on all displays</button></div>
+      <h2 style="margin-top:12px">Faults to send</h2>
+      <div class="grid2" id="rfBox">${REMOTE_FAULTS.map((f) => typeof f.off === "number"
+        ? `<div><label for="rf_${f.id}">${f.label}</label><input type="number" id="rf_${f.id}" min="${f.min}" max="${f.max}" step="${f.step}" value="${f.off}"></div>`
+        : `<div class="check"><input type="checkbox" id="rf_${f.id}"><label for="rf_${f.id}">${f.label}</label></div>`).join("")}</div>
+      <div class="btns"><button id="rfAll">Send these faults to all displays</button><button id="rfClear">Clear the faults on all displays</button></div>
+      <p class="hint">Each display's card above has keys for that display alone: Pause, Run, Start exercise (the one chosen above), Send faults (the ones set here) and Clear faults. A fault changes the display's instruments as the FAULTS key does on a display of its own; the trainees are not told.</p>
       <div class="grid2" style="margin-top:6px"><div><label for="inWxSea">Sea state (0-9)</label><input type="number" id="inWxSea" min="0" max="9" value="3"></div>
         <div class="small"><label><input type="checkbox" id="inWxRain"> Rain squall</label><br><label><input type="checkbox" id="inWxDuct"> Abnormal propagation</label><br><label><input type="checkbox" id="inWxInt"> Radar interference</label></div></div>
       <div class="btns"><button id="inWxSend">Set this weather on all displays</button></div>
@@ -434,8 +465,28 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     const cmd = b?.dataset["cmd"];
     if (!to || !cmd) return;
     if (cmd === "pause" || cmd === "run") api.link.sendCommand({ to, cmd });
-    if (cmd === "gyro") api.link.sendCommand({ to, cmd: "fault", gyroDeg: 3, logKn: 0 });
-    if (cmd === "clear") api.link.sendCommand({ to, cmd: "fault", gyroDeg: 0, logKn: 0 });
+    if (cmd === "ex") api.link.sendCommand({ to, cmd: "startExercise", id: inputValue("inExSel") });
+    if (cmd === "faults") api.link.sendCommand({ to, cmd: "faults", values: faultValues(false) });
+    if (cmd === "clear") api.link.sendCommand({ to, cmd: "faults", values: faultValues(true) });
+    msg(`Sent to display ${to}.`);
+  });
+  /** The faults set under "Faults to send", or all of them off. */
+  const faultValues = (off: boolean): Record<string, number | boolean> =>
+    Object.fromEntries(REMOTE_FAULTS.map((f) => {
+      const e = $<HTMLInputElement>(`rf_${f.id}`);
+      return [f.id, off ? f.off : typeof f.off === "boolean" ? e.checked : Math.min(f.max ?? 100, Math.max(f.min ?? 0, Number(e.value) || 0))];
+    }));
+  $("rfAll").addEventListener("click", () => {
+    api.link.sendCommand({ to: "all", cmd: "faults", values: faultValues(false) });
+    msg("Faults sent to all displays.");
+  });
+  $("rfClear").addEventListener("click", () => {
+    api.link.sendCommand({ to: "all", cmd: "faults", values: faultValues(true) });
+    msg("Faults cleared on all displays.");
+  });
+  $("inExAll").addEventListener("click", () => {
+    api.link.sendCommand({ to: "all", cmd: "startExercise", id: inputValue("inExSel") });
+    msg("Exercise started on all displays.");
   });
   const drawStations = (): void => {
     const now = Date.now();
@@ -446,7 +497,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       box.dataset["sig"] = sig;
       box.innerHTML = [...stations.values()].map((s) => `<div style="display:grid;grid-template-columns:110px 1fr;gap:8px;margin:8px 0;border-top:1px solid var(--line);padding-top:8px">
         <canvas id="stC_${s.station}" width="110" height="110" style="width:110px;height:110px;background:#08100e"></canvas>
-        <div><div class="small" id="stT_${s.station}"></div><div class="btns"><button data-st="${s.station}" data-cmd="pause">Pause</button><button data-st="${s.station}" data-cmd="run">Run</button><button data-st="${s.station}" data-cmd="gyro">Gyro +3°</button><button data-st="${s.station}" data-cmd="clear">Clear fault</button></div></div></div>`).join("") || '<p class="small">No other display is reporting.</p>';
+        <div><div class="small" id="stT_${s.station}"></div><div class="btns"><button data-st="${s.station}" data-cmd="pause">Pause</button><button data-st="${s.station}" data-cmd="run">Run</button><button data-st="${s.station}" data-cmd="ex">Start exercise</button><button data-st="${s.station}" data-cmd="faults">Send faults</button><button data-st="${s.station}" data-cmd="clear">Clear faults</button></div></div></div>`).join("") || '<p class="small">No other display is reporting.</p>';
     }
     for (const s of stations.values()) {
       const tEl = document.getElementById(`stT_${s.station}`);
@@ -771,7 +822,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
 
   let lastWall = 0;
   const tick = (app: AppState): void => {
-    if (api.role() !== "instructor" || pane.hidden) return;
+    if (api.role() !== "instructor" || (pane.hidden && !api.station)) return;
     const sig = app.world.targets.map((t) => `${t.id}${t.name}`).join("|");
     if (sig !== tgtSig) {
       tgtSig = sig;
@@ -813,5 +864,5 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     lastWall = app.wall;
   };
 
-  return { tick, refresh };
+  return { tick, refresh, recordsChanged: () => (recSig = "") };
 }

@@ -13,15 +13,20 @@ import { dirname, join } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const MAX_MESSAGES = 500;
-const MAX_BODY = 64 * 1024;
+// A display's exercise record (sent to the instructor station) can be a few hundred kilobytes.
+const MAX_BODY = 2 * 1024 * 1024;
+/** Messages kept in memory, in all: the oldest go first beyond this. */
+const MAX_KEPT_BYTES = 40 * 1024 * 1024;
 
 let seq = 0;
-/** @type {{seq:number, msg:unknown}[]} */
+/** @type {{seq:number, msg:unknown, bytes:number}[]} */
 let messages = [];
+let keptBytes = 0;
 
 export function handle(req, res) {
   const url = new URL(req.url || "/", "http://x");
-  if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+  // The instructor station is the same page, opened at /instructor.
+  if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html" || url.pathname === "/instructor" || url.pathname === "/instructor/")) {
     try {
       const html = readFileSync(join(here, "..", "dist", "radar-simulator.html"));
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
@@ -53,8 +58,9 @@ export function handle(req, res) {
       }
       try {
         const msg = JSON.parse(body);
-        messages.push({ seq: ++seq, msg });
-        if (messages.length > MAX_MESSAGES) messages = messages.slice(-MAX_MESSAGES);
+        messages.push({ seq: ++seq, msg, bytes: body.length });
+        keptBytes += body.length;
+        while (messages.length > MAX_MESSAGES || (keptBytes > MAX_KEPT_BYTES && messages.length > 1)) keptBytes -= messages.shift().bytes;
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ seq }));
       } catch {

@@ -1,13 +1,14 @@
 import { ShipWindow, initShipWindow } from "./ship-window";
+import { StationUi, initStationUi } from "./station-ui";
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
 import { aisFilterLabel } from "../ais/index";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
 import { BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
-import { ARPA_EXERCISES, PLOT_RULES, ArpaExSession, ArpaExercise, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
+import { ARPA_EXERCISES, PLOTTING_EXERCISES, PLOT_RULES, RADAR_EXERCISES, ArpaExSession, ArpaExercise, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
 import { initTrainUi } from "./train-ui";
 import { initInstructorUi } from "./instructor-ui";
-import { Link } from "./link";
+import { FAULT_IDS, Link } from "./link";
 import { byId, esc } from "./dom";
 import { ConsoleUi, initConsoleUi, radarKeyLabel } from "./console-ui";
 import { AppState, advance, createApp, resetCourseUp, resetTrueMotion, setDisplayMode, setRange } from "./app";
@@ -45,6 +46,12 @@ function browserStorage(): Storage | null {
     return null;
   }
 }
+/**
+ * This page is the instructor station when opened as radar-simulator.html#instructor (or /instructor from the
+ * classroom server). Otherwise it is a student display, which has no instructor pages at all.
+ */
+const STATION = /(^|[#?&])instructor\b/i.test(location.hash + location.search) || /\/instructor\/?$/i.test(location.pathname);
+let stationUi: StationUi | null = null;
 const storage = browserStorage();
 const store = new Store(storage);
 const link = new Link();
@@ -69,6 +76,8 @@ function saveRecord(a: AppState): void {
   if (!a.recorder) return;
   a.recorder.sample(a.world, a.roc ? null : a.arpa);
   if (!store.addRecord(a.recorder.rec)) banner("The record could not be saved: the browser's storage is full or blocked. Download it from the result instead.");
+  // A display sends the record to the instructor station too (it keeps its own copy).
+  if (!STATION) link.sendRecord(a.recorder.rec);
   void savePictures(a.recorder.rec.id, a.pictures, store.data.records.map((r) => r.id));
   instrUi.refresh();
 }
@@ -110,6 +119,8 @@ function setRole(r: "student" | "instructor"): void {
   instrUi.refresh();
   trainUi.refreshList();
   showWho();
+  // The instructor station logged out: back to its PIN screen (it never becomes a student display).
+  if (STATION && r === "student") stationUi?.showLogin();
 }
 
 const instrUi = initInstructorUi({
@@ -126,7 +137,52 @@ const instrUi = initInstructorUi({
   baseScenarios: () => [...allScenarios(), ...ARPA_EXERCISES.map((e) => e.scenario)],
   who: () => ({ students: session.students, batchId: session.batchId }),
   startLinkedHere: (json) => startLinked(json),
+  station: STATION,
 });
+
+/** Start an exercise the instructor station asked for: an ARPA, radar or plotting exercise, or "roc-" and an ROC exercise. */
+function startExerciseById(id: string): void {
+  if (id.startsWith("roc-")) {
+    const kind = id.slice(4) as ExerciseKind;
+    try {
+      const ex = exerciseById(kind);
+      loadScenario(ex.scenario, { roc: ex });
+      setTab("roc");
+    } catch {
+      // Not an exercise this display knows.
+    }
+    return;
+  }
+  const ex = [...ARPA_EXERCISES, ...RADAR_EXERCISES, ...PLOTTING_EXERCISES].find((e) => e.id === id);
+  if (!ex) return;
+  loadScenario(ex.scenario, { arpa: ex });
+  setTab("ex");
+  banner(`Instructor: exercise ${ex.number} started. Read the briefing, then press RUN.`);
+}
+
+// The instructor station keeps the records of every display; a display keeps the station's batches and scoring.
+link.onRecord = (r) => {
+  if (!STATION) return;
+  const had = store.data.records.find((x) => x.id === r.id);
+  // A display does not know the assessor's decision: keep the one made here.
+  store.addRecord(had?.assessor && !r.assessor ? { ...r, assessor: had.assessor } : r);
+  instrUi.recordsChanged();
+};
+link.onConfig = (c) => {
+  if (STATION) return;
+  const d = store.data;
+  const now = JSON.stringify([d.batches, d.scoring, d.maxStudentsPerDisplay, d.targetHoursPerPair]);
+  if (now === JSON.stringify([c.batches, c.scoring, c.maxStudentsPerDisplay, c.targetHoursPerPair])) return;
+  d.batches = c.batches;
+  d.scoring = c.scoring;
+  d.maxStudentsPerDisplay = c.maxStudentsPerDisplay;
+  d.targetHoursPerPair = c.targetHoursPerPair;
+  store.save();
+  trainUi.refreshList();
+  // The login screen, if it is showing and nothing has been chosen yet, lists the batches again.
+  if (!$("login").hidden && $<HTMLSelectElement>("lgBatch").value === "") openLogin();
+  showWho();
+};
 
 /** Load the scenario, join the linked exercise, take a start position of this display's own, and run. */
 function startLinked(scenarioJson: string): void {
@@ -165,7 +221,7 @@ function heard(from: string, text: string): void {
 function showWho(): void {
   const names = session.students.length > 0 ? session.students.map(esc).join(" / ") : "free practice, no names";
   const hrs = session.students.length > 0 ? ` &nbsp; display time ${store.pairHours(session.students).toFixed(1)} h${store.data.targetHoursPerPair !== null ? ` of ${store.data.targetHoursPerPair} h` : ""}` : "";
-  $("who").innerHTML = `${names}${batchName() ? ` (${esc(batchName())})` : ""}${hrs}${session.role === "instructor" ? ' &nbsp; <b style="color:var(--warn)">INSTRUCTOR</b>' : ""}`;
+  $("who").innerHTML = STATION ? (session.role === "instructor" ? "logged in" : "") : `${names}${batchName() ? ` (${esc(batchName())})` : ""}${hrs}${session.role === "instructor" ? ' &nbsp; <b style="color:var(--warn)">INSTRUCTOR</b>' : ""}`;
 }
 
 function fillScenarioList(): void {
@@ -618,9 +674,37 @@ function setup(): void {
     showWho();
     trainUi.refreshList();
   });
-  $("whoChange").addEventListener("click", openLogin);
+  $("whoChange").addEventListener("click", () => (STATION ? setRole("student") : openLogin()));
+  if (STATION) $("whoChange").title = "Log out of the instructor station";
   // Instructor commands from the monitor.
   link.onCommand = (c) => {
+    // The instructor station takes no orders; it only hears the radio.
+    if (STATION && c.cmd !== "radio") return;
+    if (c.cmd === "startExercise") {
+      startExerciseById(c.id);
+      return;
+    }
+    if (c.cmd === "faults") {
+      // Only the fault controls, set as the FAULTS key would set them on this display.
+      for (const id of FAULT_IDS) {
+        const v = c.values[id];
+        const el = byId<HTMLInputElement>(id);
+        if (!el || v === undefined) continue;
+        if (el.type === "checkbox") {
+          if (el.checked !== !!v) {
+            el.checked = !!v;
+            el.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+        } else if (typeof v === "number" && Number.isFinite(v)) {
+          el.value = String(v);
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      }
+      applyControls();
+      app.recorder?.note(app.world, "INSTRUCTOR (remote): faults set.", true);
+      return;
+    }
     if (c.cmd === "pause") app.running = false;
     if (c.cmd === "run") app.running = true;
     if (c.cmd === "message") banner(`Instructor: ${c.text}`);
@@ -1164,7 +1248,8 @@ let lastPairSave = 0;
 function heartbeat(): void {
   const w = app.world;
   const s = app.arpaEx;
-  link.sendStatus({
+  // The instructor station is not a display: it does not report (and its own ship is not shown to the trainees).
+  if (!STATION) link.sendStatus({
     station: link.station, students: session.students, batch: batchName(),
     exercise: s ? `Exercise ${s.def.number}` : app.roc ? `ROC ${app.roc.ex.id}` : `Free: ${app.scenario.name}`,
     time: w.time, running: app.running, hdg: measuredHeading(w), spd: w.own.speedThroughWater, ordC: w.own.ordered.course, ordS: w.own.ordered.speed,
@@ -1258,7 +1343,7 @@ const ship = initShipWindow({
 shipWin = ship;
 $("shipWinKey").addEventListener("click", () => ship.open());
 window.addEventListener("beforeunload", () => ship.close());
-consoleUi = initConsoleUi(setTab, freeLines, (key) => {
+consoleUi = initConsoleUi(setTab, freeLines, STATION, (key) => {
   // SHIP and the exercise keys bring the ship control window forward while it is open.
   if (!ship.isOpen()) return false;
   if (key === "own") ship.focus();
@@ -1269,7 +1354,10 @@ consoleUi = initConsoleUi(setTab, freeLines, (key) => {
 panelUi = initPanel(store);
 (window as unknown as { __panelAct: unknown }).__panelAct = (id: string, down?: boolean): void => panelUi?.act(id, down);
 setRole("student");
-openLogin();
+if (STATION) {
+  stationUi = initStationUi({ store, link, role: () => session.role, setRole });
+  stationUi.showLogin();
+} else openLogin();
 setInterval(heartbeat, 1000);
 window.addEventListener("beforeunload", () => store.save());
 
@@ -1295,6 +1383,8 @@ window.addEventListener("beforeunload", () => store.save());
   },
   aisFilterLabel: (): string => aisFilterLabel(app.ais.settings.sleepFilter),
   headingLost: (): boolean => app.headingLost,
+  /** The names of the batches this display knows. */
+  batchNames: (): string[] => store.data.batches.map((b) => b.name),
   /** The autopilot course ordered now. */
   orderedCourse: (): number => Math.round(app.world.own.ordered.course) % 360,
   /** Targets whose data label is shown on the picture. */

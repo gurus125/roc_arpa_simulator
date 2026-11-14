@@ -113,8 +113,8 @@ Kutch, tidal stream, ground stabilisation and a meeting ship. For them: a GNSS (
 anywhere, EPFS INPUT ABSENT), anchoring (LET GO ANCHOR key, under 1 kn over the ground) with an anchor-drag fault,
 ships that lie at anchor without drifting (`atAnchor` in a scenario), and the exercise script can wait for a
 condition (the anchor drags ten minutes after it is let go). Printable marking sheets, one page per exercise, with
-empty boxes for the institute's tolerances, points and pass mark (`src/train/marking.ts`; Instructor tab >
-Marking sheets). A draft syllabus table, STCW A-II/1, Model Course 1.07 and DG Shipping Circular 5 of 2004 against
+empty boxes for the institute's tolerances, points and pass mark (`src/train/marking.ts`; instructor station,
+EXERCISES, Marking sheets). A draft syllabus table, STCW A-II/1, Model Course 1.07 and DG Shipping Circular 5 of 2004 against
 the exercises, with the gaps: `docs/SYLLABUS-MATRIX.md` (no instructor has reviewed it). From IEC 62288 and
 62388: the stern line and the antenna position mark; AIS reports repeated by a shore station, not used while the
 vessel is heard directly (instructor switch); the high-speed-craft versions of TT scenarios 2 to 5, all met.
@@ -149,8 +149,13 @@ See `PLAN.md` for the full build plan.
 
 - **ARPA exercises** tab: 26 exercises with automatic checking and debrief questions: nine ARPA,
   seven radar (four of them in the real areas) and ten manual plotting.
-- **Instructor** tab (PIN 0000 at first): batches, assignments, event injection, monitoring,
-  records, replay, CSV and printable reports, scoring settings, printable marking sheets, scenario editor.
+- **Instructor station** (`radar-simulator.html#instructor`, or `/instructor` from the classroom server; PIN 0000
+  at first; `src/ui/station-ui.ts`): CLASSROOM (every display reporting, with pause and run, an exercise to start,
+  faults, weather, linked exercise and messages sent to one display or all), RECORDS (each display sends its record
+  when an exercise is finished; replay, CSV and printable reports, the assessor's decision), EXERCISES (scoring
+  settings, marking sheets, self-test), BATCHES (batches, assignments, PIN; sent to every display every few seconds),
+  SCENARIOS (editor), OWN RADAR (the station's own radar, with event injection and faults). The student displays
+  have no instructor pages: no INSTR or FAULTS key and no PIN box.
 - `npm run serve` starts a small classroom server so the instructor can monitor other PCs.
   Open the address it prints on every display. Classroom network only: it has no security.
 

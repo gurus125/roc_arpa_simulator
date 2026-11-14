@@ -14,7 +14,8 @@ const check = (name, ok, detail = "") => {
 };
 const browser = await chromium.launch();
 for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
-  const p = await browser.newPage({ viewport: { width: W, height: H } });
+  // A context of its own, so that the instructor station can be opened beside the display in the same browser.
+  const p = await (await browser.newContext({ viewport: { width: W, height: H } })).newPage();
   const errs = [];
   p.on("pageerror", (e) => errs.push(e.message));
   await p.goto(html);
@@ -288,14 +289,35 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   await p.click('#teleKeys button[data-u="2"]');
   check(`${tag} own ship data: name is kept`, (await p.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => localStorage.getItem(k).includes("ownShip")))).ownShip.name)) === "MV TEST");
 
-  // Instructor self-test of the exercises (once is enough: it does not depend on the screen size).
+  // The instructor station, and the self-test of the exercises (once is enough: they do not depend on the screen size).
   if (W === 1366) {
-    await key("instr");
-    await p.fill("#inPin", "0000");
-    await p.click("#inLoginBtn");
-    await p.click("#stRun");
-    await p.waitForFunction(() => /PASSED|FAILED/.test(document.querySelector("#stMsg").textContent), null, { timeout: 180000 });
-    check(`${tag} self-test of the exercises passes`, /ALL 26 EXERCISES PASSED/.test(await text("#stMsg")), await text("#stMsg"));
+    // The instructor station is the same page opened with #instructor, on the instructor's own PC (here a second page
+    // of the same browser, which reaches this display through the same-computer channel).
+    const st = await p.context().newPage();
+    st.on("pageerror", (e) => errs.push(`station: ${e.message}`));
+    await st.goto(`${html}#instructor`);
+    await st.waitForTimeout(500);
+    const pinFirst = (await st.isVisible("#stLogin")) && !(await st.isVisible("#login"));
+    await st.fill("#stPin", "9999");
+    await st.click("#stLoginBtn");
+    const refused = await st.isVisible("#stLogin");
+    await st.fill("#stPin", "0000");
+    await st.click("#stLoginBtn");
+    await st.waitForTimeout(300);
+    const stTabs = await st.$$eval("#topTabs button", (b) => b.map((x) => x.textContent).join(","));
+    check(`${tag} instructor station: PIN first (a wrong one refused), then its own tabs`, pinFirst && refused && !(await st.isVisible("#stLogin")) && stTabs === "CLASSROOM,RECORDS,EXERCISES,BATCHES,SCENARIOS,OWN RADAR", stTabs);
+    check(`${tag} student display: no instructor keys, no PIN`, (await p.locator('#cMenu button[data-key="instr"], #cMenu button[data-key="fault"]').count()) === 0 && !(await p.isVisible("#inPin")) && !(await p.isVisible("#stPin")));
+    const stTab = async (k) => {
+      await st.click(`#topTabs button[data-st="${k}"]`);
+      await st.waitForTimeout(300);
+    };
+    const stText = (sel) => st.$eval(sel, (e) => e.innerText.replace(/\s+/g, " "));
+    const seen = await st.waitForFunction(() => document.querySelectorAll("#inStations canvas").length >= 1, null, { timeout: 10000 }).then(() => true, () => false);
+    check(`${tag} instructor station sees the display in CLASSROOM`, seen && (await st.isVisible("#inStations canvas")));
+    await stTab("ex");
+    await st.click("#stRun");
+    await st.waitForFunction(() => /PASSED|FAILED/.test(document.querySelector("#stMsg").textContent), null, { timeout: 180000 });
+    check(`${tag} self-test of the exercises passes (instructor station)`, /ALL 26 EXERCISES PASSED/.test(await stText("#stMsg")), await stText("#stMsg"));
 
     // 100 ships at once on programmed tracks: the scenario loads and the picture keeps moving.
     await key("scen");
@@ -315,23 +337,27 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     console.log(`     100 ships: ${fps.toFixed(0)} frames a second in this headless browser`);
     check(`${tag} 100-ship scenario: picture keeps moving (10 frames a second or more)`, fps >= 10, `${fps.toFixed(1)} fps`);
 
-    // Instructor programmes a track for a target by clicking points on the picture.
-    await key("instr");
-    await p.click("#inRtStart");
-    const cb = await p.locator("#ppi").boundingBox();
-    for (const [dx, dy] of [[0.30, 0.30], [0.40, 0.30], [0.40, 0.40]]) await p.mouse.click(cb.x + cb.width * dx, cb.y + cb.height * dy);
-    await p.waitForTimeout(300);
-    check(`${tag} track: three clicks give three waypoints`, (await text("#inRtMsg")).includes("3 of 20"), await text("#inRtMsg"));
-    await p.click("#inRtUndo");
-    await p.waitForTimeout(300);
-    check(`${tag} track: undo removes a waypoint`, (await text("#inRtMsg")).includes("2 of 20"), await text("#inRtMsg"));
-    await p.click("#inRtSet");
-    await p.waitForTimeout(300);
-    check(`${tag} track: target is put on the track`, /on a track, [12] points? ahead/.test(await text("#inRtMsg")), await text("#inRtMsg"));
-    await p.click("#inRtClear");
-    await p.waitForTimeout(300);
-    check(`${tag} track: target taken off the track`, (await text("#inRtMsg")).includes("no track"), await text("#inRtMsg"));
-    const speeds = await p.$$eval("#inReplaySpeed option", (os) => os.map((o) => Number(o.value)));
+    // The instructor programmes a track for a target by clicking points on the station's own radar (OWN RADAR, MENU, INSTR).
+    await stTab("radar");
+    await st.click("#menuKey");
+    await st.click('#cMenu button[data-key="instr"]');
+    await st.waitForTimeout(300);
+    await st.click("#inRtStart");
+    const cb = await st.locator("#ppi").boundingBox();
+    for (const [dx, dy] of [[0.30, 0.30], [0.40, 0.30], [0.40, 0.40]]) await st.mouse.click(cb.x + cb.width * dx, cb.y + cb.height * dy);
+    await st.waitForTimeout(300);
+    check(`${tag} track: three clicks give three waypoints`, (await stText("#inRtMsg")).includes("3 of 20"), await stText("#inRtMsg"));
+    await st.click("#inRtUndo");
+    await st.waitForTimeout(300);
+    check(`${tag} track: undo removes a waypoint`, (await stText("#inRtMsg")).includes("2 of 20"), await stText("#inRtMsg"));
+    await st.click("#inRtSet");
+    await st.waitForTimeout(300);
+    check(`${tag} track: target is put on the track`, /on a track, [12] points? ahead/.test(await stText("#inRtMsg")), await stText("#inRtMsg"));
+    await st.click("#inRtClear");
+    await st.waitForTimeout(300);
+    check(`${tag} track: target taken off the track`, (await stText("#inRtMsg")).includes("no track"), await stText("#inRtMsg"));
+    await st.click("#menuClose");
+    const speeds = await st.$$eval("#inReplaySpeed option", (os) => os.map((o) => Number(o.value)));
     check(`${tag} replay: slow motion, real time and rapid speeds offered`, speeds.some((v) => v < 1) && speeds.includes(1) && speeds.some((v) => v > 1), speeds.join(","));
 
     // Scenarios on a real coastline and with false echoes load with their ships.
@@ -384,11 +410,14 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.selectOption("#speed", "10");
     await p.waitForTimeout(5000);
     await p.click("#exFinish");
-    await p.waitForTimeout(500);
-    await key("instr");
-    await p.locator('#inRecs button[data-act="open"]').first().click();
-    await p.waitForTimeout(1000);
-    const pic = await p.$eval("#inPic", (e) => ({ hidden: e.hidden, w: e.naturalWidth }));
+    await p.waitForTimeout(1500);
+    // The display sends the record to the instructor station, which replays it with the radar pictures.
+    await stTab("recs");
+    const recRow = await stText("#inRecs tr");
+    await st.locator('#inRecs button[data-act="open"]').first().click();
+    await st.waitForTimeout(1000);
+    const pic = await st.$eval("#inPic", (e) => ({ hidden: e.hidden, w: e.naturalWidth }));
+    check(`${tag} the finished exercise's record reaches the instructor station`, /ARPA 1:/.test(recRow), recRow);
     check(`${tag} replay: the recorded radar picture is shown`, !pic.hidden && pic.w === 480, JSON.stringify(pic));
 
     // Items from IEC 62388 and IEC 62288.
@@ -480,14 +509,17 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.uncheck("#arpaLostWarn");
     check(`${tag} lost target warning can be switched off`, (await p.evaluate(() => window.__simTest.lostWarning())) === false);
     await p.check("#arpaLostWarn");
-    // Heading input lost: the picture goes to unstabilised head-up and bearings are relative.
-    await key("fault");
+    // Heading input lost (sent from the instructor station): the picture goes to unstabilised head-up and bearings are relative.
     await p.selectOption("#orient", "north-up");
-    await p.check("#gyroFail");
-    await p.waitForTimeout(500);
+    await stTab("class");
+    await st.check("#rf_gyroFail");
+    await st.click("#rfAll");
+    await p.waitForTimeout(800);
     check(`${tag} heading failure: unstabilised head-up, relative bearings`, (await p.$eval("#orient", (e) => e.value)) === "head-up" && (await p.evaluate(() => window.__simTest.headingLost())) && (await text("#m_ebl")).endsWith("R"), `${await p.$eval("#orient", (e) => e.value)} ${await text("#m_ebl")}`);
-    await p.uncheck("#gyroFail");
-    await p.waitForTimeout(300);
+    await st.uncheck("#rf_gyroFail");
+    await st.click("#rfClear");
+    await p.waitForTimeout(500);
+    check(`${tag} faults cleared from the instructor station`, !(await p.evaluate(() => window.__simTest.headingLost())));
     await p.selectOption("#orient", "north-up");
     // DEFAULT SETTINGS (IEC 62388 Table 35), after a confirmation.
     await key("set");
@@ -592,10 +624,28 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
       await p.click("#exFinish");
       await p.waitForTimeout(400);
     }
-    // Marking sheets: one choice per exercise, and "all".
-    await key("instr");
-    const sheets = await p.$$eval("#msEx option", (os) => os.length);
+    // The instructor station starts an exercise on the display, and its batches reach the display.
+    await stTab("class");
+    await st.selectOption("#inExSel", "arpa-3");
+    await st.click('#inStations button[data-cmd="ex"]');
+    await p.waitForTimeout(1000);
+    await key("ex");
+    const exT = await text("#exTitle");
+    check(`${tag} instructor station starts an exercise on the display`, /^3\. /.test(exT), exT);
+    await p.click("#exFinish");
+    await stTab("batch");
+    await st.fill("#inBatchName", "Screen test batch");
+    await st.click("#inBatchAdd");
+    await st.fill("#inStudents", "Asha\nRavi");
+    await st.click("#inBatchSave");
+    const gotBatch = await p.waitForFunction(() => window.__simTest.batchNames().includes("Screen test batch"), null, { timeout: 12000 }).then(() => true, () => false);
+    check(`${tag} the station's batches reach the display`, gotBatch, JSON.stringify(await p.evaluate(() => window.__simTest.batchNames())));
+    st.once("dialog", (d) => d.accept());
+    await st.click("#inBatchDel");
+    // Marking sheets: one choice per exercise, and "all" (instructor station, EXERCISES).
+    const sheets = await st.$$eval("#msEx option", (os) => os.length);
     check(`${tag} marking sheets: all exercises listed`, sheets === 27, String(sheets));
+    await st.close();
     p.off("dialog", acceptAll);
   }
 

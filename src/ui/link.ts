@@ -1,5 +1,7 @@
+import type { Batch, ScoringConfig, SessionRecord } from "../train/index";
+
 /**
- * Link between student displays and the instructor's monitor.
+ * Link between student displays and the instructor station.
  *  - Same computer: browser tabs talk through a BroadcastChannel (works when the page is opened as a file).
  *  - Classroom network: when the page is served by `npm run serve`, messages also go through that server.
  * Messages are small status summaries and instructor commands. Nothing here is secure: classroom use only.
@@ -28,6 +30,17 @@ export interface StationStatus {
   at: number;
 }
 
+/** The fault controls an instructor station can set on a display (the ids of the display's own controls). */
+export const FAULT_IDS = ["gyroErr", "logErr", "hmErr", "vrmErr", "perf", "logFail", "gyroFail", "gnssFail", "anchorDrag", "aisRepeat"] as const;
+
+/** What the instructor station keeps for the whole class and sends to every display: batches and assignments, scoring. */
+export interface ClassConfig {
+  batches: Batch[];
+  scoring: ScoringConfig;
+  maxStudentsPerDisplay: number;
+  targetHoursPerPair: number | null;
+}
+
 export type Command =
   | { to: string; cmd: "pause" | "run" }
   | { to: string; cmd: "message"; text: string }
@@ -36,10 +49,21 @@ export type Command =
   /** Load this scenario (JSON text), join the linked exercise and start, on every display at the same moment. */
   | { to: string; cmd: "startLinked"; scenarioJson: string }
   | { to: string; cmd: "fault"; gyroDeg: number; logKn: number }
-  | { to: string; cmd: "target"; id: number; course?: number; speed?: number };
+  | { to: string; cmd: "target"; id: number; course?: number; speed?: number }
+  /** Start this exercise (an ARPA, radar or plotting exercise id, or "roc-" and an ROC exercise). */
+  | { to: string; cmd: "startExercise"; id: string }
+  /** Set these fault controls (FAULT_IDS) to these values. */
+  | { to: string; cmd: "faults"; values: Record<string, number | boolean> };
 
 /** `id` marks one message, so that a copy arriving a second way (same-computer channel and server) is dropped. */
-type Envelope = ({ kind: "status"; status: StationStatus } | { kind: "command"; command: Command }) & { id?: string };
+type Envelope = (
+  | { kind: "status"; status: StationStatus }
+  | { kind: "command"; command: Command }
+  /** A display's exercise record, for the instructor station (sent when an exercise is finished or its debrief saved). */
+  | { kind: "record"; record: SessionRecord }
+  /** The instructor station's batches and scoring, for every display. */
+  | { kind: "config"; config: ClassConfig }
+) & { id?: string };
 
 /** After this many failures in a row the server is treated as out of reach; it is then tried again less often. */
 const FAILS_BEFORE_OFFLINE = 3;
@@ -53,6 +77,8 @@ export class Link {
     this.statusListeners.push(f);
   }
   onCommand: (c: Command) => void = () => {};
+  onRecord: (r: SessionRecord) => void = () => {};
+  onConfig: (c: ClassConfig) => void = () => {};
   /** "server", "server out of reach (trying again)", "same computer only" or "off". */
   mode = "off";
   private bc: BroadcastChannel | null = null;
@@ -89,6 +115,8 @@ export class Link {
     }
     if (m.kind === "status" && m.status.station !== this.station) for (const f of this.statusListeners) f(m.status);
     if (m.kind === "command" && (m.command.to === this.station || m.command.to === "all")) this.onCommand(m.command);
+    if (m.kind === "record" && m.record && typeof m.record.id === "string") this.onRecord(m.record);
+    if (m.kind === "config" && m.config && Array.isArray(m.config.batches)) this.onConfig(m.config);
   }
 
   private send(m0: Envelope): void {
@@ -139,5 +167,16 @@ export class Link {
 
   sendCommand(c: Command): void {
     this.send({ kind: "command", command: c });
+  }
+
+  /** Send an exercise record to the instructor station. A long record is thinned (every other frame) to stay small. */
+  sendRecord(r: SessionRecord): void {
+    let rec = r;
+    while (JSON.stringify(rec).length > 900_000 && rec.frames.length > 20) rec = { ...rec, frames: rec.frames.filter((_, i) => i % 2 === 0) };
+    this.send({ kind: "record", record: rec });
+  }
+
+  sendConfig(c: ClassConfig): void {
+    this.send({ kind: "config", config: c });
   }
 }

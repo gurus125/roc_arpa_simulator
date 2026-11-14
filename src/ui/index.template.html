@@ -584,9 +584,41 @@
     #console .cmenu { margin-top:3px; }
   }
   @media (max-width:1100px) { #hdrAlarm span { display:none; } #brand b { font-size:14px; } }
+  /* ==== The instructor station (radar-simulator.html#instructor) ==== */
+  #stLogin { position:fixed; inset:0; background:rgba(4,10,24,.96); display:flex; align-items:center; justify-content:center; z-index:60; padding:16px; }
+  #stLogin[hidden] { display:none; }
+  #stLogin .box { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px 22px; width:min(420px, 100%); }
+  #stLogin h1 { margin:0 0 4px; font-size:18px; color:var(--accent); }
+  #stLogin label { display:block; color:var(--muted); font-size:12px; margin-top:10px; }
+  #stLogin input { width:100%; background:var(--box); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 9px; font:inherit; margin-top:3px; }
+  #stLogin .btns { margin-top:10px; }
+  #stationPage { position:fixed; left:0; right:0; top:var(--hdrH); bottom:var(--ftrH); z-index:30; background:var(--bg); overflow:auto; padding:12px 14px; }
+  #stationPage[hidden], #stationPage .stTab[hidden] { display:none; }
+  #stationPage .stTab { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(560px, 100%), 1fr)); gap:12px; align-items:start; }
+  #stationPage section { margin:0; background:linear-gradient(180deg, rgba(16,40,76,.9), var(--panel) 140px); }
+  body[data-mode=night] #stationPage section { background:var(--panel); }
+  #stationPage section h2 { font-size:13px; letter-spacing:.07em; }
+  #stationPage #inStations { display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr)); column-gap:12px; }
+  #stationPage #stTab_class { grid-template-columns:minmax(0, 1.5fr) minmax(380px, 1fr); }
+  #stationPage #rfBox { gap:4px 18px; }
+  #stationPage #rfBox > div:not(.check) { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  #stationPage #rfBox input[type=number], #stationPage #inWxSea { width:84px; flex:none; }
+  #stationPage #stSend h2 + .btns { margin-top:0; }
+  @media (max-width:1100px) { #stationPage #stTab_class { grid-template-columns:1fr; } }
+  #stationPage #inReplay, #stationPage #inPic { max-width:560px; }
+  body[data-station=instructor] #shipWinKey { display:none; }
+  body[data-station=instructor] #topTabs button { padding:0 16px; font-size:13px; }
 </style>
 </head>
 <body>
+<div id="stLogin" hidden><div class="box">
+  <h1>Instructor station</h1>
+  <p class="small">ROC / ARPA radar simulator. Training use only, not for navigation.</p>
+  <label for="stPin">Instructor PIN</label><input type="password" id="stPin" inputmode="numeric" autocomplete="off">
+  <p class="small wn" id="stLoginMsg"></p>
+  <div class="btns"><button id="stLoginBtn" class="on">Log in</button></div>
+  <p class="small">The first PIN is 0000: change it under BATCHES after logging in. The PIN only keeps trainees out of the instructor's pages in class; it is not real security. Student displays are opened without "#instructor" and have no instructor pages.</p>
+</div></div>
 <div id="login" hidden><div class="box">
   <h1>ROC / ARPA radar simulator</h1><p class="small">Training and study use only. Not for navigation.</p>
   <label for="lgBatch">Batch</label><select id="lgBatch"></select>
