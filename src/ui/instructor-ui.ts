@@ -45,7 +45,7 @@ const REMOTE_FAULTS: { id: (typeof FAULT_IDS)[number]; label: string; min?: numb
   { id: "logErr", label: "Log error (kn)", min: -3, max: 3, step: 0.1, off: 0 },
   { id: "hmErr", label: "Heading marker error (°)", min: -5, max: 5, step: 0.5, off: 0 },
   { id: "vrmErr", label: "VRM error (%)", min: -10, max: 10, step: 1, off: 0 },
-  { id: "perf", label: "Radar performance (%)", min: 20, max: 100, step: 5, off: 100 },
+  { id: "perf", label: "Radar performance (% of echo power)", min: 10, max: 100, step: 5, off: 100 },
   { id: "logFail", label: "Speed log failed", off: false },
   { id: "gyroFail", label: "Gyro compass failed", off: false },
   { id: "gnssFail", label: "EPFS (GNSS) failed", off: false },

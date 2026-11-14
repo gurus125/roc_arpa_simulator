@@ -131,7 +131,7 @@ export const ARPA_PLACEHOLDERS: ArpaConfig = {
   steadyAfterSec: 180,
   gateBaseNm: 0.2,
   gateGrowPerMissNm: 0.05,
-  lostAfterMissedScans: 8,
+  lostAfterMissedScans: 6,
   fadingHitRatio: 0.6,
   fadingScans: 10,
   manualAcqGateNm: 0.3,
@@ -205,9 +205,6 @@ export const PAST_INTERVALS_MIN = [0.5, 1, 2, 3, 6] as const;
 
 /** Vector time can be set between these limits, minutes. */
 export const VECTOR_TIME_RANGE_MIN = { min: 1, max: 60 } as const;
-/** Range scales on which the ARPA is available (placeholder; see the instructor check list). */
-export const ARPA_SCALES_NM = [3, 6, 12, 24] as const;
-export const arpaAvailableOnScale = (rangeNm: number): boolean => (ARPA_SCALES_NM as readonly number[]).includes(rangeNm);
 
 export function defaultArpaSettings(ownCourse: number, ownSpeed: number): ArpaSettings {
   return {

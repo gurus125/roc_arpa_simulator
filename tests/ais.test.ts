@@ -107,8 +107,14 @@ describe("radar: range scales, off-centring, racon and SART", () => {
     expect(back.n).toBeCloseTo(4, 9);
   });
 
-  it("Morse K (dash dot dash) paints 0.3, 0.1 and 0.3 NM flashes with 0.1 NM gaps", () => {
-    expect(raconSegments("-.-").map((s) => [+s.from.toFixed(2), +s.to.toFixed(2)])).toEqual([[0.1, 0.4], [0.5, 0.6], [0.7, 1.0]]);
+  it("Morse K (dash dot dash) fills the 2 NM response: dash 3 units, dot 1, gaps 1 (9 units of 2/9 NM), starting 60 m out", () => {
+    // Book 3rd edition 3.5.2: a racon response is 20-40 microseconds, 1.5 to 3 NM; a dash is three dots, a gap one dot.
+    const u = 2 / 9, d0 = 60 / 1852;
+    const want = [[d0, d0 + 3 * u], [d0 + 4 * u, d0 + 5 * u], [d0 + 6 * u, d0 + 9 * u]];
+    raconSegments("-.-").forEach((s, i) => {
+      expect(s.from).toBeCloseTo(want[i]![0]!, 9);
+      expect(s.to).toBeCloseTo(want[i]![1]!, 9);
+    });
   });
 
   it("a SART paints 12 dots 0.64 NM apart outward from its position, on X band only", () => {
@@ -118,7 +124,8 @@ describe("radar: range scales, off-centring, racon and SART", () => {
     const range0 = Math.hypot(sart.pos.e, sart.pos.n);
     const dots = scanWedge(w, 0, 359.9, () => 0.5).filter((h) => h.kind === "sart").map((h) => Math.hypot(h.pos.e, h.pos.n)).sort((a, b) => a - b);
     expect(dots.length).toBe(12);
-    dots.forEach((d, i) => expect(d).toBeCloseTo(range0 + i * SART_DOT_SPACING_NM, 6));
+    // The first dot is 60 m beyond the craft (the time the SART takes to answer): the craft lies slightly closer.
+    dots.forEach((d, i) => expect(d).toBeCloseTo(range0 + 60 / 1852 + i * SART_DOT_SPACING_NM, 6));
     w.radar.band = "S";
     expect(scanWedge(w, 0, 359.9, () => 0.5).some((h) => h.kind === "sart" || h.kind === "racon")).toBe(false);
   });

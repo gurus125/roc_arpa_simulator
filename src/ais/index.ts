@@ -2,7 +2,7 @@ import { Vec2, add, angleDiffDeg, bearingOf, length, rotateVec, scale, sub, velo
 import { CpaResult, computeCpa } from "../core/cpa";
 import { TrialResult, trialManoeuvre } from "../core/trial";
 import { inSectorZone } from "../core/zones";
-import { TYPICAL_BEAM_M, World, ownCogSog, ownGroundVelocity, targetTypeById } from "../engine/index";
+import { TYPICAL_BEAM_M, World, ownCogSog, ownGroundVelocity, ownTurnProfile, targetHeading, targetTypeById } from "../engine/index";
 import { ArpaSystem, capacityCautionAt } from "../arpa/index";
 
 /**
@@ -28,6 +28,14 @@ export function aisLostAfterSec(sogKn: number, anchored: boolean): number {
   if (sogKn > 14) return 36;
   return 60;
 }
+
+/**
+ * Range at which own ship receives a vessel's AIS, NM. Radar and ARPA Manual, 3rd edition, Table 5.4:
+ * "typically 20 to 40 miles for Class A, 10 miles for Class B", depending on aerial heights. 30 NM for
+ * Class A is a PLACEHOLDER within that. VHF also reaches round and over land that hides an echo (5.5.2),
+ * so land does not stop it.
+ */
+export const AIS_RANGE_NM = { A: 30, B: 10 };
 
 /** AIS station class: A, or B with carrier-sense ("CS") or self-organised ("SO") access. */
 export type AisClass = "A" | "B-CS" | "B-SO";
@@ -270,6 +278,8 @@ export class AisSystem {
       const last = this.reports.get(t.id);
       const iv = cls === "A" ? aisReportIntervalSec(t.speed, anchored, turning) : aisClassBIntervalSec(t.speed, cls);
       if (last && w.time - last.time < Math.min(iv, last.intervalSec) - 1e-9) continue;
+      // Out of VHF range nothing is received (the report is not lost: it never arrives).
+      if (length(sub(t.pos, w.own.pos)) > (cls === "A" ? AIS_RANGE_NM.A : AIS_RANGE_NM.B)) continue;
       const type = t.typeId ? targetTypeById(t.typeId) : undefined;
       const lengthM = type?.lengthM ?? t.lengthM ?? null;
       const st = t.aisStatic ?? {};
@@ -282,7 +292,7 @@ export class AisSystem {
       this.reports.set(t.id, {
         id: t.id, mmsi: String(419000000 + t.id * 1117), name: t.name.toUpperCase(), cls,
         navStatus: a ? pick(st.navStatus, anchored ? "At anchor" : "Under way using engine") ?? "" : "",
-        pos: { ...t.pos }, cog: t.course, sog: t.speed, heading: t.motion?.heading ?? t.course, time: w.time, intervalSec: iv,
+        pos: { ...t.pos }, cog: t.course, sog: t.speed, heading: targetHeading(w, t), time: w.time, intervalSec: iv,
         lostAfterSec: a ? aisLostAfterSec(t.speed, anchored) : aisClassBLostAfterSec(t.speed, cls), rot: a ? rot : null,
         callSign: `SIM${String(t.id).padStart(3, "0")}`, lengthM, beamM: lengthM === null ? null : t.beamM ?? (t.typeId ? TYPICAL_BEAM_M[t.typeId] : undefined) ?? lengthM * AIS_BEAM_SHARE,
         imo: a ? pick(st.imo, simulatedImo(t.id)) : null,
@@ -419,8 +429,10 @@ export class AisSystem {
    * Everything the display needs. Also raises the alarms: CPA/TCPA (same limits as for radar
    * tracked targets; a dangerous sleeping target is activated) and, if enabled, lost AIS target.
    */
-  targets(w: World, arpa: ArpaSystem | null, limits: { cpaNm: number; tcpaMin: number }): AisTargetView[] {
+  targets(w: World, arpaIn: ArpaSystem | null, limits: { cpaNm: number; tcpaMin: number }): AisTargetView[] {
     if (!this.settings.on) return [];
+    // An ARPA in standby has no tracks, zones or trial: the AIS targets are then shown and alarmed on their own.
+    const arpa = arpaIn && !arpaIn.settings.standby ? arpaIn : null;
     const ownV = ownGroundVelocity(w);
     const out: AisTargetView[] = [];
     // Capacity: a caution at 95% of the activated and of the total capacity; a warning when the total is exceeded.
@@ -435,6 +447,9 @@ export class AisSystem {
     setAlert("ais-cap-all", this.reports.size > AIS_CAPACITY.total, `AIS capacity exceeded: ${this.reports.size} targets, the display holds ${AIS_CAPACITY.total}.`);
     const trialOn = !!arpa && arpa.settings.trial.on;
     const trialLeft = trialOn ? arpa!.trialRemainingMin(w) : 0;
+    // Own ship comes round and changes speed as she really handles (the same as for the radar targets' trial).
+    const ownGnd = ownCogSog(w);
+    const trialProfile = trialOn ? ownTurnProfile(w, angleDiffDeg(arpa!.settings.trial.course, ownGnd.course), arpa!.settings.trial.speed - ownGnd.speed) : undefined;
     const trialKeys = new Set<string>();
     for (const r of this.reports.values()) {
       const age = w.time - r.time;
@@ -461,7 +476,7 @@ export class AisSystem {
       let trial: AisTargetView["trial"];
       if (trialOn && this.activated.has(r.id) && !lost) {
         const tr = arpa!.settings.trial;
-        const result = trialManoeuvre(rel, ownCogSog(w), { course: r.cog, speed: r.sog }, { course: tr.course, speed: tr.speed, delayMinutes: trialLeft });
+        const result = trialManoeuvre(rel, ownCogSog(w), { course: r.cog, speed: r.sog }, { course: tr.course, speed: tr.speed, delayMinutes: trialLeft }, trialProfile);
         const tDanger = result.cpa < limits.cpaNm && result.tcpaMinutes >= 0 && result.tcpaMinutes <= limits.tcpaMin;
         trial = { result, dangerous: tDanger };
         if (tDanger) {

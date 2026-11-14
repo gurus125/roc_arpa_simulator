@@ -88,16 +88,21 @@ The settings are boxes that are clicked; each shows the setting in use by its st
 - **RANGE − / +**: range scale, 0.25 to 96 NM.
 - **BAND X / S**: the 3 cm or 10 cm radar. S band sees through rain better; X band gives a
   sharper picture and is the only band a SART answers. **AIS ON / OFF** beside them shows or hides
-  the AIS targets.
+  the AIS targets. AIS targets are shown on every range scale, and whether the ARPA is on or in
+  standby: only this key takes them off. In a manual plotting exercise it reads **AIS OFF**, is greyed
+  out and cannot be switched on until you press Finish.
 - **RINGS**: fixed range rings ON or OFF; the interval between them is written beside the key.
 - **PULSE**: AUTO (chosen by the range scale), SHORT, MED or LONG. The pulse in use is written at the
   foot of the panel (SP, MP or LP and its length in microseconds).
 - **MODE**, three boxes, each opening a short list: orientation **N UP** (north-up), **H UP** (head-up, unstabilised: bearings
   are relative) or **C UP** (course-up); motion **RM** (relative motion, own ship fixed) or **TM**
   (true motion, own ship moves across the screen); stabilisation of the picture **GND** (ground) or
-  **SEA**.
+  **SEA**. Head-up is used only with relative motion: choosing H UP changes TM to RM, and choosing TM
+  while in H UP changes the picture to C UP.
 - **RESET**: **C-UP RST** takes the present heading as the new course-up reference; **TM RST** puts own ship
-  back to the start of its run across the screen in true motion.
+  back to the start of its run across the screen in true motion: half the radius out, on the reciprocal of
+  her course, so that the picture shows the most ahead. The same happens by itself when she has run two
+  thirds of the radius from the centre, and when the range scale is changed.
 - Under **SCENARIO**, Study aids: **Stern line** draws a thin dotted line from own ship
   astern to the edge of the picture. **Antenna position on own ship's outline** marks the radar
   antenna with a small cross, on the short range scales where own ship's outline is drawn. Where the
@@ -140,12 +145,17 @@ IR (interference rejection), ENH (echo stretch), SC/SC (echo averaging from scan
 (performance monitor). Switch them under **RADAR**.
 
 More under the **RADAR** tab: echo stretch, echo averaging, interference rejection, the
-performance monitor, and the pulse length again.
+performance monitor, and the pulse length again. Interference rejection keeps only what successive
+pulses both return, so it costs very weak echoes a little: switch it on when interference is seen,
+not otherwise. A long pulse puts more energy on a target (pulse length x pulses a second) and a
+short pulse less.
 
 ## 6. ARPA: tracking targets
 
 The target keys are in the VRM / ARPA panel at the bottom right, under ALARM ACK and the alert box.
 The heading of that panel says whether the ARPA is ON, in STANDBY or OFF (during an ROC exercise).
+Tracked targets are shown on every range scale, from 0.25 to 96 NM; the ARPA tracks out to 24 NM
+whatever the scale.
 The same panel has **VECTOR** (REL or TRUE vectors of tracked targets, and the vector time) and
 **DANGER** (PPC, points of possible collision, or PAD, predicted areas of danger).
 
@@ -212,7 +222,10 @@ Other ARPA keys: **PAST POS** (past positions), **GUARD** (guard zones and exclu
 Three more ARPA aids:
 
 - **Trial alarm.** While the trial manoeuvre is on, a warning names each target that the manoeuvre
-  being tried would not clear by the CPA and TCPA limits. Change the trial until it goes.
+  being tried would not clear by the CPA and TCPA limits. Change the trial until it goes. The trial
+  allows for own ship's handling: she comes round and changes speed as she really would, not at once.
+  With a delay, TIME TO MANOEUVRE warns a minute before the manoeuvre is due, and TIME FOR ACTION
+  when it is.
 - **Vectors of dangerous targets only** (under PAST POS): a target that does not violate the limits
   is still tracked but shows no vector, which makes a crowded picture easier to read. Its vector
   comes back, with the alarm, when it violates the limits. Switch this off before planning a
@@ -370,7 +383,8 @@ instruments faults and send you a message (it appears in a box under the header:
 4. Press Finish. The result shows each item, your answer, the correct answer and the debrief
    questions. Write your debrief notes and save them: the record goes to the instructor's station.
 
-For the manual plotting exercises the ARPA is off: take ranges and bearings with EBL 1 and
+For the manual plotting exercises the ARPA and the AIS display are off (the ships do transmit AIS,
+so the AIS key is locked off until you press Finish): take ranges and bearings with EBL 1 and
 VRM 1 at regular times, plot them on a plotting sheet, and manoeuvre at 12 minutes.
 
 The ROC plotting exercise asks for the full report of the plot: relative course and speed, true

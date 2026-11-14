@@ -86,12 +86,13 @@ const make = (d: Def): ArpaExercise => {
     aim: "Plot the targets by hand for 12 minutes, then alter course and/or speed so that every target passes at 1 NM.",
     scenario,
     ownRates: { turnDegPerMin: PLOT_RULES.turnDegPerMin, speedKnPerMin: PLOT_RULES.speedKnPerMin },
+    aisOff: true,
     setup: (a) => {
       a.settings.standby = true;
     },
     briefing: [
       `${count} target${count > 1 ? "s" : ""}${d.rv ? ", in restricted visibility (Rule 19 applies)" : ", vessels in sight of one another"}. Own ship ${String(d.own.heading).padStart(3, "0")}° at ${d.own.speed} kn. She turns at ${PLOT_RULES.turnDegPerMin}°/min and changes speed at ${PLOT_RULES.speedKnPerMin} kn/min.`,
-      "The ARPA is off. Use EBL 1 and VRM 1 to take the range and bearing of each target at regular intervals (for example every 6 minutes) and plot them on a plotting sheet. Relative trails may be used.",
+      "The ARPA and the AIS display are off and stay off until you press Finish: the targets are plotted from the radar alone. Use EBL 1 and VRM 1 to take the range and bearing of each target at regular intervals (for example every 6 minutes) and plot them on a plotting sheet. Relative trails may be used.",
       "From the plot find each target's CPA, TCPA, course and speed. Enter the answers for the most dangerous target before you manoeuvre.",
       `At ${PLOT_RULES.manoeuvreAtMin} minutes, not before, alter course and/or speed so that every target passes at ${PLOT_RULES.requiredCpaNm} NM. Turns to port are generally not allowed.`,
       `Result: the achieved CPA to the vessel that comes closest, as a percentage of the required ${PLOT_RULES.requiredCpaNm} NM. Closer than required scores the fraction achieved (0.87 NM: 87%). Wider than required loses half as much (1.3 NM: 85%). At least ${PLOT_RULES.minimumPercent}% is needed.`,

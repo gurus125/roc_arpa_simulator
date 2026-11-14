@@ -161,6 +161,40 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   await p.selectOption("#scenario", "0");
   await p.waitForTimeout(400);
 
+  // AIS targets and the ARPA on every range scale (IMO MSC.192(79) 5.25.1.3, 5.26.3, 5.27.5): an AIS ship 0.6 NM off
+  // is drawn on the 1.5 NM scale with the ARPA on, and again with the ARPA in standby; switching AIS off removes it.
+  {
+    const near = await p.evaluate(() => window.__simTest.aisTarget());
+    check(`${tag} the first scenario has an AIS ship`, !!near);
+    if (near) {
+      const setRangeSel = (v) => p.evaluate((x) => {
+        const el = document.getElementById("range");
+        el.value = x;
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }, v);
+      await p.evaluate(({ e, n }) => window.__simTest.placeOwn(e - 0.6, n, 0), near.pos);
+      await setRangeSel("1.5");
+      await p.waitForTimeout(700);
+      const on = await p.evaluate(() => window.__simTest.aisDrawn());
+      const st = await text("#cArpaSt");
+      check(`${tag} AIS ship drawn on the 1.5 NM scale, no "not available" message`, on >= 1 && !/NOT AVAILABLE/.test(st), `${on} | ${st}`);
+      await p.evaluate(() => document.getElementById("arpaStandby").click());
+      await p.waitForTimeout(500);
+      const sb = await p.evaluate(() => window.__simTest.aisDrawn());
+      check(`${tag} AIS ship still drawn with the ARPA in standby`, sb >= 1 && /ARPA STANDBY/.test(await text("#cArpaSt")), `${sb} | ${await text("#cArpaSt")}`);
+      await p.click("#aisKey");
+      await p.waitForTimeout(500);
+      const off = await p.evaluate(() => window.__simTest.aisDrawn());
+      check(`${tag} AIS key off removes the AIS ships`, off === 0, String(off));
+      await p.click("#aisKey");
+      await p.evaluate(() => document.getElementById("arpaStandby").click());
+      await setRangeSel("6");
+      await p.waitForTimeout(300);
+    }
+    await p.selectOption("#scenario", "0");
+    await p.waitForTimeout(400);
+  }
+
   // Display box.
   await p.click("#bandKeys button[data-b=S]");
   check(`${tag} S band key`, (await p.$eval("#band", (e) => e.value)) === "S" && (await p.$eval("#bandKeys button[data-b=S]", (e) => e.classList.contains("on"))));
@@ -258,6 +292,16 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   await p.waitForTimeout(500);
   check(`${tag} manual plotting exercise uses the exercise ship`, (await p.$eval("#shipType", (e) => e.value)) === "simple");
   check(`${tag} manual plotting exercise: ARPA in standby`, /STANDBY|STBY/.test(await text("#cTgtN")), await text("#cTgtN"));
+  // The AIS display is locked off: the plotted ships transmit AIS, which would give away their course, speed and CPA.
+  {
+    const locked = async () => (await text("#aisKey")) === "AIS OFF" && (await p.isDisabled("#aisKey")) && !(await p.isChecked("#aisOn")) && (await p.isDisabled("#aisOn"));
+    const l1 = await locked();
+    await p.click("#aisKey", { force: true });
+    await p.waitForTimeout(400);
+    const l2 = await locked();
+    const drawn = await p.evaluate(() => window.__simTest.aisDrawn());
+    check(`${tag} manual plotting exercise: AIS display locked off`, l1 && l2 && drawn === 0 && /AIS OFF FOR THIS EXERCISE/.test(await text("#cArpaSt")), `${await text("#aisKey")} ${drawn} | ${await text("#cArpaSt")}`);
+  }
   await p.click("#ringsKey");
   await p.waitForTimeout(200);
   check(`${tag} rings off`, (await text("#ringsKey")) === "OFF");
@@ -271,6 +315,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   await key("scen");
   await p.selectOption("#scenario", "1");
   await p.waitForTimeout(300);
+  check(`${tag} after the plotting exercise the AIS display is on again`, (await text("#aisKey")) === "AIS ON" && (await p.isChecked("#aisOn")) && !(await p.isDisabled("#aisOn")) && !(await p.isDisabled("#aisKey")), await text("#aisKey"));
   await key("set");
   await p.click('#modeKeys button[data-m="night"]');
   await p.waitForTimeout(300); // the key label is redrawn on the next frame
@@ -504,7 +549,9 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     const aisRow = '#aisRows tr[data-ais="1"]';
     if (await p.$(aisRow)) {
       await p.evaluate(() => document.querySelectorAll("#arpaRows tr.sel").forEach((r) => r.classList.remove("sel")));
-      await p.click(aisRow);
+      // The list is redrawn several times a second and answers on pointer down (a click could fall between redraws).
+      const pressRow = () => p.evaluate((sel) => document.querySelector(`${sel} td`).dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })), aisRow);
+      await pressRow();
       await p.waitForTimeout(500);
       const moreShown = await p.isVisible("#cAisMore");
       if (moreShown) await p.click("#cAisMore");
@@ -512,7 +559,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
       const td = await text("#cTd");
       check(`${tag} AIS further data on request (MORE)`, moreShown && td.includes("IMO") && td.includes("DEST") && td.includes("CLASS"), td.slice(0, 160));
       if (moreShown) await p.click("#cAisMore");
-      await p.click(aisRow);
+      await pressRow();
       await p.waitForTimeout(300);
     } else check(`${tag} AIS further data on request (MORE)`, false, "no AIS row");
     await key("alarm");
@@ -531,6 +578,17 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await p.waitForTimeout(500);
     check(`${tag} faults cleared from the instructor station`, !(await p.evaluate(() => window.__simTest.headingLost())));
     await p.selectOption("#orient", "north-up");
+    // Unstabilised head-up cannot be used in true motion (Radar and ARPA Manual, 3rd edition, 1.5.2.1).
+    {
+      const modes = async () => `${await p.$eval("#orient", (e) => e.value)},${await p.$eval("#motion", (e) => e.value)}`;
+      await p.selectOption("#motion", "true");
+      await p.selectOption("#orient", "head-up");
+      const hu = await modes();
+      await p.selectOption("#motion", "true");
+      const tm = await modes();
+      check(`${tag} head-up only in relative motion: H UP gives RM, then TM gives C UP`, hu === "head-up,relative" && tm === "course-up,true", `${hu} / ${tm}`);
+      await p.selectOption("#orient", "north-up");
+    }
     // DEFAULT SETTINGS (IEC 62388 Table 35), after a confirmation.
     await key("set");
     p.once("dialog", (d) => d.accept());

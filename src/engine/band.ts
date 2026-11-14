@@ -92,7 +92,7 @@ export interface PulseSetting {
 const PULSES: Record<PulseSetting["name"], PulseSetting> = {
   short: { name: "short", microseconds: 0.07, prfHz: 3000, rangeDiscriminationNm: (0.07 * 150) / 1852, minRangeNm: 0.02 },
   medium: { name: "medium", microseconds: 0.3, prfHz: 1500, rangeDiscriminationNm: (0.3 * 150) / 1852, minRangeNm: 0.03 },
-  long: { name: "long", microseconds: 1.2, prfHz: 600, rangeDiscriminationNm: (1.2 * 150) / 1852, minRangeNm: 0.07 },
+  long: { name: "long", microseconds: 1.2, prfHz: 600, rangeDiscriminationNm: (1.2 * 150) / 1852, minRangeNm: 0.1 },
 };
 
 /**
@@ -102,6 +102,9 @@ const PULSES: Record<PulseSetting["name"], PulseSetting> = {
  * 1.5 NM, medium to 6 NM, long beyond), which is within the choices that set offers on each scale.
  * The minimum ranges here are PLACEHOLDERS (the set's specification gives 22 m on the shortest
  * scale). IMO asks for 40 m minimum range and 40 m range discrimination on the short scales.
+ * No minimum range is less than half the pulse length (150 m a microsecond), because the radar cannot
+ * receive while it is still transmitting (Radar and ARPA Manual, 3rd edition, 2.3.3.1): 0.1 NM for the
+ * long pulse (1.2 microseconds is 180 m).
  */
 export function pulseFor(rangeScaleNm: number, manual?: "auto" | "short" | "medium" | "long"): PulseSetting {
   if (manual && manual !== "auto") return PULSES[manual];
@@ -109,11 +112,41 @@ export function pulseFor(rangeScaleNm: number, manual?: "auto" | "short" | "medi
 }
 
 /**
- * Echo strength with a hand-chosen pulse compared with the automatic one for the range scale:
- * a longer pulse puts more energy on the target (square root of the ratio of pulse lengths).
+ * Energy the radar puts on a target in one sweep of the beam across it, as a multiple of the energy
+ * with the automatic pulse for the range scale. The energy is the peak power x the pulse length x the
+ * number of pulses that strike the target (beamwidth x PRF / (6 x rpm)); with the same power, beam and
+ * rotation, it goes with pulse length x PRF (Radar and ARPA Manual, 3rd edition, 2.3.3.3).
+ */
+export function pulseEnergyRatio(rangeScaleNm: number, manual?: "auto" | "short" | "medium" | "long"): number {
+  const energy = (p: PulseSetting): number => targetEnergyWs(1, p.microseconds, pulsesOnTarget(1, p.prfHz, 24));
+  return energy(pulseFor(rangeScaleNm, manual)) / energy(pulseFor(rangeScaleNm));
+}
+
+/** Mean transmitted power, watts: peak power x pulse length / pulse repetition interval. */
+export function meanPowerW(peakW: number, pulseMicroseconds: number, prfHz: number): number {
+  return peakW * pulseMicroseconds * 1e-6 * prfHz;
+}
+
+/**
+ * Pulses that strike a point target while the beam sweeps across it: the time the beam dwells on it
+ * (beamwidth / degrees turned a second) x the PRF.
+ */
+export function pulsesOnTarget(beamwidthDeg: number, prfHz: number, rpm: number): number {
+  return (beamwidthDeg / ((rpm * 360) / 60)) * prfHz;
+}
+
+/** Energy sent towards a point target in one sweep of the beam, watt seconds: peak power x pulse length x pulses on target. */
+export function targetEnergyWs(peakW: number, pulseMicroseconds: number, pulses: number): number {
+  return peakW * pulseMicroseconds * 1e-6 * pulses;
+}
+
+/**
+ * Echo strength with a hand-chosen pulse compared with the automatic one. The simulator's echo
+ * strength goes with the square root of the energy returned (see `echoStrength`), so this is the
+ * square root of `pulseEnergyRatio`.
  */
 export function pulseEnergyFactor(rangeScaleNm: number, manual?: "auto" | "short" | "medium" | "long"): number {
-  return Math.sqrt(pulseFor(rangeScaleNm, manual).microseconds / pulseFor(rangeScaleNm).microseconds);
+  return Math.sqrt(pulseEnergyRatio(rangeScaleNm, manual));
 }
 
 /** Furthest range that can be measured without ambiguity at a pulse repetition frequency: c / (2 PRF), in NM. */

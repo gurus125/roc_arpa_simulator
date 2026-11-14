@@ -15,6 +15,25 @@ export function fixFromRangeBearing(objectPos: Vec2, bearing: number, range: num
   return sub(objectPos, fromPolar(bearing, range));
 }
 
+/**
+ * Length of the straight line from `a` to `b` that lies inside a circle (centre `c`, radius `r`), in the
+ * same units. Used for the distance a radar pulse travels through a circular area of rain.
+ */
+export function lengthInsideCircle(a: Vec2, b: Vec2, c: Vec2, r: number): number {
+  const d = sub(b, a);
+  const L = length(d);
+  if (L === 0 || r <= 0) return 0;
+  const u = scale(d, 1 / L);
+  const ac = sub(c, a);
+  const t = dot(ac, u); // along the line, to the point nearest the centre
+  const off2 = dot(ac, ac) - t * t; // square of the distance of the line from the centre
+  if (off2 >= r * r) return 0;
+  const half = Math.sqrt(r * r - off2);
+  const from = Math.max(0, t - half);
+  const to = Math.min(L, t + half);
+  return Math.max(0, to - from);
+}
+
 /** Dead reckoning: move a position along a course and speed for `hours`. */
 export function runOn(pos: Vec2, cs: CourseSpeed, hours: number): Vec2 {
   return add(pos, scale(velocityOf(cs), hours));

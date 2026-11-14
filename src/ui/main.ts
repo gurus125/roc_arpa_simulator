@@ -425,6 +425,9 @@ function setTab(tab: Tab): void {
   else consoleUi?.followTab(tab);
 }
 
+/** The AIS display was on until a manual plotting exercise switched it off: it is switched on again for the next scenario. */
+let aisOffByExercise = false;
+
 function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExercise } = {}): void {
   const ex = opts.roc;
   const keepRoutes = app.showRoutes && session.role === "instructor";
@@ -505,6 +508,15 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
   }
   app.timeScale = Number(sel("speed"));
   applyControls();
+  // A manual plotting exercise starts with the AIS display off (it stays locked off until Finish: see aisLocked).
+  const aisBox = $<HTMLInputElement>("aisOn");
+  if (opts.arpa?.aisOff) {
+    if (aisBox.checked) aisOffByExercise = true;
+    aisBox.checked = false;
+  } else if (aisOffByExercise) {
+    aisBox.checked = true;
+    aisOffByExercise = false;
+  }
   rocUi.onAppChanged(app);
   arpaUi.onAppChanged(app);
   if (opts.arpa) {
@@ -771,8 +783,19 @@ function setup(): void {
     app.timeScale = Number(sel("speed"));
   });
   rSel.addEventListener("change", () => setRange(app, Number(rSel.value)));
-  $("orient").addEventListener("change", () => setDisplayMode(app, { orientation: sel("orient") as AppState["display"]["orientation"] }));
-  $("motion").addEventListener("change", () => setDisplayMode(app, { motion: sel("motion") as AppState["display"]["motion"] }));
+  // Head-up cannot be used in true motion: when one choice changes the other, its box shows the change.
+  const showModes = (): void => {
+    setSelect("orient", app.display.orientation);
+    setSelect("motion", app.display.motion);
+  };
+  $("orient").addEventListener("change", () => {
+    setDisplayMode(app, { orientation: sel("orient") as AppState["display"]["orientation"] });
+    showModes();
+  });
+  $("motion").addEventListener("change", () => {
+    setDisplayMode(app, { motion: sel("motion") as AppState["display"]["motion"] });
+    showModes();
+  });
   $("stab").addEventListener("change", () => {
     setDisplayMode(app, { stabilisation: sel("stab") as AppState["display"]["stabilisation"] });
   });
@@ -1390,6 +1413,13 @@ window.addEventListener("beforeunload", () => store.save());
   /** Targets whose data label is shown on the picture. */
   labels: (): string[] => [...app.tgtLabels],
   lostWarning: (): boolean => app.arpa.settings.lostWarning,
+  /** AIS targets on the picture in the last frame. */
+  aisDrawn: (): number => app.aisDrawn,
+  /** The first target that transmits AIS (and has `name` in its name, if given): its index and position (NM). */
+  aisTarget: (name?: string): { i: number; pos: { e: number; n: number } } | null => {
+    const i = app.world.targets.findIndex((t) => (t.ais ?? t.kind === "ship") && (!name || t.name.toLowerCase().includes(name.toLowerCase())));
+    return i < 0 ? null : { i, pos: { ...app.world.targets[i]!.pos } };
+  },
   /** Where every target's echo is on the picture, CSS pixels. */
   targetsScreen: (): { x: number; y: number }[] => {
     const g = radarGeometry(cssSize, app.world.radar.controls.rangeNm);

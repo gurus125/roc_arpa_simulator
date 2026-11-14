@@ -804,14 +804,14 @@
         <div class="check"><input type="checkbox" id="echoAvg"><label for="echoAvg">Echo averaging (suppresses random clutter)</label></div>
         <div class="check"><input type="checkbox" id="irOn"><label for="irOn">Interference rejection (IR)</label></div>
         <div class="check"><input type="checkbox" id="pmOn"><label for="pmOn">Performance monitor</label></div>
-        <p class="hint">A long pulse gives stronger echoes but poorer range discrimination and a larger minimum range; a short pulse the reverse. The performance monitor paints a plume astern: compare its length with the dashed arc, which is the length when the set was new. Echo averaging and echo stretch can hide small or fast targets: do not leave them on without need.</p>
+        <p class="hint">A long pulse gives stronger echoes but poorer range discrimination and a larger minimum range; a short pulse the reverse. The performance monitor paints a plume astern: compare its length with the dashed arc, which is the length when the set was new. Echo averaging hides echoes that come and go (a small boat or buoy in a seaway), echo stretch can hide small or fast targets, and interference rejection costs very weak echoes a little: do not leave them on without need.</p>
         <p class="hint">Tune for the highest meter reading. The best tuning point changes each time you restart.</p>
       </section>
       <section>
         <h2>Environment</h2>
         <div class="row"><label for="sea">Sea state</label><input type="range" id="sea" min="0" max="9" value="3"><span class="val" id="seaV">3</span></div>
         <div class="check"><input type="checkbox" id="rain"><label for="rain">Rain squall near own ship</label></div>
-        <div class="row"><label for="rainInt">Rain intensity</label><input type="range" id="rainInt" min="10" max="100" value="80"><span class="val" id="rainIntV">80</span></div>
+        <div class="row"><label for="rainInt" title="Per cent of 16 mm an hour (IMO heavy rain); 25 is light rain, 4 mm an hour">Rain intensity (% of heavy)</label><input type="range" id="rainInt" min="10" max="100" value="80"><span class="val" id="rainIntV">80</span></div>
         <div class="check"><input type="checkbox" id="duct"><label for="duct">Abnormal propagation (ducting)</label></div>
         <div class="row two"><label for="refr">Refraction</label><select id="refr"><option value="standard">Standard atmosphere</option><option value="sub">Sub-refraction (shorter ranges)</option><option value="super">Super-refraction (longer ranges)</option></select></div>
         <p class="hint">Refraction changes how far the radar sees over the horizon: in sub-refraction (cold air over a warmer sea, bad weather) targets are detected at about 80% of the usual range; in super-refraction (warm dry air over a cooler sea, settled weather) at up to about 140%. Ducting carries the beam much further and brings second-trace echoes.</p>
@@ -860,6 +860,7 @@
       <section>
         <h2>AIS targets</h2>
         <div class="check"><input type="checkbox" id="aisOn" checked><label for="aisOn">Show AIS reported targets</label></div>
+        <p class="hint" id="aisLockNote" hidden>The AIS display is off for this manual plotting exercise: plot the targets from the radar alone. It can be switched on again after Finish.</p>
         <div class="check"><input type="checkbox" id="aisLost" checked><label for="aisLost">Lost AIS target alarm</label></div>
         <div class="row two"><label for="aisAutoAct">Activate automatically</label><select id="aisAutoAct"><option value="">Off (by hand only)</option><option value="3">Within 3 NM</option><option value="6">Within 6 NM</option><option value="12">Within 12 NM</option></select></div>
         <p class="hint">Sleeping AIS targets closer than the range chosen are activated by themselves. With automatic acquisition on, an AIS target in an acquisition zone is activated too, with a NEW AIS TARGET warning. A dangerous target is always activated. At most 20 targets can be activated: a caution comes at 19, and a further activation is refused with a warning.</p>
@@ -939,7 +940,7 @@
           <div class="row"><label for="logErr">Log error (kn)</label><input type="range" id="logErr" min="-3" max="3" step="0.1" value="0"><span class="val" id="logErrV">0.0</span></div>
           <div class="row"><label for="hmErr">Heading marker error (°)</label><input type="range" id="hmErr" min="-5" max="5" step="0.5" value="0"><span class="val" id="hmErrV">0.0</span></div>
           <div class="row"><label for="vrmErr">VRM error (%)</label><input type="range" id="vrmErr" min="-10" max="10" step="1" value="0"><span class="val" id="vrmErrV">0</span></div>
-          <div class="row"><label for="perf">Radar performance (%)</label><input type="range" id="perf" min="20" max="100" step="5" value="100"><span class="val" id="perfV">100</span></div>
+          <div class="row"><label for="perf">Radar performance (% of echo power)</label><input type="range" id="perf" min="10" max="100" step="5" value="100"><span class="val" id="perfV">100</span></div>
           <div class="check"><input type="checkbox" id="logFail"><label for="logFail">Speed log FAILED (no signal: the ARPA shows SPEED LOG INPUT ABSENT)</label></div>
           <div class="check"><input type="checkbox" id="gyroFail"><label for="gyroFail">Gyro compass FAILED (ARPA gives an equipment malfunction alarm and loses all tracks)</label></div>
           <div class="check"><input type="checkbox" id="gnssFail"><label for="gnssFail">EPFS (GNSS) FAILED (no position on the display or the cursor; the ARPA warns EPFS INPUT ABSENT)</label></div>

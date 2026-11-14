@@ -35,7 +35,7 @@ Status words: **Yes** = simulated and tested. **Partly** = simulated with the li
 | 3.3.3 | Keep tracking a target seen on 5 of 10 scans | Yes | Lost only after 8 missed scans in a row (placeholder) |
 | 3.3.4 | Tracking errors and target swop minimised and explained | Partly | Swop, fading and delay are simulated and shown to the instructor; explanation is in the check sheets, not a manual |
 | 3.3.5 | At least four equally spaced past positions; time scale shown | Yes | Past positions 1 to 10, interval shown on the screen |
-| 3.4.3 | ARPA on at least 3, 6 and 12 NM scales; scale indicated | Yes | 3, 6, 12, 24 NM |
+| 3.4.3 | ARPA on at least 3, 6 and 12 NM scales; scale indicated | Yes | Every scale, 0.25 to 96 NM |
 | 3.4.5 | North-up and course-up, relative motion; true motion optional; mode indicated | Yes | |
 | 3.4.6 | True and relative vectors, mode shown, sea/ground shown, adjustable time, time shown | Yes | |
 | 3.4.6.5 | Ground reference target marked with a symbol | Yes | "R" beside the target number |
@@ -93,7 +93,7 @@ Status words: **Yes** = simulated and tested. **Partly** = simulated with the li
 | 5.26-5.28 | AIS targets: sleeping, activated, selected; data; capacity | Partly | Sleeping / activated / selected / lost, data field, "missing" for rate of turn. No capacity limit or filtering of sleeping targets, no own-ship AIS data |
 | 5.29 | CPA/TCPA alarm for tracked and activated AIS targets, same limits; lost alarm, AIS lost alarm can be disabled | Yes | |
 | 5.30 | AIS and radar target association, choice of symbol | Partly | Association by distance and motion (placeholder limits); no alert when they diverge |
-| 5.31 | Trial manoeuvre | Yes | |
+| 5.31 | Trial manoeuvre | Yes | Includes own ship's dynamic characteristics (her turn and change of speed, from her handling model) since 14 Nov 2026; before that own ship turned at once |
 | 5.32 | Maps, navigation lines and routes | Partly | Navigation lines and nav marks placed by clicking, fixed to the ground, saved and loaded by name. No routes |
 | 5.33 | Chart display | No | Optional in the resolution |
 | 5.34 | Picture freeze alert; sensor failure alarms | Partly | Gyro and log failure. No picture-freeze alert |

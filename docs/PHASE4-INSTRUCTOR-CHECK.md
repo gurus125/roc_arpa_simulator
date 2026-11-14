@@ -57,7 +57,7 @@ tell me the real ones, or tell me if the behaviour is wrong.
 | Target manoeuvre alarm: change in relative velocity / how long it must last | 1.5 kn / 10 seconds |
 | Vector hidden below this speed (true: target speed, relative: relative speed) | 0.5 kn |
 | Scintillation (glint along the length of a moving target) | 0.016 NM, about 30 m (appendix 3) |
-| ARPA shown only on range scales | 3, 6, 12, 24 NM (tracking continues on other scales) |
+| ARPA shown on range scales | All, 0.25 to 96 NM (until 14 Nov 2026 only 3, 6, 12 and 24 NM) |
 | Trial manoeuvre default delay | 6 min |
 | Past positions: recorded every / most dots / intervals offered | 30 s / 10 / 0.5, 1, 2, 3, 6 min |
 | Self-test results and test targets stay on the screen for | 30 seconds |
@@ -125,8 +125,10 @@ tell me the real ones, or tell me if the behaviour is wrong.
 14. **Other alarms.** A settled target that turns sharply gives "Target n has changed course or
     speed". Clicking Select on empty water gives WRONG ORDER. A target on a new guard-zone
     acquisition flashes until acknowledged. Vectors vanish for a stationary target in true mode.
-15. **Range scale.** Switch the radar range to 1.5, 48 NM or any scale other than 3, 6, 12, 24:
-    the ARPA overlay is replaced by "ARPA NOT AVAILABLE ON THIS RANGE SCALE" (tracking carries on).
+15. **Range scale.** Switch the radar range down to 1.5 and 0.75 NM with an AIS ship close by:
+    the tracked targets and the AIS targets stay on the picture on every scale. Close in, an
+    activated AIS ship is drawn as her outline to scale round the triangle. Put the ARPA in standby:
+    the AIS targets stay; the AIS key alone takes them off.
 17. **Past positions.** Acquire a target, wait 3 minutes, set Past positions to Relative, 5 dots, 1 min.
     Squares trail behind the target: where it was relative to own ship. Change to True: its track
     over the water (or the ground, when ground stabilised) as seen from own ship now.
@@ -161,8 +163,9 @@ tell me the real ones, or tell me if the behaviour is wrong.
    coastal waters picks up a lot of false targets unless exclusion areas are set. Real sets
    reject clutter in the processor. Should the ARPA be made stricter (more hits to confirm,
    a clutter filter), or is this a useful exercise?
-7. Are 3, 6, 12 and 24 NM the right ARPA range scales, and should the ARPA be unavailable when
-   the display is not gyro-stabilised? (Not done: standby is not modelled at all.)
+7. ~~Are 3, 6, 12 and 24 NM the right ARPA range scales?~~ Answered 14 Nov 2026: the ARPA is now
+   shown on every scale, as on real sets (IMO MSC.192(79) 5.25.1.3 asks for at least 3, 6 and 12 NM;
+   Bole, Wall, Norris 4.5.2). Should the ARPA be unavailable when the display is not gyro-stabilised?
 
 ## Simplifications in phase 4
 

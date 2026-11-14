@@ -239,7 +239,10 @@ export interface RadarSet {
   rpm: number;
   /** Frequency band: X (9 GHz, 3 cm) or S (3 GHz, 10 cm). */
   band: "X" | "S";
-  /** Transmitter and receiver performance, 1 = as new. Set lower by the instructor (ageing magnetron, water in the waveguide). */
+  /**
+   * Transmitter and receiver performance: the share of the echo power left, 1 = as new (0.1 is a loss
+   * of 10 dB). Set lower by the instructor (ageing magnetron, water in the waveguide).
+   */
   performance?: number;
   /** Power state (see engine/power.ts). Left out: switched on and transmitting. */
   power?: "off" | "warming" | "standby" | "transmit";

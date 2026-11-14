@@ -172,6 +172,8 @@ export interface ArpaExercise {
   ownRates?: { turnDegPerMin: number; speedKnPerMin: number };
   /** The exercise starts with the radar switched off and its controls set by `setup`: the screen shows them as set, with the automatic controls off. */
   startsSwitchedOff?: boolean;
+  /** The AIS display is switched off and locked while the exercise runs (manual plotting: plot from the radar alone). */
+  aisOff?: boolean;
 }
 
 export interface ResultItem {

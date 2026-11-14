@@ -1,13 +1,13 @@
-import { targetLengthM } from "./world";
-import { aspectFactor, echoShape } from "./echo";
+import { targetHeading, targetLengthM } from "./world";
+import { aspectFactor, echoShape, targetExtents } from "./echo";
 import { Vec2, add, fromPolar, length, normalizeDeg, scale, sub } from "../core/vec";
 import { footOfPerpendicular, mirrorPoint, reflectionPoint } from "../core/falseecho";
 import {
-  THRESHOLD, detectionProbability, effectiveSignal, noiseDensity, rainClutterProbability, rainIntensityAt,
-  relativeBearing, seaClutterProbability, sensitivity, stcAttenuation,
+  THRESHOLD, detectionProbability, effectiveSignal, maskedByClutter, noiseDensity, rainClutterProbability, rainIntensityAt,
+  relativeBearing, seaClutterProbability, sensitivity, stcAttenuation, tuningFactor,
 } from "./signal";
 import { World } from "./types";
-import { pulseFor, rcsForDetectionRange, shorelineDetectionNm, unambiguousRangeNm } from "./band";
+import { pulseEnergyFactor, pulseFor, rcsForDetectionRange, shorelineDetectionNm, unambiguousRangeNm } from "./band";
 import { NM_M, effectiveEarthRadiusM, elevationAngle, isLandAt, landFaceDetectionNm, terrainHides, visibleLand } from "./terrain";
 import { BAND_DATA } from "./band";
 import { pointInPolygon } from "../core/nav";
@@ -31,21 +31,96 @@ export const STRUCTURE_SAMPLE_NM = 0.025;
 export const SART_DOT_SPACING_NM = 0.64;
 export const TRANSPONDER_RANGE_NM = 10;
 
-/** A racon answers for part of the time only (it sweeps its frequency): seconds on and off. Placeholder. */
+/**
+ * Range at which the main beam would still trigger a transponder if the Earth did not curve, NM: a
+ * PLACEHOLDER. With the side lobes 30 dB down (one way) it makes a side lobe trigger it inside about 1 NM,
+ * where the book says the dots of a SART become arcs (Radar and ARPA Manual, 3rd edition, 3.5.6 and Figure
+ * 3.34), and the weakest lobes all round inside about 0.1 NM, where the arcs close into circles.
+ */
+export const TRANSPONDER_FREE_SPACE_NM = 30;
+
+/**
+ * How long a transponder takes to answer, as a distance: a frequency-agile racon takes about 0.4
+ * microseconds, some 60 m (3rd edition 3.5.3.2), so the response starts just beyond the mark and the
+ * craft with a SART lies slightly closer than the first dot (3.5.6).
+ */
+export const TRANSPONDER_DELAY_NM = 60 / 1852;
+
+/** A racon answers for part of the time only: seconds on and off. Book 3.5.3.3: on for at least 15 s, at least once a minute; the US Coast Guard 50% of the time. */
 export const RACON_ON_SEC = 20;
 export const RACON_PERIOD_SEC = 40;
 
-/** Ranges (NM beyond the racon) painted by a Morse code: dash 0.3, dot 0.1, gap 0.1, starting 0.1 beyond the echo. */
+/**
+ * Length of a racon's whole response, NM: the book gives 20 to 40 microseconds, some 1.5 to 3 NM (3rd
+ * edition 3.5.2). 2 NM (about 25 microseconds) is a PLACEHOLDER within that.
+ */
+export const RACON_LENGTH_NM = 2;
+
+/**
+ * Ranges (NM beyond the racon) painted by a Morse code: a dash three dots long, a dot's length between
+ * them (3rd edition 3.5.2.1), the whole code filling RACON_LENGTH_NM and starting TRANSPONDER_DELAY_NM
+ * beyond the mark.
+ */
 export function raconSegments(code: string): { from: number; to: number }[] {
+  const units = [...code].reduce((n, ch) => n + (ch === "-" ? 3 : 1), 0) + Math.max(0, code.length - 1);
+  const unit = RACON_LENGTH_NM / Math.max(1, units);
   const out: { from: number; to: number }[] = [];
-  let r = 0.1;
+  let r = TRANSPONDER_DELAY_NM;
   for (const ch of code) {
-    const len = ch === "-" ? 0.3 : 0.1;
+    const len = (ch === "-" ? 3 : 1) * unit;
     out.push({ from: r, to: r + len });
-    r += len + 0.1;
+    r += len + unit;
   }
   return out;
 }
+
+/**
+ * Side lobes of the aerial, one way, below the main beam: a lobe every 5 degrees out to 50 degrees each
+ * side, from 30 dB down next to the beam to 48 dB at 50 degrees; beyond that 50 dB all round. PLACEHOLDERS
+ * within the book's typical 30 to 50 dB (3rd edition 2.5.1.4).
+ */
+export const SIDE_LOBES: { offDeg: number; downDb: number }[] = Array.from({ length: 10 }, (_, i) => ({ offDeg: 5 * (i + 1), downDb: 30 + 2 * i }));
+export const BACK_LOBE_DB = 50;
+
+/** One-way level of the aerial pattern this far off the beam, dB down: between the side lobes, the nearer lobe's level. */
+export function patternDownDb(offDeg: number): number {
+  const a = Math.abs(offDeg);
+  if (a <= BAND_DATA.X.beamwidthDeg / 2) return 0;
+  const lobe = SIDE_LOBES.find((l) => a <= l.offDeg + 2.5);
+  return lobe ? lobe.downDb : BACK_LOBE_DB;
+}
+
+/**
+ * Angles off its true bearing (degrees) at which a transponder at this range is painted: its own bearing, and
+ * close in also the bearings at which a side lobe is strong enough to trigger it, so that its response
+ * spreads into arcs and, very close, into whole circles (3rd edition 3.5.2.2, 3.5.6).
+ */
+export function transponderSpreadDeg(rangeNm: number): number[] {
+  const marginDb = 20 * Math.log10(TRANSPONDER_FREE_SPACE_NM / Math.max(rangeNm, 1e-3));
+  const out: number[] = [0];
+  for (let off = 1; off <= 180; off++) {
+    if (patternDownDb(off) > marginDb) continue;
+    out.push(off);
+    if (off < 180) out.push(-off);
+  }
+  return out;
+}
+
+/**
+ * How much of each mark of a racon's code the receiver shows. The rain control (differentiation) keeps only
+ * the leading edge of a long pulse, and interference rejection can break the response up; the book says
+ * both mutilate racon signals and should be switched off (3rd edition 3.5.3.3). PLACEHOLDER amounts: full
+ * rain control keeps a fifth of each mark; interference rejection paints half of it.
+ */
+export function raconKept(c: { ftc: number; interferenceRejection?: boolean }): { share: number; density: number } {
+  return { share: Math.max(0.2, 1 - 0.8 * (c.ftc / 100)), density: c.interferenceRejection ? 0.5 : 1 };
+}
+
+/**
+ * A frequency-agile racon answers on the radar's own frequency, so the receiver must be on tune to show it
+ * (3rd edition 3.5.3.3). PLACEHOLDER: shown while the receiver gives at least 60% of its best response.
+ */
+export const RACON_MIN_TUNING = 0.6;
 
 export interface Hit {
   /** World position (NM). */
@@ -251,7 +326,7 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
         const tb2 = bearingOfVec(v);
         const rel2 = relativeBearing(tb2, heading);
         const es = effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel2, pos: t.pos, kind: t.kind });
-        if (inWedge(rel2) && rng() < detectionProbability(es)) hits.push({ pos: add(w.own.pos, fromPolar(tb2, range - ru)), strength: 0.5, kind: "second-trace", size: 4, targetId: t.id, ...echoShape(w.radar.band, c, range - ru, targetLengthM(t), normalizeDeg((t.motion?.heading ?? t.course) - tb2), t.beamM) });
+        if (inWedge(rel2) && rng() < detectionProbability(es)) hits.push({ pos: add(w.own.pos, fromPolar(tb2, range - ru)), strength: 0.5, kind: "second-trace", size: 4, targetId: t.id, ...echoShape(w.radar.band, c, range - ru, targetLengthM(t), normalizeDeg(targetHeading(w, t) - tb2), t.beamM) });
       }
     }
     if (range > c.rangeNm * 1.0) continue;
@@ -262,48 +337,74 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
     const hidden = (): boolean => (hiddenMemo ??= landHides(w, t.pos, t.height));
     // Aspect: the angle between the target's heading and the line of sight. Beam-on returns more and paints wider; end-on returns less and paints deeper.
     const lenM = targetLengthM(t);
-    const aspect = normalizeDeg((t.motion?.heading ?? t.course) - tb);
-    const e = effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel, pos: t.pos, kind: t.kind }) * (lenM > 0 ? aspectFactor(aspect) : 1);
+    const aspect = normalizeDeg(targetHeading(w, t) - tb);
+    const sig = { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel, pos: t.pos, kind: t.kind };
+    const e = effectiveSignal(w, sig) * (lenM > 0 ? aspectFactor(aspect) : 1);
     // A longer pulse paints a longer echo; echo stretch enlarges it further.
     const size = (3 + 4 * Math.min(1, Math.sqrt(t.rcs))) * (c.echoStretch ? 1.8 : 1) * Math.sqrt(pulseFor(c.rangeNm, c.pulse).microseconds / pulseFor(c.rangeNm).microseconds);
-    if (inWedge(rel) && !hidden() && rng() < detectionProbability(e)) {
-      hits.push({ pos: { ...t.pos }, strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind: "target", size, targetId: t.id, ...echoShape(w.radar.band, c, range, lenM, aspect, t.beamM) });
+    // Echo averaging (scan-to-scan correlation) shows only what is there on successive scans: a steady echo
+    // is not touched, one that comes and goes (a small boat or a buoy in a seaway) is shown less often
+    // (Radar and ARPA Manual, 3rd edition, 3.6.3.4). Two scans: the chance of being painted is squared.
+    const pd = detectionProbability(e);
+    // A target weaker than the sea or rain clutter around it cannot be shown, whatever the controls.
+    if (inWedge(rel) && !hidden() && rng() < (c.echoAverage ? pd * pd : pd) && !maskedByClutter(w, sig, e)) {
+      // The paint starts at the target's nearest face and runs outward (the pulse's length lies behind it), so the
+      // range is measured to the near edge of the echo (Radar and ARPA Manual, 3rd edition, 2.8.5.1 and 6.6.1).
+      const along = lenM > 0 ? targetExtents(lenM, aspect, t.beamM).alongM / NM_M : 0;
+      const near = Math.max(0, range - along / 2);
+      hits.push({ pos: add(w.own.pos, fromPolar(tb, near)), strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind: "target", size, targetId: t.id, ...echoShape(w.radar.band, c, range, lenM, aspect, t.beamM), outward: true });
     }
-    // Transponders answer X-band radar only (3 cm). Their response is painted outward from the echo.
+    // Transponders answer X-band radar only (3 cm). Their response is painted outward from the echo, a
+    // little beyond it (the time the transponder takes to answer). Close in, the side lobes trigger a SART
+    // or a racon as well, so its response spreads into arcs and, very close, into circles.
     const answers = t.transponder === "sart" ? w.radar.band === "X" : (t.raconBand ?? "X") === "both" || (t.raconBand ?? "X") === w.radar.band;
-    if (t.transponder && answers && range <= TRANSPONDER_RANGE_NM && inWedge(rel) && !hidden()) {
+    if (t.transponder && answers && range <= TRANSPONDER_RANGE_NM && !hidden()) {
+      const paintAt = (off: number, r: number, kind: HitKind): void => {
+        if (r <= c.rangeNm && inWedge(relativeBearing(tb + off, heading))) hits.push({ pos: add(w.own.pos, fromPolar(tb + off, r)), strength: 0.9, kind, size: 4, targetId: t.id });
+      };
       if (t.transponder === "sart") {
-        for (let i = 0; i < 12; i++) {
-          const rk = range + i * SART_DOT_SPACING_NM;
-          // Close to the SART the dots widen into arcs (side lobes trigger it too).
-          const spread = range < 1 ? [-12, -6, 0, 6, 12] : [0];
-          for (const off of spread) if (rk <= c.rangeNm) hits.push({ pos: add(w.own.pos, fromPolar(tb + off, rk)), strength: 0.9, kind: "sart", size: 4, targetId: t.id });
-        }
+        const spread = transponderSpreadDeg(range);
+        for (let i = 0; i < 12; i++) for (const off of spread) paintAt(off, range + TRANSPONDER_DELAY_NM + i * SART_DOT_SPACING_NM, "sart");
       } else if (t.transponder === "ramark") {
         // A ramark transmits continuously: a broken line along its bearing, from near the centre to the edge. No range.
-        for (let d = 0.15 * c.rangeNm; d <= c.rangeNm; d += c.rangeNm / 60) {
-          if (Math.floor((d / c.rangeNm) * 30) % 2 === 0) hits.push({ pos: add(w.own.pos, fromPolar(tb, d)), strength: 0.7, kind: "ramark", size: 3, targetId: t.id });
+        if (inWedge(rel)) {
+          for (let d = 0.15 * c.rangeNm; d <= c.rangeNm; d += c.rangeNm / 60) {
+            if (Math.floor((d / c.rangeNm) * 30) % 2 === 0) hits.push({ pos: add(w.own.pos, fromPolar(tb, d)), strength: 0.7, kind: "ramark", size: 3, targetId: t.id });
+          }
         }
-      } else if (w.time % RACON_PERIOD_SEC < RACON_ON_SEC) {
+      } else if (w.time % RACON_PERIOD_SEC < RACON_ON_SEC && tuningFactor(c.tuning, w.radar.tuningOptimum) >= RACON_MIN_TUNING) {
+        const kept = raconKept(c);
+        const spread = transponderSpreadDeg(range);
         for (const seg of raconSegments(t.raconCode ?? "-.-")) {
-          for (let d = seg.from; d <= seg.to + 1e-9; d += 0.03) {
-            if (range + d <= c.rangeNm) hits.push({ pos: add(w.own.pos, fromPolar(tb, range + d)), strength: 0.9, kind: "racon", size: 4, targetId: t.id });
+          const to = seg.from + (seg.to - seg.from) * kept.share;
+          let n = 0;
+          for (let d = seg.from; d <= to + 1e-9; d += 0.03, n++) {
+            if (kept.density < 1 && n % 2 === 1) continue;
+            for (const off of spread) paintAt(off, range + d, "racon");
           }
         }
       }
     }
-    // Multiple echoes: a strong, close, large target returns repeated echoes at 2x and 3x range.
+    // Multiple echoes: a strong, close, large target returns repeated echoes at 2x and 3x range. A longer
+    // pulse makes them more likely (3rd edition 3.9.3), so the pulse's energy is applied after the cap.
     if (t.rcs >= 0.8 && range < 1.5 && !hidden()) {
+      const pef = pulseEnergyFactor(c.rangeNm, c.pulse);
       for (const k of [2, 3]) {
         const rk = range * k;
-        const base = Math.min(effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel, pos: t.pos }), 5);
+        const base = Math.min(effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel, pos: t.pos }) / pef, 5) * pef;
         const ek = (base * Math.pow(0.3, k - 1)) / k * stcAttenuation(rk, c.stc) / Math.max(stcAttenuation(range, c.stc), 1e-6);
         emit(tb, rk, ek, "multiple", size * 0.8, t.id);
       }
     }
-    // Side-lobe echoes: arcs of weak echoes either side of a very strong, close target.
-    if (e >= 8 && range <= 3 && !hidden()) {
-      for (const off of [-9, 9]) emit(normalizeDeg(tb + off), range, e * 0.08, "sidelobe", 2.5, t.id);
+    // Side echoes: a very strong, close echo is returned through the side lobes as well, out and back, so
+    // each lobe's level counts twice (strength 10^(-dB/10)). They lie at the target's own range, either side
+    // of it, weaker the further out (3rd edition 3.9.4).
+    if (!hidden()) {
+      for (const lobe of SIDE_LOBES) {
+        const es = e * Math.pow(10, -lobe.downDb / 10);
+        if (es < THRESHOLD / 2) break;
+        for (const sgn of [-1, 1]) emit(normalizeDeg(tb + sgn * lobe.offDeg), range, es, "sidelobe", 2.5, t.id);
+      }
     }
     // Indirect echo: part of the pulse goes out and back by way of own ship's funnel or mast, so a
     // strong, close target is painted a second time in the shadow sector, on the bearing of the

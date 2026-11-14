@@ -95,10 +95,11 @@ describe("own ship in a seaway (engine)", () => {
     w.own.seaway!.pitchDeg = 0;
     const abeamUpright = sig(90), aheadUpright = sig(0);
     w.own.seaway!.rollDeg = 20;
-    expect(sig(90) / abeamUpright).toBeCloseTo(1 / 256, 6);
+    // Power left 1/256 (24 dB down); the echo strength, like a voltage, is its square root (see echoStrength).
+    expect(sig(90) / abeamUpright).toBeCloseTo(1 / 16, 6);
     expect(sig(0) / aheadUpright).toBeCloseTo(1, 9);
     w.own.seaway!.rollDeg = 10;
-    expect(sig(90) / abeamUpright).toBeCloseTo(0.25, 6);
+    expect(sig(90) / abeamUpright).toBeCloseTo(0.5, 6); // a quarter of the power
   });
   it("with the sea on the bow she yaws about her course", () => {
     const w = scenario(6);

@@ -4,8 +4,8 @@ import { ArpaExSession, PictureFrame, Recorder } from "../train/index";
 import { AisSystem } from "../ais/index";
 import { Vec2 } from "../core/vec";
 import {
-  DisplayState, Hit, Scenario, TrailStore, World, createWorld, newDisplayState, recentreTrueMotion, scanWedge,
-  stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading, radarTransmitting,
+  DisplayState, Hit, Scenario, TrailStore, World, createWorld, newDisplayState, scanWedge,
+  stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading, radarTransmitting, settleDisplayModes, resetTrueMotionAhead,
 } from "../engine/index";
 
 /** Latitude and longitude of the scenarios' 0,0: the same point the real Mumbai coastline is laid out from. */
@@ -107,9 +107,17 @@ export interface AppState {
   nextPictureAt: number;
   /** Radar transmitter on standby: no picture, and the ARPA is forced to standby. */
   radarStandby: boolean;
+  /** AIS targets drawn on the picture in the last frame (read by the screen test). */
+  aisDrawn: number;
 }
 
 export const ECHO_LIFETIME_S = 3.2;
+
+/**
+ * The running exercise has the AIS display switched off and locked (manual plotting: the targets are plotted from the
+ * radar alone, so AIS course, speed and CPA must not be on hand). It is unlocked once the exercise is finished.
+ */
+export const aisLocked = (app: AppState): boolean => !!app.arpaEx?.def.aisOff && !app.arpaEx.finished;
 export const SNAPSHOT_INTERVAL_SEC = 60;
 
 /**
@@ -136,7 +144,7 @@ export function rewind(app: AppState, seconds: number): number | null {
   app.tgtLabels.clear();
   app.hits = [];
   app.trails.clear();
-  recentreTrueMotion(app.world, app.display);
+  resetTrueMotionAhead(app.world, app.display);
   app.arpaEx?.rewindTo(snap.time);
   app.recorder?.note(app.world, `INSTRUCTOR: exercise taken back to ${Math.floor(snap.time / 60)} min ${Math.round(snap.time % 60)} s.`, true);
   return snap.time;
@@ -191,6 +199,7 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     arpaSelected: null,
     tgtLabels: new Set<string>(),
     arpaEx: null,
+    aisDrawn: 0,
     recorder: null,
     pictures: [],
     nextPictureAt: 0,
@@ -259,6 +268,9 @@ export function setDisplayMode(
   change: Partial<Pick<DisplayState, "orientation" | "motion" | "stabilisation">>,
 ): void {
   const d = app.display;
+  // Head-up (unstabilised) cannot be used in true motion: the other mode follows the one just chosen.
+  const settled = settleDisplayModes({ orientation: change.orientation ?? d.orientation, motion: change.motion ?? d.motion }, change.orientation !== undefined ? "orientation" : "motion");
+  change = { ...change, ...settled };
   const motionChanged = change.motion !== undefined && change.motion !== d.motion;
   const stabChanged = change.stabilisation !== undefined && change.stabilisation !== d.stabilisation;
   const orientChanged = change.orientation !== undefined && change.orientation !== d.orientation;
@@ -266,13 +278,13 @@ export function setDisplayMode(
   if (orientChanged && d.orientation === "course-up") d.courseUpRef = measuredHeading(app.world);
   if (motionChanged || stabChanged) {
     app.trails.clear();
-    recentreTrueMotion(app.world, d);
+    resetTrueMotionAhead(app.world, d);
   }
 }
 
-/** Manual true-motion reset: own ship goes back to the centre of the screen. Only trails of past echoes are dropped. */
+/** Manual true-motion reset (TM RESET): own ship is put back for the view ahead. Only trails of past echoes are dropped. */
 export function resetTrueMotion(app: AppState): void {
-  recentreTrueMotion(app.world, app.display);
+  resetTrueMotionAhead(app.world, app.display);
   app.trails.clear();
 }
 
@@ -282,5 +294,5 @@ export function resetCourseUp(app: AppState): void {
 
 export function setRange(app: AppState, rangeNm: number): void {
   app.world.radar.controls.rangeNm = rangeNm;
-  recentreTrueMotion(app.world, app.display);
+  resetTrueMotionAhead(app.world, app.display);
 }

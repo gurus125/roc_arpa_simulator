@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analysePlot, aspectOf, formatAspect } from "../src/core/plot";
 import { fromPolar } from "../src/core/vec";
-import { Scenario, World, clutterPulseFactor, createWorld, effectiveSignal, radarHorizonNm, seaClutter, seaClutterProbability, stepWorld, CLUTTER_WINDWARD, REFRACTION_FACTOR } from "../src/engine/index";
+import { Scenario, World, clutterPulseFactor, pulseEnergyFactor, createWorld, effectiveSignal, radarHorizonNm, seaClutter, seaClutterProbability, stepWorld, CLUTTER_WINDWARD, REFRACTION_FACTOR } from "../src/engine/index";
 import { ARPA_PLACEHOLDERS, ArpaConfig, ArpaSystem, alertPriority } from "../src/arpa/index";
 
 /**
@@ -109,13 +109,20 @@ describe("Radar and ARPA Manual, chapter 3: detection range and sea clutter", ()
     expect(port).toBeGreaterThan(astern);
   });
   it("a shorter pulse returns less sea clutter, a longer pulse more", () => {
-    // On the 6 NM scale the set chooses the medium pulse, 0.3 microseconds. Short is 0.07, long 1.2.
+    // On the 6 NM scale the set chooses the medium pulse, 0.3 microseconds at 1500 a second. Short is 0.07 at 3000,
+    // long 1.2 at 600. Clutter power goes with the energy on the sea (pulse length x PRF) times the depth of sea
+    // answering (pulse length) (3rd edition 2.7.4.1, 3.6.1.6); the strength with the square root:
+    //   short: sqrt((0.07 x 3000) / (0.3 x 1500) x 0.07 / 0.3) = sqrt(0.4667 x 0.2333) = 0.330
+    //   long:  sqrt((1.2 x 600) / (0.3 x 1500) x 1.2 / 0.3)    = sqrt(1.6 x 4)          = 2.530
     expect(clutterPulseFactor(6)).toBe(1);
     expect(clutterPulseFactor(6, "auto")).toBe(1);
-    expect(clutterPulseFactor(6, "short")).toBeCloseTo(0.07 / 0.3, 9);
-    expect(clutterPulseFactor(6, "long")).toBeCloseTo(4, 9);
-    // On the 12 NM scale the set chooses the long pulse, so short gives 0.07 / 1.2.
-    expect(clutterPulseFactor(12, "short")).toBeCloseTo(0.07 / 1.2, 9);
+    expect(clutterPulseFactor(6, "short")).toBeCloseTo(Math.sqrt((210 / 450) * (0.07 / 0.3)), 9);
+    expect(clutterPulseFactor(6, "long")).toBeCloseTo(Math.sqrt(1.6 * 4), 9);
+    // On the 12 NM scale the set chooses the long pulse: short gives sqrt((210 / 720) x (0.07 / 1.2)) = 0.130.
+    expect(clutterPulseFactor(12, "short")).toBeCloseTo(Math.sqrt((210 / 720) * (0.07 / 1.2)), 9);
+    // A short pulse cuts the clutter more than it cuts a target; a long pulse raises it more.
+    expect(clutterPulseFactor(6, "short")).toBeLessThan(pulseEnergyFactor(6, "short"));
+    expect(clutterPulseFactor(6, "long")).toBeGreaterThan(pulseEnergyFactor(6, "long"));
   });
 });
 

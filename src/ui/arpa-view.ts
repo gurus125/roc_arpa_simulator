@@ -1,9 +1,9 @@
 import { G, K } from "./palette";
 import { Vec2, add, length, normalizeDeg, scale, sub, velocityOf } from "../core/vec";
-import { ZoneSetting, arpaAvailableOnScale } from "../arpa/index";
+import { ZoneSetting } from "../arpa/index";
 import { collisionPoints, dangerAreas } from "../core/pad";
 import { measuredHeading, measuredRotation, ownGroundVelocity, toScreenNm } from "../engine/index";
-import { AppState } from "./app";
+import { AppState, aisLocked } from "./app";
 import { AIS_TURNING_ROT, aisFilterLabel, aisFilterOn, aisFilteredOut } from "../ais/index";
 import { ownShipSymbol } from "./view";
 import { shipTypeById } from "../core/shipmodel";
@@ -63,21 +63,22 @@ const p3 = (x: number): string => String(Math.round(normalizeDeg(x)) % 360).padS
  * lands on the echoes even when a gyro error is injected.
  */
 export function drawArpa(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: number, size: number): void {
+  app.aisDrawn = 0;
   if (app.roc) return;
-  const w = app.world;
-  const a = app.arpa;
-  const s = a.settings;
-  // In standby, and on a range scale the ARPA is not offered on, nothing is drawn on the picture; the message is
-  // written in the corner by drawArpaHud. (Tracking carries on inside the ARPA on the other range scales.)
-  if (s.standby || !arpaAvailableOnScale(w.radar.controls.rangeNm)) return;
-  if (!s.showData) return;
+  const s = app.arpa.settings;
+  // Tracked targets are drawn on every range scale, as on real sets (IMO MSC.192(79) 5.25.1.3 asks for at least the
+  // 3, 6 and 12 NM scales; Bole, Wall, Norris 4.5.2: in practice on all of them), while the ARPA is on and its data is
+  // shown. AIS targets follow the AIS display key alone, so they stay on the picture with the ARPA in standby
+  // (MSC.192(79) 5.26.3: no single AIS target is to be taken off the display; 5.27.5: the outline on short scales).
+  const arpaShown = !s.standby && s.showData;
+  if (!arpaShown && !app.ais.settings.on) return;
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, s.brilliance / 100));
-  drawArpaData(ctx, app, px, ownNm, k, size);
+  drawArpaData(ctx, app, px, ownNm, k, size, arpaShown);
   ctx.restore();
 }
 
-function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: number, size: number): void {
+function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: number, size: number, arpaShown: boolean): void {
   const w = app.world;
   const a = app.arpa;
   const s = a.settings;
@@ -112,11 +113,13 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
     ctx.stroke();
     ctx.setLineDash([]);
   };
-  for (const z of s.guardZones) zone(z, COL.guard, null);
-  for (const z of s.exclusionZones) zone(z, COL.excl, G("rgba(140,140,140,0.10)"));
+  if (arpaShown) {
+    for (const z of s.guardZones) zone(z, COL.guard, null);
+    for (const z of s.exclusionZones) zone(z, COL.excl, G("rgba(140,140,140,0.10)"));
+  }
 
   const T = s.vectorMinutes / 60;
-  const trialOn = s.trial.on;
+  const trialOn = arpaShown && s.trial.on;
   const ownV = a.ownVelocity(w);
   const trialV = velocityOf({ course: s.trial.course, speed: s.trial.speed });
   // Remaining delay (counts down while the trial is on): vectors are unchanged until then, then bend.
@@ -172,7 +175,7 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
   }
 
   // Guard-zone warning: the echo that caused it is marked until the warning is acknowledged.
-  if (flash) {
+  if (arpaShown && flash) {
     ctx.strokeStyle = COL.lost;
     ctx.lineWidth = 1.5;
     for (const al of a.alarms) {
@@ -183,7 +186,7 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
   }
 
   // Self-test: two test targets with known motion, drawn with the vector time in use.
-  if (a.test) {
+  if (arpaShown && a.test) {
     ctx.save();
     ctx.font = "11px monospace";
     for (const tg of a.test.targets) {
@@ -218,6 +221,7 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
     }
     // Sleeping targets the filter excludes are left off the picture; activated, dangerous and lost ones never are.
     if (aisFilteredOut(v, app.ais.settings.sleepFilter, app.ais.selected)) continue;
+    app.aisDrawn++;
     const rel = sub(v.pos, w.own.pos);
     const p = at(rel);
     const active = v.state === "activated";
@@ -334,7 +338,7 @@ function drawArpaData(ctx: Ctx, app: AppState, px: (v: P) => P, ownNm: P, k: num
   }
 
   ctx.font = "11px monospace";
-  for (const t of a.tracks) {
+  for (const t of arpaShown ? a.tracks : []) {
     if (hideTrack.has(t.id) && t.state === "tracking" && app.arpaSelected !== t.id) continue;
     // Past positions (relative: where it was relative to us; true: its track over the water or ground).
     if (s.past.mode !== "off" && t.state === "tracking") {
@@ -499,12 +503,17 @@ export function arpaStatusLines(app: AppState): { text: string; cls: string }[] 
   const out: { text: string; cls: string }[] = [];
   const line = (text: string, cls = ""): void => void out.push({ text, cls });
   if (s.standby) line("ARPA STANDBY", "wn");
-  else if (!arpaAvailableOnScale(app.world.radar.controls.rangeNm)) line("ARPA NOT AVAILABLE ON THIS RANGE SCALE: USE 3, 6, 12 OR 24 NM", "wn");
   else {
     line(a.stabLabel());
     if (!s.lostWarning) line("LOST TGT WARNING OFF", "wn");
+  }
+  // The AIS display has its own key: its state is shown whether the ARPA is on or in standby.
+  if (aisLocked(app)) line("AIS OFF FOR THIS EXERCISE", "wn");
+  else if (app.ais.settings.on) {
     if (!app.ais.settings.lostAlarm) line("AIS LOST WARNING OFF", "wn");
-    if (app.ais.settings.on && aisFilterOn(app.ais.settings.sleepFilter)) line(`AIS FILTER ${aisFilterLabel(app.ais.settings.sleepFilter)}`);
+    if (aisFilterOn(app.ais.settings.sleepFilter)) line(`AIS FILTER ${aisFilterLabel(app.ais.settings.sleepFilter)}`);
+  }
+  if (!s.standby) {
     if (s.vectorSuppress) line("SAFE VECTORS OFF");
     if (s.anchorWatch.trackId !== null) line(`ANCHOR WATCH ${s.anchorWatch.trackId}`);
     if (!s.showData) line("ARPA DATA OFF", "wn");

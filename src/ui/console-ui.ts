@@ -4,7 +4,7 @@ import { alertRows } from "./alerts-view";
 import { formatLatLon, latLonOf } from "../core/nav";
 import { courseSpeedOf, normalizeDeg, sub, velocityOf } from "../core/vec";
 import { displayNmToWorld, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, pulseFor, radarPower, relativeWind, ringInterval, warmUpLeftSec } from "../engine/index";
-import { AppState } from "./app";
+import { AppState, aisLocked } from "./app";
 import { $ } from "./dom";
 import { readoutAt } from "./view";
 import { arpaStatusLines } from "./arpa-view";
@@ -76,6 +76,7 @@ export const ICON = {
 };
 
 const VECTOR_TIMES = [1, 2, 3, 6, 12, 15, 20, 30, 45, 60];
+const AIS_KEY_TITLE = "AIS targets on the picture: on / off (a primary control, IEC 62388 13.3.1)";
 
 /** Text of the RADAR key: the radar's power state, with the warm-up countdown. */
 export function radarKeyLabel(w: Parameters<typeof radarPower>[0]): string {
@@ -118,7 +119,7 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     <div id="colL" class="ccolumn">
     <div class="cbox" id="bDisp"><h3><i class="ico">${ICON.radar}</i><span class="ttl">PICTURE &amp; RADAR<span class="long"> CONTROL</span></span><span id="cTopSb"></span></h3>
       <div class="crow"><span class="cl">Range</span><button id="rngDn" class="pm" title="Range scale down">−</button><span id="rngHold"></span><button id="rngUp" class="pm" title="Range scale up">+</button></div>
-      <div class="crow"><span class="cl">Band</span><span id="bandKeys" class="seg"><button data-b="X" title="X band (3 cm)">X</button><button data-b="S" title="S band (10 cm)">S</button></span><span class="seg one"><button id="aisKey" title="AIS targets on the picture: on / off (a primary control, IEC 62388 13.3.1)">AIS</button></span></div>
+      <div class="crow"><span class="cl">Band</span><span id="bandKeys" class="seg"><button data-b="X" title="X band (3 cm)">X</button><button data-b="S" title="S band (10 cm)">S</button></span><span class="seg one"><button id="aisKey" title="${AIS_KEY_TITLE}">AIS</button></span></div>
       <div class="crow"><span class="cl">Mode</span><span id="hOrient"></span><span id="hMotion"></span><span id="hStab"></span></div>
       <div class="crow"><span class="cl">Rings</span><span class="seg one"><button id="ringsKey" title="Fixed range rings on / off, and their interval">RINGS</button></span><span id="ringNote" class="note"></span></div>
       <div class="crow"><span class="cl">Pulse</span><span id="pulseSeg" class="seg"></span></div>
@@ -550,6 +551,15 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     $("aisKey").classList.toggle("on", aisOn);
     // The filter for sleeping targets is shown here as well as on the picture while it is on.
     put("aisKey", aisOn ? (aisFilterOn(app.ais.settings.sleepFilter) ? "AIS FILT" : "AIS ON") : "AIS OFF");
+    {
+      // Locked off during a manual plotting exercise: the key is greyed out and says why when pointed at.
+      const kb = $<HTMLButtonElement>("aisKey");
+      const locked = aisLocked(app);
+      if (kb.disabled !== locked) {
+        kb.disabled = locked;
+        kb.title = locked ? "AIS display locked off for this manual plotting exercise: plot the targets from the radar alone. It can be switched on after Finish." : AIS_KEY_TITLE;
+      }
+    }
     put("cProc", [[c.interferenceRejection, "IR"], [c.echoStretch, "ENH"], [c.echoAverage, "SC/SC"], [app.pmOn, "MON"]].map(([on, name]) => `<i class="${on ? "on" : ""}">${name}</i>`).join(""));
     for (const l of lines) {
       put(`m_${l.line}`, val[l.line]);

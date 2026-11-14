@@ -1,5 +1,6 @@
 import { Vec2, add, angleDiffDeg, bearingOf, courseSpeedOf, normalizeDeg, scale, sub, velocityOf, length, CourseSpeed } from "../core/vec";
 import { MAX_ROUTE_WAYPOINTS, turnRadiusNm, waypointReached, wheelOverDistance } from "../core/route";
+import { TurnProfile } from "../core/trial";
 import { CoastEdge, CoastSample, Coast, Scenario, Target, World } from "./types";
 import { targetTypeById } from "./targets";
 import { courseToSteer, tidalStreamRate } from "../core/current";
@@ -63,6 +64,43 @@ export function ownGroundVelocity(w: World): Vec2 {
   const an = w.own.anchor;
   if (an) return velocityOf({ course: an.dragSet, speed: an.dragKn });
   return add(ownWaterVelocity(w), currentVelocity(w));
+}
+
+/**
+ * How own ship would come round by `dCourseDeg` (the shorter way) and change speed by `dSpeedKn`, from now,
+ * with her own handling: the ship model under its autopilot, or the simple ship's rate of turn and
+ * acceleration. Her heading and speed change every `stepSec` seconds until she is steady (at most
+ * `maxSec`). Used by the trial manoeuvre, which must include own ship's dynamic characteristics.
+ */
+export function ownTurnProfile(w: World, dCourseDeg: number, dSpeedKn: number, stepSec = 5, maxSec = 1800): TurnProfile {
+  const o = w.own;
+  const dH: number[] = [0];
+  const dS: number[] = [0];
+  let h = 0;
+  if (o.model) {
+    const type = shipTypeById(o.model.typeId);
+    let m = { ...o.model.motion };
+    const u0 = m.u;
+    const units = o.model.steeringUnits ?? 1;
+    for (let t = stepSec; t <= maxSec; t += stepSec) {
+      const rudder = autopilotRudder(type, angleDiffDeg(dCourseDeg, h), m.r, m.u);
+      m = stepShip(type, m, { rudder, speed: Math.max(0, u0 + dSpeedKn), rudderRateDegPerSec: rudderRate(units) }, null, stepSec);
+      h += m.r * stepSec;
+      dH.push(h);
+      dS.push(m.u - u0);
+      if (Math.abs(dCourseDeg - h) < 0.5 && Math.abs(m.r) < 0.05 && Math.abs(m.u - u0 - dSpeedKn) < 0.2) break;
+    }
+  } else {
+    let sp = 0;
+    for (let t = stepSec; t <= maxSec; t += stepSec) {
+      h += clamp(dCourseDeg - h, -o.turnRateDegPerSec * stepSec, o.turnRateDegPerSec * stepSec);
+      sp += clamp(dSpeedKn - sp, -o.accelKnPerSec * stepSec, o.accelKnPerSec * stepSec);
+      dH.push(h);
+      dS.push(sp);
+      if (Math.abs(dCourseDeg - h) < 1e-9 && Math.abs(dSpeedKn - sp) < 1e-9) break;
+    }
+  }
+  return { stepSec, dHeadingDeg: dH, dSpeedKn: dS };
 }
 
 /** Most speed over the ground at which the anchor may be let go, knots (this simulator's limit). */
@@ -411,6 +449,21 @@ function followRoute(t: Target): void {
 export function initTargetMotion(t: Target): void {
   const type = targetTypeById(t.typeId);
   if (type && !type.fixed && !t.motion) t.motion = { heading: t.course, stw: t.speed, orderedCourse: t.course, orderedSpeed: t.speed };
+}
+
+/**
+ * The way a target's bow points, degrees true. A catalogue-type target steers its own heading. A plain
+ * target is given its course and speed OVER THE GROUND, so where there is a current its bow points along
+ * its course THROUGH THE WATER (its ground velocity less the current; leeway is not modelled for plain
+ * targets): the heading a sea-stabilised display shows by the target's movement (Radar and ARPA Manual,
+ * 3rd edition, 1.5.2.1), and the one its AIS sends. A plain target that is not moving through the water
+ * keeps the course it was given.
+ */
+export function targetHeading(w: World, t: Target): number {
+  if (t.motion) return t.motion.heading;
+  if (t.atAnchor || t.speed === 0) return t.course;
+  const water = sub(velocityOf({ course: t.course, speed: t.speed }), currentVelocity(w));
+  return length(water) < 0.1 ? t.course : bearingOf(water);
 }
 
 /** Length used for a target that does not state one, metres (placeholder values by kind). */

@@ -121,9 +121,10 @@ describe("pulse length, second-trace echoes, ramark, interference, echo processi
     expect(pulseFor(6, "short").name).toBe("short");
     expect(pulseEnergyFactor(6, "auto")).toBe(1);
     expect(pulseEnergyFactor(6)).toBe(1);
-    expect(pulseEnergyFactor(6, "long")).toBeCloseTo(2, 12); // sqrt(1.2 / 0.3)
-    expect(pulseEnergyFactor(6, "short")).toBeCloseTo(Math.sqrt(0.07 / 0.3), 12);
-    expect(minRangeNm(6, "long")).toBe(0.07);
+    // Energy on the target goes with pulse length x PRF (book 2.3.3.3); the strength with its square root.
+    expect(pulseEnergyFactor(6, "long")).toBeCloseTo(Math.sqrt((1.2 * 600) / (0.3 * 1500)), 12); // 1.265
+    expect(pulseEnergyFactor(6, "short")).toBeCloseTo(Math.sqrt((0.07 * 3000) / (0.3 * 1500)), 12); // 0.683
+    expect(minRangeNm(6, "long")).toBe(0.1);
     expect(minRangeNm(6, "short")).toBe(0.02);
   });
 
@@ -180,8 +181,8 @@ describe("pulse length, second-trace echoes, ramark, interference, echo processi
     const w = mk(SAR);
     const sig = (): number => effectiveSignal(w, { rcs: 1, height: 20, rangeNm: 5, relBearing: 90, pos: { e: 5, n: 0 }, kind: "ship" });
     const full = sig();
-    w.radar.performance = 0.5;
-    expect(sig()).toBeCloseTo(full * 0.5, 12);
+    w.radar.performance = 0.5; // half the echo power: the strength (like a voltage) is sqrt(0.5) of it
+    expect(sig()).toBeCloseTo(full * Math.SQRT1_2, 12);
   });
 
   it("the new scenarios are valid scenario files", () => {

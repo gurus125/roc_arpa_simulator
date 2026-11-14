@@ -130,24 +130,52 @@ export function recentreTrueMotion(w: World, ds: DisplayState): void {
 }
 
 /**
- * True motion: when own ship drifts beyond 66% of the radius, reset the picture so the ship
- * reappears halfway out on the side opposite to its motion. Returns true if a reset happened.
+ * True motion: how far own ship may run from the centre before the picture is reset, and where a reset
+ * puts her, as shares of the radius. IMO lets the maker choose the limit between 50% and 75%; the reset
+ * puts her on the reciprocal of her course, up to 50% out, to show the most ahead (Radar and ARPA Manual,
+ * 3rd edition, 6.2.6.3).
+ */
+export const TM_LIMIT_SHARE = 0.66;
+export const TM_RESET_SHARE = 0.5;
+
+/**
+ * True-motion reset: own ship is put half the radius out on the reciprocal of her course (through the water
+ * when sea stabilised, over the ground when ground stabilised), so that the picture shows the most ahead.
+ * A ship with no way on is put at the centre. Used by the TM RESET key, by a change of range scale or
+ * presentation, and automatically when she reaches the limit.
+ */
+export function resetTrueMotionAhead(w: World, ds: DisplayState): void {
+  const R = w.radar.controls.rangeNm;
+  const ownRef = toRef(w, ds, w.own.pos);
+  const v = ownRefVelocity(w, ds);
+  const sp = length(v);
+  ds.viewOrigin = sp < 0.05 ? ownRef : sub(ownRef, scale(v, -TM_RESET_SHARE * R / sp));
+}
+
+/**
+ * True motion: when own ship drifts beyond the limit (66% of the radius), reset the picture so the
+ * ship reappears halfway out on the side opposite to its motion. Returns true if a reset happened.
  */
 export function updateTrueMotionOrigin(w: World, ds: DisplayState): boolean {
   if (ds.motion !== "true") return false;
   const R = w.radar.controls.rangeNm;
-  const ownRef = toRef(w, ds, w.own.pos);
-  const off = sub(ownRef, ds.viewOrigin);
-  if (length(off) <= 0.66 * R) return false;
-  const v = ownRefVelocity(w, ds);
-  const sp = length(v);
-  if (sp < 0.05) {
-    ds.viewOrigin = ownRef;
-    return true;
-  }
-  const back = scale(v, -0.5 * R / sp);
-  ds.viewOrigin = sub(ownRef, back);
+  const off = sub(toRef(w, ds, w.own.pos), ds.viewOrigin);
+  if (length(off) <= TM_LIMIT_SHARE * R) return false;
+  resetTrueMotionAhead(w, ds);
   return true;
+}
+
+/**
+ * Head-up is unstabilised, and an unstabilised picture cannot be shown in true motion: the picture
+ * turns with every yaw, so own ship's track could not be drawn across it (Radar and ARPA Manual, 3rd
+ * edition, 1.5.2.1: any orientation except unstabilised head-up can be used with true motion). The
+ * mode just chosen wins: choosing head-up puts the picture into relative motion; choosing true motion
+ * while in head-up turns the picture to course-up, which keeps the heading up and is stabilised.
+ * Returns the change made to the other mode, if any.
+ */
+export function settleDisplayModes(ds: Pick<DisplayState, "orientation" | "motion">, chosen: "orientation" | "motion"): Partial<Pick<DisplayState, "orientation" | "motion">> {
+  if (ds.orientation !== "head-up" || ds.motion !== "true") return {};
+  return chosen === "orientation" ? { motion: "relative" } : { orientation: "course-up" };
 }
 
 /** Spacing of the fixed range rings for each range scale, NM. */

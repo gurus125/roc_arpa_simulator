@@ -392,7 +392,8 @@ describe("ARPA trial manoeuvre", () => {
     a.step(w, rng); // the trial starts counting its delay now
     const row = a.trial(w).find((r) => r.trackId === t.id)!;
 
-    // Brute force: step both ships every 0.1 s for 90 minutes.
+    // Brute force: step both ships every 0.1 s for 90 minutes. After the 3 minute delay own ship comes round to
+    // 060 at her rate of turn, 2 degrees a second (the trial includes her dynamics): 30 seconds.
     let own = { ...w.own.pos };
     let tgt = { ...w.targets[0]!.pos };
     const vT = velocityOf({ course: 270, speed: 10 });
@@ -406,7 +407,7 @@ describe("ARPA trial manoeuvre", () => {
         best = d;
         bestT = tm * 60;
       }
-      const vO = velocityOf(tm < 3 / 60 ? { course: 0, speed: 12 } : { course: 60, speed: 12 });
+      const vO = velocityOf({ course: tm < 3 / 60 ? 0 : Math.min(60, 2 * (tm * 3600 - 180)), speed: 12 });
       own = add(own, scale(vO, dt));
       tgt = add(tgt, scale(vT, dt));
     }
@@ -424,12 +425,15 @@ describe("ARPA trial: delay counts down and TIME FOR ACTION", () => {
     a.settings.trial = { on: true, course: 60, speed: 12, delayMinutes: 2 };
     a.step(w, rng);
     expect(a.trialRemainingMin(w)).toBeCloseTo(2, 6);
-    runTo(w, a, rng, 240 + 60);
-    expect(a.trialRemainingMin(w)).toBeCloseTo(1, 1);
+    runTo(w, a, rng, 240 + 55);
     expect(a.alarms.some((x) => x.kind === "action")).toBe(false);
+    // A minute before the manoeuvre, a reminder (book, 3rd edition, 4.7.4).
+    runTo(w, a, rng, 240 + 65);
+    expect(a.trialRemainingMin(w)).toBeCloseTo(0.92, 1);
+    expect(a.alarms.find((x) => x.kind === "action")?.key).toBe("action-1min");
     runTo(w, a, rng, 240 + 125);
     expect(a.trialRemainingMin(w)).toBe(0);
-    const al = a.alarms.find((x) => x.kind === "action");
+    const al = a.alarms.find((x) => x.key === "action");
     expect(al).toBeDefined();
     a.ack(w, al!.key);
     runTo(w, a, rng, 240 + 180);

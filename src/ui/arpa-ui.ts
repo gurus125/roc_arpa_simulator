@@ -4,11 +4,11 @@ import { bowCrossing } from "../core/bcr";
 import { SILENCE_SEC, alertSound, nextToAcknowledge } from "../arpa/index";
 import { acknowledge, alertRows } from "./alerts-view";
 import { createAlarmSound } from "./alarm-sound";
-import { Track, VECTOR_TIME_RANGE_MIN, ZoneSetting, arpaAvailableOnScale, ARPA_SCALES_NM } from "../arpa/index";
+import { Track, VECTOR_TIME_RANGE_MIN, ZoneSetting } from "../arpa/index";
 import { World, measuredHeading, setAnchorDrag } from "../engine/index";
 import { aisFilterLabel, aisFilterOn, ownShipAisData } from "../ais/index";
 import { formatLatLon, latLonOf } from "../core/nav";
-import { AppState } from "./app";
+import { AppState, aisLocked } from "./app";
 
 export type ClickMode = "acquire" | "select" | "cancel" | "ebl";
 
@@ -214,8 +214,10 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     app.arpa.runSelfTest(app.world);
   });
   const aisApply = (): void => {
-    const st = api.getApp().ais.settings;
-    st.on = inp("aisOn").checked;
+    const app = api.getApp();
+    const st = app.ais.settings;
+    // A manual plotting exercise keeps the AIS display off until it is finished, whatever is pressed.
+    st.on = inp("aisOn").checked && !aisLocked(app);
     st.lostAlarm = inp("aisLost").checked;
     const num = (id: string): number | null => {
       const x = $<HTMLSelectElement>(id).value;
@@ -349,11 +351,22 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     {
       // Alarm: sounds until acknowledged. Warning: a short signal, repeated every 5 minutes while unacknowledged.
       const snd = alertSound(alertRows(app), w.time, app.wall < silencedUntil);
-      sound.update(sb ? "none" : snd === "alarm" ? "danger" : snd === "warning" ? "warning" : "none", app.wall);
+      // In standby the ARPA has no alerts of its own; AIS alerts still sound while the AIS display is on.
+      sound.update(snd === "alarm" ? "danger" : snd === "warning" ? "warning" : "none", app.wall);
     }
-    $("arpaStatus").textContent = sb ? "ARPA is in STANDBY: no targets are tracked or shown." :
-      `${a.activeCount()} of ${a.cfg.maxTracks} targets tracked.` +
-      (arpaAvailableOnScale(w.radar.controls.rangeNm) ? "" : ` ARPA is displayed only on the ${ARPA_SCALES_NM.join(", ")} NM range scales; tracking continues in the background.`);
+    $("arpaStatus").textContent = sb ? "ARPA is in STANDBY: no radar targets are tracked or shown. AIS targets are shown while the AIS display is on." :
+      `${a.activeCount()} of ${a.cfg.maxTracks} targets tracked.`;
+    {
+      // The AIS display key is locked off during a manual plotting exercise.
+      const locked = aisLocked(app);
+      const box = inp("aisOn");
+      if (box.disabled !== locked) box.disabled = locked;
+      if (locked && (box.checked || app.ais.settings.on)) {
+        box.checked = false;
+        app.ais.settings.on = false;
+      }
+      $("aisLockNote").hidden = !locked;
+    }
     const rs = app.ais.repeatStats;
     $("faultNow").textContent = `Now: gyro ${w.sensors.gyroErrorDeg.toFixed(1)}°, log ${w.sensors.logErrorKn.toFixed(1)} kn (changes at ${w.sensors.rampPerMin.gyroDeg}°/min and ${w.sensors.rampPerMin.logKn} kn/min).` +
       (app.ais.shoreRepeat.on || rs.received > 0 ? ` AIS repeats received ${rs.received}: not used ${rs.ignored} (own ship's ${rs.ownIgnored}), used ${rs.used}.` : "");

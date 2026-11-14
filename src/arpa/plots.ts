@@ -2,7 +2,7 @@ import { Vec2, add, angleDiffDeg, bearingOf, fromPolar, length, sub } from "../c
 import { rangeBearing } from "../core/nav";
 import {
   BAND_DATA, World, RadarControls, rcsForDetectionRange, shorelineDetectionNm, targetLengthM, detectionProbability, effectiveSignal, isLand, landHides, lineOfSightBlocked, rainClutterProbability,
-  relativeBearing, seaClutterProbability,
+  relativeBearing, seaClutterProbability, maskedByClutter,
 } from "../engine/index";
 import { ArpaConfig } from "./config";
 
@@ -54,6 +54,20 @@ export function antennaTiltErrorDeg(relBearingDeg: number, rollDeg: number, pitc
   return (((p * p - r * r) / 4) * Math.sin(2 * relBearingDeg * rad)) / rad;
 }
 
+/**
+ * Parallax from own ship's roll (Radar and ARPA Manual, 3rd edition, 9.4.2.3 and 9.4.3.1): the aerial, H metres
+ * above the roll axis, swings sideways by H sin(roll), so a target at relative bearing theta and range R is seen
+ * turned by (180 / pi) H sin(roll) cos(theta) / R degrees and nearer or further by H sin(roll) sin(theta). Roll to
+ * starboard (positive) carries the aerial to starboard: a target ahead seems to move to port, one on the starboard
+ * beam to come nearer. Returns the bearing error, degrees, and the range error, NM.
+ */
+export function rollParallax(relBearingDeg: number, rollDeg: number, rangeNm: number, heightAboveRollAxisM: number): { bearingDeg: number; rangeNm: number } {
+  const rad = Math.PI / 180;
+  const side = heightAboveRollAxisM * Math.sin(rollDeg * rad); // metres to starboard
+  const R = Math.max(rangeNm, 0.01) * 1852;
+  return { bearingDeg: -(side * Math.cos(relBearingDeg * rad)) / R / rad, rangeNm: -(side * Math.sin(relBearingDeg * rad)) / 1852 };
+}
+
 /** Scans counted for each fading target (see `Target.paint`). */
 const paintScans = new WeakMap<object, number>();
 /**
@@ -87,8 +101,10 @@ export function extractPlots(
   for (const t of w.targets) {
     const rb = rangeBearing(w.own.pos, t.pos);
     if (rb.range > cfg.maxRangeNm) continue;
-    const e = effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: rb.range, relBearing: relativeBearing(rb.bearing, heading), pos: t.pos, kind: t.kind }, rx);
+    const sig = { rcs: t.rcs, height: t.height, rangeNm: rb.range, relBearing: relativeBearing(rb.bearing, heading), pos: t.pos, kind: t.kind };
+    const e = effectiveSignal(w, sig, rx);
     if (rng() >= detectionProbability(e)) continue;
+    if (maskedByClutter(w, sig, e, rx)) continue; // weaker than the sea or rain clutter around it
     if (landHides(w, t.pos, t.height)) continue; // behind land
     if (t.paint !== undefined && !paintedThisScan(t, t.paint)) continue; // a fading target is missed on some scans
     // Scintillation: the centre of a real echo wanders a little from scan to scan.
@@ -169,11 +185,14 @@ export function extractPlots(
   const sw = w.own.seaway;
   return raw.map((p) => {
     const r0 = length(p.relTrue);
-    const r = Math.max(0, r0 + gaussian(rng) * (r0 < cfg.shortPulseRangeNm ? cfg.rangeNoiseShortNm : cfg.rangeNoiseNm));
     const tb = bearingOf(p.relTrue);
-    const tilt = sw ? antennaTiltErrorDeg(relativeBearing(tb, heading), sw.rollDeg, sw.pitchDeg) : 0;
+    const rel = relativeBearing(tb, heading);
+    // The aerial's height above the roll axis is taken as its height above the sea (the roll axis lies near the waterline).
+    const par = sw ? rollParallax(rel, sw.rollDeg, r0, w.own.antennaHeight) : { bearingDeg: 0, rangeNm: 0 };
+    const r = Math.max(0, r0 + par.rangeNm + gaussian(rng) * (r0 < cfg.shortPulseRangeNm ? cfg.rangeNoiseShortNm : cfg.rangeNoiseNm));
+    const tilt = sw ? antennaTiltErrorDeg(rel, sw.rollDeg, sw.pitchDeg) : 0;
     const lim = cfg.bearingErrorLimitDeg;
-    const err = Math.max(-lim, Math.min(lim, gaussian(rng) * cfg.bearingNoiseDeg + tilt));
+    const err = Math.max(-lim, Math.min(lim, gaussian(rng) * cfg.bearingNoiseDeg + tilt + par.bearingDeg));
     const b = tb + g + err;
     return { rel: fromPolar(b, r), kind: p.kind, truthIds: p.truthIds };
   });

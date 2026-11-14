@@ -46,6 +46,7 @@ this state. Day or night colours stay as last chosen.
 | To do this | Use |
 |------------|-----|
 | Choose what the trainees work on | On the station, CLASSROOM: choose the exercise and press "Start exercise" on a display's card, or "Start this exercise on all displays". On a display: SCENARIO key (free practice), ROC EX key (radar observer exercises), ARPA EX key (ARPA and manual plotting exercises), or the ship control window |
+| Keep AIS out of a plotting exercise | Nothing to do: the manual plotting exercises switch the AIS display off and lock it (the AIS key reads AIS OFF and is greyed out; the VRM / ARPA panel says AIS OFF FOR THIS EXERCISE) until the trainee presses Finish, because their ships transmit AIS. In ROC exercises both ARPA and AIS are off. Elsewhere AIS is shown on every range scale, with the ARPA on or in standby |
 | Halt and continue | Station, CLASSROOM: Pause and Run on a display's card, or Pause all and Run all. On a display: PAUSE / RUN in the header |
 | Run faster | On a display: the speed box beside PAUSE: 1x, 2x, 5x, 10x |
 | Start again from the beginning | "Restart" in the SCENARIO key, or open the exercise again |
@@ -62,6 +63,14 @@ second-trace echoes), refraction (standard, sub-refraction with detection ranges
 super-refraction with about 140%), interference from another radar, wind direction and speed, current set and
 drift, and a tidal stream (maximum rate, direction of the flood, hours after slack at the start).
 Changes act at once.
+
+The rain intensity is a share of IMO's "heavy rain", 16 mm an hour: 25 is its "light rain" (4 mm an hour),
+100 is heavy rain. Rain clutter fades with range, and the rain weakens every echo whose path crosses it,
+far more on X band than on S band, so a target beyond a squall is detected later. A small target in rain
+or sea clutter that is weaker than the clutter around it is not shown at any setting of the controls: the
+trainee must use S band, a shorter pulse, or wait until it is closer or clear of the clutter (Radar and
+ARPA Manual, 3rd edition, 3.6.2 and 3.7). The figures for the loss in rain are placeholders: see
+`BOOK-CHECK-RADAR-ARPA-MANUAL.md`.
 
 To set the weather on every display together, use the station's CLASSROOM, "Set this weather on all
 displays" (sea state, rain squall, abnormal propagation and interference).
@@ -112,7 +121,7 @@ are not told. (On the station's own radar the same faults are under MENU, FAULTS
 | Log error (knots) | Speed and sea-stabilised vectors are wrong |
 | Heading marker error (degrees) | The heading line is painted off the ship's head |
 | VRM error (per cent) | The variable range marker reads wrong |
-| Radar performance (per cent) | Weak echoes are lost; the performance monitor shows it |
+| Radar performance (per cent of echo power) | Weak echoes are lost; the performance monitor shows it. 50% is a loss of 3 dB (detection ranges about 84% of normal), 10% a loss of 10 dB (about 56%) |
 | Speed log FAILED | The ARPA shows SPEED LOG INPUT ABSENT |
 | Gyro compass FAILED | The ARPA gives an equipment malfunction warning and loses all tracks; the picture goes to unstabilised head-up with relative motion, and bearings are relative only |
 | EPFS (GNSS) FAILED | No position anywhere: NO FIX in the position, no latitude and longitude at the cursor, COG and SOG blank, own ship's AIS sends no position, and the ARPA warns EPFS INPUT ABSENT. The trainee must fix by radar (exercise 23 starts this way) |
@@ -330,4 +339,11 @@ mode (which screen it opens on) has not been tried either.
   setting up the radar, is now radar exercise 22 (its limits are placeholders, which you can change
   under Scoring settings).
 - A target on a programmed track allows for current and leeway and stays on the line; a plain
-  target (no catalogue type) is not moved by the current at all.
+  target (no catalogue type) is given its course and speed over the ground, so the current is
+  already in them. Its bow, and the heading its AIS sends, point along its course through the
+  water. A vessel meant to be stopped in the water and drifting with the current must be given a
+  catalogue type.
+- The third edition of the Radar and ARPA Manual (2014) has been checked rule by rule, chapters 1 to
+  9, with the book's figures and worked examples as tests: see the section on the third edition in
+  `BOOK-CHECK-RADAR-ARPA-MANUAL.md`, which lists what was changed, what was left and the placeholders
+  for you to judge.

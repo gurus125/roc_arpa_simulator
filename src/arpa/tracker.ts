@@ -1,11 +1,11 @@
-import { CourseSpeed, Vec2, add, courseSpeedOf, length, rotateVec, scale, sub, velocityOf } from "../core/vec";
+import { CourseSpeed, Vec2, add, angleDiffDeg, courseSpeedOf, length, rotateVec, scale, sub, velocityOf } from "../core/vec";
 import { capacityCautionAt } from "./alerts";
 import { CpaResult, computeCpa } from "../core/cpa";
 import { relativeVelocity } from "../core/motion";
 import { TrialResult, trialManoeuvre } from "../core/trial";
 import { fitLinearMotion, fitPositionAt } from "../core/track";
 import { inSectorZone } from "../core/zones";
-import { World, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity } from "../engine/index";
+import { World, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, ownTurnProfile } from "../engine/index";
 import { ARPA_PLACEHOLDERS, ArpaConfig, ArpaSettings, defaultArpaSettings } from "./config";
 import { ArpaPlot, extractPlots } from "./plots";
 
@@ -151,6 +151,7 @@ export class ArpaSystem {
   private trialSig = "";
   private trialStart = 0;
   private trialActionRaised = false;
+  private trialMinuteRaised = false;
   private lastTime: number;
   private nextScanAt: number;
   private nextId = 1;
@@ -454,10 +455,12 @@ export class ArpaSystem {
     const tr = this.settings.trial;
     const remaining = this.trialRemainingMin(w);
     const own = this.ownCourseSpeed(w);
+    // Own ship comes round and changes speed as she really handles (IMO: the trial includes her dynamics).
+    const profile = ownTurnProfile(w, angleDiffDeg(tr.course, own.course), tr.speed - own.speed);
     const rows: TrialRow[] = [];
     for (const t of this.tracks) {
       if (!t.est || t.quality === "acquiring" || t.state === "lost") continue;
-      const result = trialManoeuvre(t.est.rel, own, t.est.trueCS, { course: tr.course, speed: tr.speed, delayMinutes: remaining });
+      const result = trialManoeuvre(t.est.rel, own, t.est.trueCS, { course: tr.course, speed: tr.speed, delayMinutes: remaining }, profile);
       const dangerous = result.cpa < this.settings.cpaLimitNm && result.tcpaMinutes >= 0 && result.tcpaMinutes <= this.settings.tcpaLimitMin;
       rows.push({ trackId: t.id, result, dangerous });
     }
@@ -733,8 +736,10 @@ export class ArpaSystem {
   }
 
   /**
-   * The trial delay counts down while the trial is left on. When it reaches zero a TIME FOR ACTION
-   * alarm sounds once: the trial manoeuvre point has been reached (the real ship has not turned).
+   * The trial delay counts down while the trial is left on. A minute before it runs out a warning
+   * reminds the officer to put the helm over or ring the telegraph in time (Radar and ARPA Manual, 3rd
+   * edition, 4.7.4: "usually 1 min"); when it reaches zero a TIME FOR ACTION alarm sounds once: the trial
+   * manoeuvre point has been reached (the real ship has not turned).
    */
   private checkTrial(w: World): void {
     this.checkTrialAlarm(w);
@@ -744,10 +749,16 @@ export class ArpaSystem {
       this.trialSig = sig;
       this.trialStart = w.time;
       this.trialActionRaised = false;
+      this.trialMinuteRaised = false;
       this.alarms = this.alarms.filter((a) => a.kind !== "action");
+    }
+    if (tr.on && tr.delayMinutes > 1 && !this.trialMinuteRaised && this.trialRemainingMin(w) <= 1) {
+      this.trialMinuteRaised = true;
+      this.raise(w, "action-1min", "action", "TIME TO MANOEUVRE: 1 minute to the trial manoeuvre. Be ready with the helm and engine.");
     }
     if (tr.on && tr.delayMinutes > 0 && !this.trialActionRaised && this.trialRemainingMin(w) <= 0) {
       this.trialActionRaised = true;
+      this.alarms = this.alarms.filter((x) => x.key !== "action-1min"); // the reminder gives way to the alarm
       this.raise(w, "action", "action", "TIME FOR ACTION: the trial manoeuvre delay has elapsed. Trial is still on.");
     }
   }
