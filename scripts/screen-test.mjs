@@ -314,6 +314,16 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     const stText = (sel) => st.$eval(sel, (e) => e.innerText.replace(/\s+/g, " "));
     const seen = await st.waitForFunction(() => document.querySelectorAll("#inStations canvas").length >= 1, null, { timeout: 10000 }).then(() => true, () => false);
     check(`${tag} instructor station sees the display in CLASSROOM`, seen && (await st.isVisible("#inStations canvas")));
+    // A message from the station shows in a box over the display's screen, which stays where it is; a click closes it.
+    await st.fill("#inMsgText", "Screen test message");
+    await st.click("#inMsgSend");
+    await p.waitForTimeout(700);
+    const bn = await p.evaluate(() => {
+      const b = document.getElementById("banner");
+      return { shown: !b.hidden, text: b.textContent, foot: Math.round(document.querySelector("footer#legend").getBoundingClientRect().bottom), h: window.innerHeight };
+    });
+    await p.click("#banner");
+    check(`${tag} a message from the station shows over the screen without moving it, and a click closes it`, bn.shown && /Screen test message/.test(bn.text) && Math.abs(bn.foot - bn.h) <= 1 && !(await p.isVisible("#banner")), JSON.stringify(bn));
     await stTab("ex");
     await st.click("#stRun");
     await st.waitForFunction(() => /PASSED|FAILED/.test(document.querySelector("#stMsg").textContent), null, { timeout: 180000 });

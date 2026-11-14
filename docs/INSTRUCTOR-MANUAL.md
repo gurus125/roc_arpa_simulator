@@ -16,6 +16,8 @@ instructor pages at all: no INSTR or FAULTS key and no PIN box.
    `/instructor`). It asks for the instructor PIN. The first PIN is 0000: change it under BATCHES,
    "Instructor access" ("New PIN", 4 to 8 digits). The PIN only keeps trainees out of the station in
    class; it is not real security. The person icon at the top right logs out.
+   On a copy of the simulator hosted on a web site (for example on Vercel), the station is the site's
+   address followed by `#instructor` (or `/instructor`); see section 7 for what a hosted copy cannot do.
 3. The station's tabs:
 
 | Tab | What is there |
@@ -44,8 +46,8 @@ this state. Day or night colours stay as last chosen.
 | To do this | Use |
 |------------|-----|
 | Choose what the trainees work on | On the station, CLASSROOM: choose the exercise and press "Start exercise" on a display's card, or "Start this exercise on all displays". On a display: SCENARIO key (free practice), ROC EX key (radar observer exercises), ARPA EX key (ARPA and manual plotting exercises), or the ship control window |
-| Halt and continue | PAUSE / RUN key in the strip at the top of the page |
-| Run faster | The speed box beside PAUSE: 1x, 2x, 5x, 10x |
+| Halt and continue | Station, CLASSROOM: Pause and Run on a display's card, or Pause all and Run all. On a display: PAUSE / RUN in the header |
+| Run faster | On a display: the speed box beside PAUSE: 1x, 2x, 5x, 10x |
 | Start again from the beginning | "Restart" in the SCENARIO key, or open the exercise again |
 | Go back in time | Station, OWN RADAR, MENU, INSTR: "Take exercise back 2 min", "Back 5 min", "Back 10 min" (on the station's own radar). The ships, weather and faults return to that moment. The simulator keeps one state a minute for the last 40 minutes. Taking a trainee's display back from the station is not offered yet |
 
@@ -55,14 +57,14 @@ display" and "Hours per pair" are the academy's limits to set; nothing is enforc
 
 ## 3. Changing the environment during an exercise
 
-WEATHER key: sea state, rain squall and its intensity, abnormal propagation (ducting, which brings
+WEATHER in the menu (on a display, or on the station's OWN RADAR): sea state, rain squall and its intensity, abnormal propagation (ducting, which brings
 second-trace echoes), refraction (standard, sub-refraction with detection ranges of about 80%, or
 super-refraction with about 140%), interference from another radar, wind direction and speed, current set and
 drift, and a tidal stream (maximum rate, direction of the flood, hours after slack at the start).
 Changes act at once.
 
 To set the weather on every display together, use the station's CLASSROOM, "Set this weather on all
-displays".
+displays" (sea state, rain squall, abnormal propagation and interference).
 
 ## 4. Targets
 
@@ -93,7 +95,7 @@ and puts the wheel over early, so a large ship on a tight track cuts the corners
 point it carries on as it goes. "Take off track", or altering its course by hand, ends the track.
 
 Tick "Show target tracks on this display" to see every programmed track in blue. Tracks are drawn
-only on a display logged in as instructor, never on a trainee's.
+only on the station's own radar, never on a trainee's display.
 
 Each of up to 100 targets can have its own track. The scenario "Traffic: 100 ships on programmed
 tracks" shows 100 ships running together. The ARPA tracks 20 targets at a time.
@@ -121,8 +123,9 @@ Positive values mean the instrument reads high. The ship's real motion does not 
 comes on gradually; while it is changing the ARPA vectors are disturbed, so allow one tracking
 window (3 minutes) after it stops before judging the effect.
 
-"Show truth" lists, for each tracked target, the real target behind the track and its real CPA,
-TCPA, course and speed, and counts target swaps. It is shown only on this display.
+"Show truth" (station, OWN RADAR, MENU, FAULTS) lists, for each tracked target on the station's own
+radar, the real target behind the track and its real CPA, TCPA, course and speed, and counts target
+swaps.
 
 ## 6. Following the trainees
 
@@ -143,6 +146,13 @@ Other browser tabs on the same computer link by themselves. For several computer
    ship starts at a different position 5 NM from the scenario start, and every own ship is a target
    on the others' radar. A linked exercise runs at 1x.
 
+**A copy hosted on a web site (for example on Vercel)** serves the page only: it has no classroom
+server. The station and the displays then find each other only when they are open in tabs of the same
+browser on the same computer (good for showing the simulator). Displays on other PCs do not appear in
+CLASSROOM, their records do not reach RECORDS, and the station's batches do not reach them; the
+station's CLASSROOM says "no classroom server at this address (a hosted copy)". For a class on several PCs run the
+classroom server as above.
+
 This has been proved with five separate browsers going through the server on one machine
 (`npm run test:link`): monitoring, a linked exercise, pause and run, messages, an exercise started from
 the station, a finished exercise's record reaching the station, and finding the
@@ -161,13 +171,15 @@ exercise and the score. "Open" shows:
   (slow motion) through 1x (real time) to 60x. Positions are recorded every 10 seconds and the
   replay moves the ships smoothly between them. Below the track plot is the radar
   picture as the trainee saw it, one picture every 15 seconds, in step with the slider. Pictures
-  are kept in this browser on this computer; a record brought from another computer has none;
+  are kept in the browser of the display that recorded them: a record sent by a display on another
+  PC, or brought from another computer, has none;
 - the result, item by item, and the trainees' own debrief notes and radio log;
 - the assessor's decision: "Competent" or "Not yet competent", the assessor's name and remarks. The
   score is a guide only; the assessor's decision is the prime criterion (STCW Code A-I/12,
   paragraph 8);
 - "Result (CSV)", "Report (print or save as PDF)" and "Record (JSON)". "Export all (CSV)" saves the
-  whole list. Records are kept in this browser on this computer: export them to keep them.
+  whole list. Records are kept in the station's browser (and each display keeps its own): export
+  them to keep them.
 
 ## 9. Scoring settings and marking sheets
 
@@ -297,20 +309,22 @@ mode (which screen it opens on) has not been tried either.
 - Radar and ARPA only: no chart display, no outside view, no echo sounder, no voice radio.
 - Own ship's ahead, sideways and turning motion come from the manoeuvring model. Roll, pitch, heave
   and the yaw a sea gives are added as simple wave motions whose size is an estimate; the sea does
-  not slow the ship or set her. Three ship types are fitted to published turning figures (SHIP page, HELP);
+  not slow the ship or set her. Three ship types are fitted to published turning figures (SHIP menu, ? help);
   the others are estimates.
-- Linked displays have been proved through the server with separate browsers on one computer, not
-  yet on separate PCs.
+- Linked displays and the instructor station have been proved through the server with separate
+  browsers on one computer, not yet on separate PCs. A copy hosted on a web site has no classroom
+  server (section 7).
+- From the station a trainee's display cannot yet be taken back in time, and its targets cannot be
+  altered: those work on the station's own radar.
 - A hardware control panel is supported by keys and by knob-box inputs (SETTINGS, Control panel),
   but no real panel has been plugged in: only simulated inputs have been tried.
 - Symbols follow IMO SN.1/Circ.243/Rev.2 and IEC 62288 Annex A; alerts follow IMO MSC.302(87) and
   IEC 62288 Table 2. Not done: a 24-hour alert history.
 - The ARPA tracks 20 targets. It cannot acquire a false echo; a real ARPA can.
 - The simulator was compared with the radar standards IEC 62388:2013 and IEC 62288:2014: see
-  `IEC-CHECK.md` for what was changed and what is still not met (among others: the antenna's
-  position on own ship, AIS reports repeated by shore stations, and the high-speed-craft versions of
-  the tracking scenarios). The standard's tracking scenarios 1 to 5 for ordinary ships are run as
-  tests and met.
+  `IEC-CHECK.md` for what was changed and what is still not met (now only 62388 18.1.2, a target
+  simulator inside a real radar, which this product as a whole is). The standard's tracking
+  scenarios 1 to 5, for ordinary ships and for high-speed craft, are run as tests and met.
 - The simulator was compared with the textbook "Radar and ARPA Manual" (Bole and Dineley, 1990):
   see `BOOK-CHECK-RADAR-ARPA-MANUAL.md`. Its largest gap, a marked exercise on switching on and
   setting up the radar, is now radar exercise 22 (its limits are placeholders, which you can change

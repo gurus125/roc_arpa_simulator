@@ -106,8 +106,27 @@ await instr.fill("#inMsgText", "Back on line");
 await instr.click("#inMsgSend");
 check("messages get through again", await until(async () => (await banners()).every((t) => t.includes("Back on line")), 30000), (await banners()).join(" | "));
 
-for (const p of [instr, ...students]) check("no script errors on a display", p.errs.length === 0, p.errs.join("; "));
+// A copy hosted on a web site (as on Vercel) serves the page only: no /api. The station says so plainly.
+const { readFileSync } = await import("node:fs");
+const pageHtml = readFileSync(new URL("../dist/radar-simulator.html", import.meta.url));
+const hosted = createServer((req, res) => {
+  const path = new URL(req.url || "/", "http://x").pathname;
+  if (path === "/" || path === "/instructor") res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(pageHtml);
+  else res.writeHead(404).end("Not found");
+});
+await new Promise((r) => hosted.listen(PORT + 1, r));
+const hctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+const hst = await hctx.newPage();
+hst.errs = [];
+hst.on("pageerror", (e) => hst.errs.push(e.message));
+await hst.goto(`http://localhost:${PORT + 1}/instructor`);
+await hst.fill("#stPin", "0000");
+await hst.click("#stLoginBtn");
+check("a hosted copy (no classroom server): the station opens at /instructor and says there is no server", await until(async () => /no classroom server at this address/.test(await text(hst, "#inLinkMode")), 15000), await text(hst, "#inLinkMode"));
+
+for (const p of [instr, ...students, hst]) check("no script errors on a display", p.errs.length === 0, p.errs.join("; "));
 await browser.close();
+await new Promise((r) => hosted.close(r));
 await new Promise((r) => server.close(r));
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nAll link checks passed");
 process.exit(fails.length ? 1 : 0);

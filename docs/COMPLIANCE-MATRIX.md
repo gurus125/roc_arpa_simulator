@@ -28,7 +28,7 @@ Status words: **Yes** = simulated and tested. **Partly** = simulated with the li
 
 | Para | Requirement (short) | Status | Where / note |
 |------|---------------------|--------|--------------|
-| 3.2.1 | Manual and automatic acquisition; manual cancel; suppress acquisition in areas, area shown | Yes | ARPA tab: Acquire / Cancel, guard zones, exclusion areas drawn on the picture |
+| 3.2.1 | Manual and automatic acquisition; manual cancel; suppress acquisition in areas, area shown | Yes | Acquire / Cancel keys in the VRM / ARPA panel; GUARD in the menu: guard zones and exclusion areas, drawn on the picture |
 | 3.2.1 | Acquisition up to 100 kn relative speed | Partly | No speed limit in the tracker; not tested at 100 kn |
 | 3.3.1 | Track and display at least 20 targets | Yes | Capacity 20; test with 25 targets on screen |
 | 3.3.2 | Tracked targets clearly marked | Yes | Symbols and numbers |
@@ -119,7 +119,7 @@ stations, simulating radar that meets the IMO standards.
 | 5 and 6 ARPA / target tracking operation, errors, tests, over-reliance | Yes | Nine ARPA exercises |
 | 5.2, 5.3, 6.2 AIS display and association | Partly | See MSC.192(79) 5.26 to 5.30 |
 | 7-1 Collision avoidance with COLREGs | Yes | ARPA exercises 6 and 9, ROC traffic exercise. Rule 19(d) is checked automatically |
-| Part E assessment | Partly | Automatic marking with placeholder tolerances; no pass mark set. Printable marking sheets (Instructor tab), one page per exercise, with boxes for the institute's own tolerances, points and pass mark and the assessor's decision. The appendix 6 sample checklists are mapped in `docs/SYLLABUS-MATRIX.md`, not applied |
+| Part E assessment | Partly | Automatic marking with placeholder tolerances; no pass mark set. Printable marking sheets (instructor station, EXERCISES), one page per exercise, with boxes for the institute's own tolerances, points and pass mark and the assessor's decision. The appendix 6 sample checklists are mapped in `docs/SYLLABUS-MATRIX.md`, not applied |
 
 ## 4. Model Course 1.08 (management level)
 

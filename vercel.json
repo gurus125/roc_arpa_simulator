@@ -1,5 +1,14 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/", "destination": "/radar-simulator.html" }]
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/radar-simulator.html"
+    },
+    {
+      "source": "/instructor",
+      "destination": "/radar-simulator.html"
+    }
+  ]
 }

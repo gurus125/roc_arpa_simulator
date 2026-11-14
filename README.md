@@ -4,22 +4,26 @@ Training and study tool. Not for navigation.
 
 ## See it running
 
-Open `dist/radar-simulator.html` in a browser (double-click it). Nothing else is needed.
-The **Radar** tab is free practice. The **ROC exercises** tab has the six exercises: manual plotting,
-position fixing, set and drift, clearing range, blind pilotage and heavy-traffic collision avoidance.
-The **ARPA** tab adds target acquisition (manual and automatic), vectors, guard zones, exclusion
-areas, CPA/TCPA alarms, the trial manoeuvre and instructor fault injection (gyro and log errors).
-ARPA is switched off during ROC exercises.
+Open `dist/radar-simulator.html` in a browser (double-click it). Nothing else is needed. It opens as a
+student display: free practice, the radar and ARPA, and the exercises (EXERCISE tab, ARPA EX and ROC EX
+in the menu, or the ship control window). The six ROC exercises are manual plotting, position fixing,
+set and drift, clearing range, blind pilotage and heavy-traffic collision avoidance; ARPA is switched
+off during them. The instructor station is the same file opened as `radar-simulator.html#instructor`.
+
+Hosted on a web site (Vercel: `vercel.json` builds it and serves it at `/`, and at `/instructor` for the
+station): the page works the same, but a hosted copy has no classroom server, so the station and the
+displays link only within one browser on one computer. For a class on several PCs run `npm run serve` on
+one of them (see below).
 
 ## Screen layout
 
 The radar picture in the middle, as tall as the window allows, with three data panels down each side
-of it that are always in view. Left: PICTURE (radar on / standby, range, rings, band, AIS, orientation,
+of it that are always in view. Left: PICTURE & RADAR CONTROL (radar on / standby, range, rings, band, AIS, orientation,
 motion, stabilisation, resets, pulse length), GAIN / CLUTTER (gain, sea, rain, tune, each clutter
 control with AUTO, the automatic settings being placeholders; brilliance; trails) and EBL / CURSOR
 (tick boxes with readouts, a ticked line following the cursor until a double-click locks it; the
-cursor's bearing, range and position; the PI / MAP key). Right: OWN SHIP, TARGET DATA (the selected
-ARPA target, or the selected AIS target) and VRM / ARPA (VRMs, vectors, PPC / PAD, CPA / TCPA
+cursor's bearing, range and position; the PI / MAP key). Right: OWN SHIP DATA, TARGET DATA (the list of
+tracked targets, then the selected ARPA or AIS target) and VRM / ARPA (VRMs, vectors, PPC / PAD, CPA / TCPA
 limits, the ARPA's status, ALARM ACK and the alert, Acquire / Select / Cancel / Measure, MENU).
 No settings are written over the picture (IEC 62288 4.3.3, 5.5.14); a target's data label appears beside
 it only when the target is clicked, and goes when it is clicked again. MENU opens a drawer over the
@@ -43,16 +47,16 @@ in a turn, long run-on with the engine stopped, wind (leeway and relative wind r
 coefficients are placeholders chosen to meet the IMO manoeuvrability criteria, not trial data.
 Target catalogue (`src/engine/targets.ts`): 28 vessel types plus buoy and beacon. A catalogue
 target turns and changes speed gradually, is set by the current and blown by the wind. Figures
-are placeholders. Scenario "Ship types" shows one of each. X BAND / S BAND keys are in the DISPLAY box.
+are placeholders. Scenario "Ship types" shows one of each. BAND X / S keys are in the PICTURE & RADAR CONTROL panel.
 Manual plotting exercises 12 to 21 (`src/train/plotting-exercises.ts`): ARPA off, plot for 12 minutes,
 then manoeuvre for a 1 NM CPA; result as a percentage of the required CPA, 80% needed. Form and marking
 follow the Learnmarine plotting trainer the academy supplied as a reference; the situations are our own.
 RINGS on/off and DAY/NIGHT keys; 30-minute trails.
-Self-test (`src/train/robot.ts`): Instructor page > "Self-test of the exercises", or `npm run selftest`.
+Self-test (`src/train/robot.ts`): instructor station, EXERCISES, "Self-test of the exercises", or `npm run selftest`.
 Three robots (careful, wrong, idle) work all 26 ARPA, radar and plotting exercises and the marking is
 compared with what should happen. It checks that the exercises run and are marked properly, not that
 the answer key is good seamanship. ROC exercises are not included.
-SETTINGS key: DAY / NIGHT display palettes (`src/ui/palette.ts`; day is dark blue with yellow echoes,
+SETTINGS key: DAY / NIGHT display palettes (`src/ui/palette.ts`; day is deep navy with amber echoes,
 night is black and dimmed) and Own ship data (name, call sign, IMO, MMSI, size, type; live position,
 COG, SOG, heading, ROT, UTC; draught, hazardous cargo, destination, ETA). Typed-in values start as
 placeholders and are kept on the computer. The position is counted from a made-up origin.
@@ -120,10 +124,10 @@ the exercises, with the gaps: `docs/SYLLABUS-MATRIX.md` (no instructor has revie
 vessel is heard directly (instructor switch); the high-speed-craft versions of TT scenarios 2 to 5, all met.
 Hardware control panel: keys for every radar function, changeable, and knob-box (game controller) inputs
 (`src/ui/panel-map.ts`, `src/ui/panel.ts`; SETTINGS > Control panel). No real panel has been tried.
-`npm run test:link` starts the classroom server and checks an instructor and four student displays in separate
+`npm run test:link` starts the classroom server and checks the instructor station and four student displays in separate
 browsers (needs Playwright). Separate PCs on a network have not been tried.
 `npm run test:screen` checks the built page in a headless browser (needs Playwright).
-Explanatory text is hidden until HELP is pressed. The data area (`src/ui/console-ui.ts`, styles in
+Explanatory text is hidden until ? (help) is pressed. The data panels (`src/ui/console-ui.ts`, styles in
 `src/ui/index.template.html`) is laid out the way ships' radars in general present their data: heading and
 speed in large figures with their sensor, position, cursor and target data as label, value and unit, settings in
 boxes that are clicked, gain and clutter as bars, status lines in the panels beside the picture, and the
@@ -133,7 +137,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 541 tests
+    npm test            # 552 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 
@@ -141,14 +145,16 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 - `src/engine`  world simulation, radar signal model, display frames, scenarios (phase 2)
 - `src/roc`     ROC exercises, sessions and scoring (phase 3)
 - `src/arpa`    ARPA plot extractor, tracker, alarms and trial manoeuvre (phase 4)
-- `src/ui`      the PPI screen, control panel, ROC exercise tab and ARPA tab
+- `src/ui`      the radar screen and its panels (`console-ui.ts`, `view.ts`, `arpa-view.ts`), the ship control
+                window (`ship-window.ts`), the instructor station (`station-ui.ts`, `instructor-ui.ts`), the
+                exercises (`train-ui.ts`, `roc-ui.ts`) and the link between displays (`link.ts`)
 
 See `PLAN.md` for the full build plan.
 
 ## Added in phases 5 to 8
 
-- **ARPA exercises** tab: 26 exercises with automatic checking and debrief questions: nine ARPA,
-  seven radar (four of them in the real areas) and ten manual plotting.
+- **Exercises** (EXERCISE tab, ARPA EX, or the ship control window): 26 exercises with automatic checking and
+  debrief questions: nine ARPA, seven radar (four of them in the real areas) and ten manual plotting.
 - **Instructor station** (`radar-simulator.html#instructor`, or `/instructor` from the classroom server; PIN 0000
   at first; `src/ui/station-ui.ts`): CLASSROOM (every display reporting, with pause and run, an exercise to start,
   faults, weather, linked exercise and messages sent to one display or all), RECORDS (each display sends its record
@@ -156,8 +162,9 @@ See `PLAN.md` for the full build plan.
   settings, marking sheets, self-test), BATCHES (batches, assignments, PIN; sent to every display every few seconds),
   SCENARIOS (editor), OWN RADAR (the station's own radar, with event injection and faults). The student displays
   have no instructor pages: no INSTR or FAULTS key and no PIN box.
-- `npm run serve` starts a small classroom server so the instructor can monitor other PCs.
-  Open the address it prints on every display. Classroom network only: it has no security.
+- `npm run serve` starts a small classroom server so the instructor station can reach other PCs.
+  Open the address it prints on every display, and that address followed by `/instructor` on the
+  instructor's PC. Classroom network only: it has no security.
 
 See `docs/PHASE5-8-INSTRUCTOR-CHECK.md`. Nothing here is certified or approved for navigation.
 

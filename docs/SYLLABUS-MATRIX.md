@@ -15,7 +15,7 @@ The documents are summarised, not quoted. **No instructor has reviewed this tabl
 starting point for the institute's own course mapping, not an approval document, and nothing here
 means the simulator or a course is approved. Not read: DG Shipping's draft ROC and ARPA circulars of
 May 2020, which may change the topic list. Every tolerance and limit in the exercises is a
-placeholder (see the marking sheets: Instructor tab, "Marking sheets").
+placeholder (see the marking sheets: instructor station, EXERCISES, "Marking sheets").
 
 ## How to read the tables
 
@@ -161,7 +161,7 @@ samples: the institute decides whether to use them. The simulator does not apply
 |---|---|---|
 | 1-6, 34 | Installation on board, sensor connections, spares, maintenance tags, panel layout, radar log book | Not simulated: lecture, a real set, or oral |
 | 7 | Starting procedure | Exercise 22 |
-| 8-17 | Range scales and rings; stabilisation; orientation; true and relative motion; heading line; cursor; off-centring; heading and speed inputs; position and time; EBL and VRM | Functions present and used in 1, 2, 7, 10, 22, 23; not marked one by one. No manual set and drift input. The stern line and the antenna mark are on the Radar tab |
+| 8-17 | Range scales and rings; stabilisation; orientation; true and relative motion; heading line; cursor; off-centring; heading and speed inputs; position and time; EBL and VRM | Functions present and used in 1, 2, 7, 10, 22, 23; not marked one by one. No manual set and drift input. The stern line and the antenna mark are under SCENARIO, Study aids |
 | 18-22, 24, 25 | CPA/TCPA limits; manual and automatic acquisition; guard zones; trial manoeuvre; vectors; trails | Exercises 1 to 6 |
 | 23 | AIS: sleeping and activated targets, symbols, data, association with radar tracks | Functions present; no marked exercise |
 | 26-28 | Parallel index lines; marks; alarms, including the anchor watch | Exercises 10 and 24 |

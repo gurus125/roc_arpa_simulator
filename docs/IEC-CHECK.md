@@ -34,7 +34,7 @@ and no radar instructor has reviewed it.
 | 62288 6.2.2.1 | All graphics can be taken off for a moment, leaving video and trails | Only the heading line | The hold key (PI / MAP, or key H) takes off every graphic while held |
 | 62288 4.7.4 | Flashing is kept for unacknowledged alerts | The word TRIAL flashed | TRIAL and the large T are steady |
 | 62388 9.6.2.1, 62288 5.9.5.1 | EBL bearings true or relative to the ship's head, the reference shown | True only | EBL BRG key: TRUE or REL; every readout ends in T or R |
-| 62388 13.3.1 | Primary controls immediately accessible, among them display brightness and AIS on/off | Both were inside menus | BRILL bar with gain and clutter; AIS ON / OFF key in the DISPLAY box |
+| 62388 13.3.1 | Primary controls immediately accessible, among them display brightness and AIS on/off | Both were inside menus | BRILL bar with gain and clutter; AIS ON / OFF key in the PICTURE & RADAR CONTROL panel |
 | 62388 6.5.2.1, 6.6.2.1 | The state of target enhancement and of signal processing is indicated | Only inside the RADAR menu | IR, ENH, SC/SC and MON tags in the GAIN / CLUTTER heading, lit when in use |
 | 62288 5.5.10.1, Annex B | A tracked target's course and speed are CTW and STW (sea stabilised) or COG and SOG (ground stabilised); "course" is CRS | "CSE" and "SPD" | CTW / STW or COG / SOG by the stabilisation in use; CRS in the lists |
 | 62388 11.3.5.1 | A caution when the tracking capacity is about to be exceeded (nominal 95%), a warning when it is exceeded | Warning only | Caution at 19 of 20 targets; the warning as before |
@@ -178,7 +178,7 @@ theirs. The IMO numbers, MMSIs and call signs are made up (the IMO numbers do ha
 digit).
 
 The limits of the setting-up exercise (radar 22) can now be changed by the instructor with the
-other scoring settings (Instructor tab); the placeholders stay the default.
+other scoring settings (instructor station, EXERCISES); the placeholders stay the default.
 
 ## Fourth round of changes (13 Nov 2026)
 
@@ -187,9 +187,9 @@ Read for this round: IEC 62288 Annex A symbols 1.2 to 1.5, IEC 62388 11.5.3.1 an
 
 | Standard | Requirement, in short | Now |
 |----------|----------------------|-----|
-| 62288 A.1 1.5 | Stern line (optional): thin, dotted, from the reference point astern to the bearing scale | "Stern line" box on the Radar tab |
+| 62288 A.1 1.5 | Stern line (optional): thin, dotted, from the reference point astern to the bearing scale | "Stern line" box under SCENARIO, Study aids |
 | 62288 A.1 1.2 | Radar antenna position (optional): crossed lines 1 to 2 mm long at the antenna's place, only with own ship's outline | "Antenna position on own ship's outline" box; the antenna's distance ahead and to starboard of the reference point is entered under Own ship data (0 and 0 to start with). The picture stays referenced to the reference point, as a real radar corrects it (62388 8.2.2.1): the offset only places the mark |
-| 62388 11.5.3.1, test g) | Reports repeated by an AIS shore station are not processed while direct reports of the vessel come in; own ship's repeated reports never are | An instructor switch (ARPA tab, instructor faults) makes a shore station repeat every report it hears, own ship's included, 30 s late and every 10 s. They are counted and not used. A repeated report is used only for a vessel that is heard through the station alone, and never replaces a newer report. Test g) is run as written: a 24 kn target 2 NM off, five minutes, no repeated report displayed, no alarm |
+| 62388 11.5.3.1, test g) | Reports repeated by an AIS shore station are not processed while direct reports of the vessel come in; own ship's repeated reports never are | An instructor switch (instructor station, CLASSROOM, Faults to send; or FAULTS on the station's own radar) makes a shore station repeat every report it hears, own ship's included, 30 s late and every 10 s. They are counted and not used. A repeated report is used only for a vessel that is heard through the station alone, and never replaces a newer report. Test g) is run as written: a 24 kn target 2 NM off, five minutes, no repeated report displayed, no alarm |
 | 62388 11.3.14.4 to 11.3.14.7 (HSC) | The high-speed craft versions of TT scenarios 2 to 5: own ship turning at 20°/s; at 45 kn; at 70 kn with a 70 kn target; 60 kn slowing to 40 kn at 1 kn/s, radar at 40 rpm | Run as tests in `tests/iec-tt.test.ts`. All met (no sensor errors, as the standard runs them). In scenario 5 the simulator's own CPA and TCPA of the ten targets agree with the standard's Tables 21 and 22 to their last figure |
 
 ## The screen redesigned (13 Nov 2026)

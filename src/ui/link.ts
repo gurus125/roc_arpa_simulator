@@ -79,7 +79,7 @@ export class Link {
   onCommand: (c: Command) => void = () => {};
   onRecord: (r: SessionRecord) => void = () => {};
   onConfig: (c: ClassConfig) => void = () => {};
-  /** "server", "server out of reach (trying again)", "same computer only" or "off". */
+  /** "server", "server out of reach (trying again)", "same computer only", "no classroom server at this address ..." or "off". */
   mode = "off";
   private bc: BroadcastChannel | null = null;
   /** The page came from the classroom server, so messages also go through it. */
@@ -90,6 +90,8 @@ export class Link {
   private contacted = false;
   private sent = 0;
   private seen: string[] = [];
+  /** The page came from a web site that has no classroom server (a hosted copy): only the same-computer channel works. */
+  private noServer = false;
 
   constructor() {
     try {
@@ -123,7 +125,7 @@ export class Link {
     const m: Envelope = { ...m0, id: `${this.station}-${++this.sent}` };
     this.seen.push(m.id!);
     this.bc?.postMessage(m);
-    if (this.http && this.fails < FAILS_BEFORE_OFFLINE) {
+    if (this.http && !this.noServer && this.fails < FAILS_BEFORE_OFFLINE) {
       fetch("/api/post", { method: "POST", body: JSON.stringify(m) }).then((r) => {
         if (!r.ok) this.failed();
       }).catch(() => this.failed());
@@ -135,13 +137,19 @@ export class Link {
   }
 
   private async poll(): Promise<void> {
-    if (!this.http) return;
+    if (!this.http || this.noServer) return;
     // Out of reach: keep trying, but less often, and come back by itself when the server answers.
     const now = Date.now();
     if (this.fails >= FAILS_BEFORE_OFFLINE && now - this.lastTry < RETRY_MS) return;
     this.lastTry = now;
     try {
       const r = await fetch(`/api/poll?since=${this.since}`);
+      if (r.status === 404 && !this.contacted) {
+        // A hosted copy of the page (on a web site, not the classroom server): there is nothing to poll.
+        this.noServer = true;
+        this.mode = "no classroom server at this address (a hosted copy): linked only with tabs of this browser on this computer";
+        return;
+      }
       if (!r.ok) return this.failed();
       const d = (await r.json()) as { seq: number; messages: Envelope[] };
       this.fails = 0;

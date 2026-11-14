@@ -289,6 +289,8 @@
   #login h1 { margin:0 0 4px; font-size:17px; color:var(--accent); }
   #login label { display:block; color:var(--muted); font-size:12px; margin-top:8px; }
   #banner { background:#3a2c08; color:var(--warn); padding:6px 14px; font-size:13px; }
+  /* Messages (from the instructor, or about storage and windows) in a box under the header, over the screen; a click closes it. */
+  #banner { position:fixed; top:calc(var(--hdrH, 50px) + 8px); left:50%; transform:translateX(-50%); width:max-content; max-width:min(900px, calc(100vw - 32px)); z-index:45; border:1px solid var(--warn); border-radius:6px; box-shadow:0 6px 24px rgba(0,0,0,.5); cursor:pointer; font-weight:600; }
   #banner[hidden] { display:none; }
   /* ---- The radar screen (13 Nov 2026): the picture in the middle, as tall as the window allows; three data panels
      down each side of it (picture settings, gain and clutter, EBL and cursor on the left; own ship, target data, VRM and

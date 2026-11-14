@@ -4,8 +4,9 @@ For training and study only. This is not a radar and must not be used for naviga
 
 ## 1. Starting
 
-Open `radar-simulator.html` in Chrome or Edge. Choose your batch and enter your name, or press
-"Free practice without names". Press F11 for full screen.
+Open `radar-simulator.html` (or the address your instructor gives you) in Chrome or Edge. Choose your
+batch and your names, or press "Free practice without names". Press F11 for full screen. The person
+icon at the top right changes the names later.
 
 The screen has the radar picture in the middle, as large as the window allows, with three data
 panels down each side of it, laid out the way ships' radars in general present their data (it is
@@ -26,6 +27,7 @@ The header along the top of the page has:
 - the tabs **RADAR** (the radar's menu: pulse, echo processing and the rest), **ARPA** (the ARPA's
   menu) and **EXERCISE** (choose and run an exercise). The lit tab pressed again closes the menu.
   With the menu closed RADAR is lit;
+- **SHIP CONTROL**: opens the ship control window, for a second screen (section 7);
 - the keys that work the simulator and not the radar: PAUSE / RUN, the speed of the clock and
   DAY / NIGHT;
 - the ship's clock (UTC) with the date;
@@ -48,10 +50,10 @@ echoes so that the coast does not glare.
 |---|---|
 | RADAR key (top left, in the heading of the PICTURE & RADAR CONTROL panel) | Switches the radar on from cold (RADAR: OFF), and between standby and transmit. Switched on from cold it warms up first (WARM UP and a countdown; about one and a half minutes here, never more than 4 minutes on a real set), then waits in STANDBY: press again to transmit. In standby there is no picture. SETTINGS, RADAR POWER OFF switches it off. |
 | ALARM ACK (VRM / ARPA panel, bottom right) | Acknowledges the alert shown beside it, one at a time: alarms first, then the oldest warning. It flashes while an alert is waiting. The alert box beside it is red for an alarm, orange for a warning and yellow for a caution. |
-| PAUSE / RUN, 1x-10x (top strip) | Stops and starts the exercise clock, and sets how fast it runs. |
-| DAY / NIGHT (top strip) | Display colours for day or for a dark bridge (also under SETTINGS). |
+| PAUSE / RUN, 1x-10x (header) | Stops and starts the exercise clock, and sets how fast it runs. |
+| DAY / NIGHT (header) | Display colours for day or for a dark bridge (also under SETTINGS). |
 
-Own ship's data is in the OWN SHIP panel at the top right:
+Own ship's data is in the OWN SHIP DATA panel at the top right:
 
 | Shown | Meaning |
 |---|---|
@@ -70,11 +72,11 @@ at the ship's position, and on the shortest range scales the ship's outline to s
 scale round the picture has a mark every 5° and a number every 30°.
 
 If the gyro compass fails, the picture changes by itself to head-up (unstabilised) with relative
-motion, "HDG FAIL: UNSTAB, REL BRG ONLY" is shown in the PICTURE panel, and the EBLs read relative
+motion, "HDG FAIL: UNSTAB, REL BRG ONLY" is shown in the PICTURE & RADAR CONTROL panel, and the EBLs read relative
 bearings only. That is what a real radar does when it loses its heading input.
 
-The settings are not written over the picture but kept in the panels beside it: the PICTURE panel
-shows the range scale, ring interval, band, orientation, motion and stabilisation, and the pulse
+The settings are not written over the picture but kept in the panels beside it: the PICTURE & RADAR
+CONTROL panel shows the range scale, ring interval, band, orientation, motion and stabilisation, and the pulse
 length in use (SP short, MP medium, LP long); the VRM / ARPA panel shows the vector mode and time,
 the CPA / TCPA limits, the past positions setting, and the ARPA's status lines (its stabilisation
 and speed input, ARPA STANDBY, LOST TGT WARNING OFF, AIS FILTER, ANCHOR WATCH, TRIAL).
@@ -90,7 +92,7 @@ The settings are boxes that are clicked; each shows the setting in use by its st
 - **RINGS**: fixed range rings ON or OFF; the interval between them is written beside the key.
 - **PULSE**: AUTO (chosen by the range scale), SHORT, MED or LONG. The pulse in use is written at the
   foot of the panel (SP, MP or LP and its length in microseconds).
-- **MODE**, three boxes: orientation **N UP** (north-up), **H UP** (head-up, unstabilised: bearings
+- **MODE**, three boxes, each opening a short list: orientation **N UP** (north-up), **H UP** (head-up, unstabilised: bearings
   are relative) or **C UP** (course-up); motion **RM** (relative motion, own ship fixed) or **TM**
   (true motion, own ship moves across the screen); stabilisation of the picture **GND** (ground) or
   **SEA**.
@@ -126,19 +128,19 @@ Each control is a bar: click or drag along it. The figure beside it is the setti
 - **GAIN**: receiver gain. Too low loses weak echoes; too high fills the picture with noise.
 - **SEA**: sea clutter control. It works close to the ship. Too much removes small targets nearby.
   Sea clutter reaches further on the side the wind and sea come from (to windward) than on the
-  other side. A shorter pulse length (under **RADAR**) returns less clutter.
+  other side. A shorter pulse (the PULSE keys) returns less clutter.
 - **RAIN**: rain clutter control. Too much weakens all echoes.
 - **TUNE**: tune for the highest METER reading.
 - **AUTO**: the set chooses the setting. Like a real automatic control it is a compromise.
 - **BRILL**: brightness of the radar picture.
 - **TRAILS**: echo trails OFF, REL (relative) or TRUE, and their length.
 
-The small letters in the heading of the box light up when a signal processing function is in use:
+The small letters in the heading of the panel light up when a signal processing function is in use:
 IR (interference rejection), ENH (echo stretch), SC/SC (echo averaging from scan to scan), MON
 (performance monitor). Switch them under **RADAR**.
 
-More under **RADAR**: pulse length, echo stretch, echo averaging, interference rejection,
-performance monitor.
+More under the **RADAR** tab: echo stretch, echo averaging, interference rejection, the
+performance monitor, and the pulse length again.
 
 ## 6. ARPA: tracking targets
 
@@ -151,11 +153,11 @@ The same panel has **VECTOR** (REL or TRUE vectors of tracked targets, and the v
 2. After about one minute a faint (preliminary) vector appears. After about three minutes the
    vector is at full strength and the data is reliable.
 3. Press **Select** and click a target to see its data in the TARGET DATA panel (middle right): target number,
-   bearing (BRG), range (RNG), course (CSE), speed (SPD), CPA, TCPA, and the bow crossing range
+   bearing (BRG), range (RNG), course and speed, CPA, TCPA, and the bow crossing range
    and time (BCR, BCT), each with its unit. The course and speed are named CTW and STW (through
    the water) when the ARPA is sea stabilised, and COG and SOG (over the ground) when it is ground
    stabilised. TT after the heading means a tracked (radar) target, AIS an AIS target; for an AIS
-   target the box also shows its MMSI, navigational status, reported position and heading, and
+   target the panel also shows its MMSI, navigational status, reported position and heading, and
    MISSING for anything its report does not carry. A yellow ? after a value means it is still preliminary. The VRM / ARPA
    panel shows the CPA and TCPA limits, the past positions setting and the ARPA's speed input.
 4. **Cancel** drops one target; **Cancel all** drops them all. **Auto** acquires targets that
@@ -173,10 +175,10 @@ The same panel has **VECTOR** (REL or TRUE vectors of tracked targets, and the v
 A target inside both the CPA limit and the TCPA limit is DANGEROUS: its symbol turns red and bold
 and an alarm sounds. Limits are set under **CPA/ALARM**.
 
-Symbols (as in IMO circular SN.1/Circ.243/Rev.2):
-
 Colours: tracked targets green, dangerous targets red, lost targets orange, AIS targets teal, own
-ship and its vector light blue, echoes amber.
+ship and its vector light blue, echoes amber. The foot of the screen shows the main symbols.
+
+Symbols (as in IMO circular SN.1/Circ.243/Rev.2):
 
 | Symbol | Meaning |
 |--------|---------|
@@ -262,8 +264,8 @@ Press **SHIP** (or use the ship control window).
 - **Ship**: choose the ship type. Large ships turn and stop slowly. Three types are fitted to
   published turning figures (the 230 m container ship to model tests of the KCS benchmark hull, the
   350 m VLCC to a classification society's sample ship, the 105 m training ship to a sea-trial
-  turning circle); the others are estimates. Press HELP to see which.
-- **In a sea** the ship rolls, pitches and yaws (the SHIP page shows ROLL and PITCH). The sea comes
+  turning circle); the others are estimates. Press **?** (help) to see which.
+- **In a sea** the ship rolls, pitches and yaws (SHIP and the ship control window show ROLL and PITCH). The sea comes
   from the direction of the wind. Heavy rolling in a beam sea tips the radar beam, so echoes abeam
   fade and come back; yawing smears a head-up picture, which is why north-up or course-up is used
   in a seaway.
@@ -282,8 +284,8 @@ Press **SHIP** (or use the ship control window).
   gives no latitude and longitude, COG and SOG are blank, and the ARPA warns EPFS INPUT ABSENT. Fix
   the position by radar (exercise 23).
 
-The OWN SHIP panel always shows heading, speed, course and speed made good, rudder, rate of turn
-and relative wind.
+The OWN SHIP DATA panel always shows heading, speed, course and speed made good, rudder, rate of
+turn and relative wind.
 
 ## 7a. Things the picture does that are not ships
 
@@ -344,25 +346,29 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
   only the high ground shows, and the coast seems to come towards you as low land rises above the
   horizon; hills cast radar shadow; a ship behind an island or a headland disappears from the picture
   and from the ARPA until it comes out again.
-- **SETTINGS**: day or night display; telemotor 2 (faster rudder); own ship data.
+- **SETTINGS**: day or night display; telemotor 2 (faster rudder); own ship data. User setting 1
+  and 2: Store keeps the present settings of the radar and ARPA controls; Recall puts them back
+  (each asks you to confirm).
 - **ROC EX**: radar observer exercises (plotting, position fixing, set and drift, clearing range,
   blind pilotage, traffic).
-- **ARPA EX**: ARPA exercises 1-9, radar exercises 10-11, manual plotting exercises 12-21, switching on and
-  setting up 22, and radar exercises 23-26 on the real coasts (Mumbai, Goa, Kochi, Gulf of Kutch).
-- The instructor's pages are not on your display: the instructor has a station of his or her own.
+- **ARPA EX** (or the EXERCISE tab): ARPA exercises 1-9, radar exercises 10-11, manual plotting
+  exercises 12-21, switching on and setting up 22, and radar exercises 23-26 on the real coasts
+  (Mumbai, Goa, Kochi, Gulf of Kutch).
 
-- **SETTINGS**, User setting 1 and 2: Store keeps the present settings of the radar and ARPA
-  controls; Recall puts them back (each asks you to confirm).
+The instructor's pages are not on your display: the instructor has a station of his or her own, from
+which he or she can pause your display, start an exercise on it, change the weather, give your
+instruments faults and send you a message (it appears in a box under the header: click it to close it).
 
 ## 9. Doing an exercise
 
-1. Press ARPA EX (or ROC EX), or use the EXERCISE box of the ship control window, and choose the
-   exercise. Read the briefing.
-2. Press Run. Do what the briefing asks.
-3. Type your answers where asked. A number is marked against the true value at the moment you
-   enter it.
+1. Press ARPA EX (or ROC EX, or the EXERCISE tab), or use the EXERCISE box of the ship control
+   window, and choose the exercise; or the instructor starts it on your display from the station.
+   Read the briefing and "How you will be assessed".
+2. Press RUN. Do what the briefing asks.
+3. Type each answer and press ANSWER beside it. A number is marked against the true value at the
+   moment you press ANSWER; you can answer again, and the last answer counts.
 4. Press Finish. The result shows each item, your answer, the correct answer and the debrief
-   questions.
+   questions. Write your debrief notes and save them: the record goes to the instructor's station.
 
 For the manual plotting exercises the ARPA is off: take ranges and bearings with EBL 1 and
 VRM 1 at regular times, plot them on a plotting sheet, and manoeuvre at 12 minutes.
@@ -377,7 +383,7 @@ it, 40° to the left of its course: Red 40°.
 ## 10. Limits of this simulator
 
 - The marking tolerances are placeholders until your academy sets its own.
-- Ship and target figures are estimates, except where the SHIP page names a published source. The
+- Ship and target figures are estimates, except where the SHIP menu names a published source. The
   ship's response to the sea is an estimate.
 - The radar picture is simplified compared with a real set. Beamwidths and pulse lengths are those
   of one maker's set, taken as typical.
