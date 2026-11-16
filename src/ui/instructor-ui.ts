@@ -49,6 +49,11 @@ const REMOTE_FAULTS: { id: (typeof FAULT_IDS)[number]; label: string; min?: numb
   { id: "logFail", label: "Speed log failed", off: false },
   { id: "gyroFail", label: "Gyro compass failed", off: false },
   { id: "gnssFail", label: "EPFS (GNSS) failed", off: false },
+  { id: "sigVideo", label: "Radar video signal lost", off: false },
+  { id: "sigSync", label: "Radar sync (trigger) lost", off: false },
+  { id: "sigAzimuth", label: "Azimuth signal lost", off: false },
+  { id: "sigHm", label: "Heading marker signal lost", off: false },
+  { id: "picFreeze", label: "Picture frozen", off: false },
   { id: "anchorDrag", label: "Anchor dragging", off: false },
   { id: "aisRepeat", label: "AIS shore station repeating", off: false },
 ];

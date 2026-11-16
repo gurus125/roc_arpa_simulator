@@ -30,7 +30,7 @@ Status words: **Yes** = simulated and tested. **Partly** = simulated with the li
 |------|---------------------|--------|--------------|
 | 3.2.1 | Manual and automatic acquisition; manual cancel; suppress acquisition in areas, area shown | Yes | Acquire / Cancel keys in the VRM / ARPA panel; GUARD in the menu: guard zones and exclusion areas, drawn on the picture |
 | 3.2.1 | Acquisition up to 100 kn relative speed | Partly | No speed limit in the tracker; not tested at 100 kn |
-| 3.3.1 | Track and display at least 20 targets | Yes | Capacity 20; test with 25 targets on screen |
+| 3.3.1 | Track and display at least 20 targets | Yes | Capacity 40 since 16 Nov 2026 (20 before): the figure of MSC.192(79) Table 1 for ships of 10,000 gt and more. Test with 45 targets on screen |
 | 3.3.2 | Tracked targets clearly marked | Yes | Symbols and numbers |
 | 3.3.3 | Keep tracking a target seen on 5 of 10 scans | Yes | Lost only after 8 missed scans in a row (placeholder) |
 | 3.3.4 | Tracking errors and target swop minimised and explained | Partly | Swop, fading and delay are simulated and shown to the instructor; explanation is in the check sheets, not a manual |
@@ -89,14 +89,14 @@ Status words: **Yes** = simulated and tested. **Partly** = simulated with the li
 | 5.21 | Manual off-centring | Yes | Up to 66% of the radius, relative motion |
 | 5.22 | Ground and sea stabilisation, source indicated | Yes | |
 | 5.23 | Target trails of variable length; past positions | Yes | |
-| 5.25 | Target tracking: capacity, acquisition, accuracy, ground reference | Yes | See part 1 |
-| 5.26-5.28 | AIS targets: sleeping, activated, selected; data; capacity | Partly | Sleeping / activated / selected / lost, data field, "missing" for rate of turn. No capacity limit or filtering of sleeping targets, no own-ship AIS data |
+| 5.25 | Target tracking: capacity, acquisition, accuracy, ground reference | Yes | See part 1. Capacity 40 tracked targets (Table 1, ships of 10,000 gt and more). Automatic acquisition leaves out echoes as large as land (800 m, a placeholder) |
+| 5.26-5.28 | AIS targets: sleeping, activated, selected; data; capacity | Partly | Sleeping / activated / selected / lost, data field, "missing" for rate of turn. Capacity 40 activated and 240 in all (Table 1, ships of 10,000 gt and more) with a caution at 95%; a filter for sleeping targets; own ship's AIS data on request (see `IEC-CHECK.md` for what is still not met) |
 | 5.29 | CPA/TCPA alarm for tracked and activated AIS targets, same limits; lost alarm, AIS lost alarm can be disabled | Yes | |
 | 5.30 | AIS and radar target association, choice of symbol | Partly | Association by distance and motion (placeholder limits); no alert when they diverge |
 | 5.31 | Trial manoeuvre | Yes | Includes own ship's dynamic characteristics (her turn and change of speed, from her handling model) since 14 Nov 2026; before that own ship turned at once |
 | 5.32 | Maps, navigation lines and routes | Partly | Navigation lines and nav marks placed by clicking, fixed to the ground, saved and loaded by name. No routes |
 | 5.33 | Chart display | No | Optional in the resolution |
-| 5.34 | Picture freeze alert; sensor failure alarms | Partly | Gyro and log failure. No picture-freeze alert |
+| 5.34 | Picture freeze alert; sensor failure alarms | Yes | Since 16 Nov 2026: a PICTURE FREEZE warning; failure of the gyro, log, position input, azimuth, video, sync and heading marker each alarmed by name, with a fall-back (gyro: unstabilised head-up; radar signals: no radar picture, AIS targets kept, as 9.5 asks). The simulator treats the four radar signals alike |
 | 5.35, 6-9 | Multiple radars, ergonomics, installation, interfaces, back-up | n/a | |
 
 ## 3. Model Course 1.07 (operational level)

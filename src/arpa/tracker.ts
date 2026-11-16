@@ -4,8 +4,8 @@ import { CpaResult, computeCpa } from "../core/cpa";
 import { relativeVelocity } from "../core/motion";
 import { TrialResult, trialManoeuvre } from "../core/trial";
 import { fitLinearMotion, fitPositionAt } from "../core/track";
-import { inSectorZone } from "../core/zones";
-import { World, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, ownTurnProfile } from "../engine/index";
+import { expandZone, inSectorZone } from "../core/zones";
+import { World, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, ownTurnProfile, radarSignalsLostText } from "../engine/index";
 import { ARPA_PLACEHOLDERS, ArpaConfig, ArpaSettings, defaultArpaSettings } from "./config";
 import { ArpaPlot, extractPlots } from "./plots";
 
@@ -391,6 +391,8 @@ export class ArpaSystem {
     const logOk = Number.isFinite(logSpeed(w));
     results.push({ name: "Speed log input", ok: logOk, detail: logOk ? `${logSpeed(w).toFixed(1)} kn` : "NO LOG SIGNAL" });
     results.push({ name: "EPFS (GNSS) input", ok: !w.sensors.gnssFailed, detail: w.sensors.gnssFailed ? "NO POSITION SIGNAL" : "position present" });
+    const lostSignals = radarSignalsLostText(w.sensors);
+    results.push({ name: "Radar video, sync, azimuth and heading marker", ok: !lostSignals, detail: lostSignals ? `NO SIGNAL: ${lostSignals}` : "signals present" });
     const mem = this.activeCount() <= this.cfg.maxTracks;
     results.push({ name: "Target memory", ok: mem, detail: `${this.activeCount()} of ${this.cfg.maxTracks} in use` });
     this.test = { startedAt: w.time, results, targets };
@@ -521,7 +523,13 @@ export class ArpaSystem {
       }
       return false;
     };
-    const plots = extractPlots(w, this.cfg, rng, wantLand);
+    // With automatic acquisition on, the coast round the acquisition zones is looked at as well, to tell how large
+    // each land echo is: one as large as land (cfg.landEchoMinM) is not acquired.
+    const margin = this.cfg.landEchoMinM / 1852 + this.cfg.landCellNm;
+    const wider = s.autoAcquire && guardOn ? s.guardZones.filter((z) => z.on).map((z) => expandZone(z, margin)) : [];
+    const landContext = wider.length > 0 ? (relTrue: Vec2): boolean => wider.some((z) => inSectorZone(rotateVec(relTrue, g), heading, z)) : null;
+    // A failed radar signal (video, sync, azimuth, heading marker): no plots reach the tracker, so every track coasts and is lost.
+    const plots = radarSignalsLostText(w.sensors) ? [] : extractPlots(w, this.cfg, rng, wantLand, landContext);
     const uses = plots.map(() => 0);
     const capacity = (p: ArpaPlot): number => Math.max(1, p.truthIds.length);
     const toTrackPlot = (p: ArpaPlot): TrackPlot => ({
@@ -563,6 +571,7 @@ export class ArpaSystem {
       if (uses[i]! > 0) return;
       if (!s.guardZones.some((z) => z.on && inSectorZone(p.rel, heading, z))) return;
       if (s.exclusionZones.some((z) => z.on && inSectorZone(p.rel, heading, z))) return;
+      if (p.landSized && s.autoAcquire) return; // an echo as large as land is not acquired automatically
       const tp = toTrackPlot(p);
       let best: Candidate | null = null;
       let bestD = this.cfg.candidateGateNm;
@@ -780,7 +789,7 @@ export class ArpaSystem {
 
   /**
    * Caution when the target capacity is about to be exceeded (IEC 62388 11.3.5.1: at a nominal 95%,
-   * so at 19 of 20). A caution is not acknowledged; it goes when targets are dropped. The warning
+   * so at 38 of 40). A caution is not acknowledged; it goes when targets are dropped. The warning
    * that the capacity HAS been exceeded is raised when one more target is asked for.
    */
   private checkCapacity(w: World): void {
@@ -861,6 +870,17 @@ export class ArpaSystem {
         : "EPFS INPUT ABSENT: no position from the GNSS. Fix the position by radar or visual bearings.");
     }
     if (!gnss && hasGnss) this.alarms = this.alarms.filter((a) => a.key !== "gnssfail");
+    // A radar signal lost (IMO MSC.192(79) 5.34.2), and the picture not being updated (5.34.1).
+    const lostSignals = radarSignalsLostText(w.sensors);
+    const sig = this.alarms.find((a) => a.key === "signalfail");
+    const sigText = `RADAR SIGNAL LOST: ${lostSignals}. No radar picture; tracked targets will be lost. AIS targets are still shown.`;
+    if (lostSignals && !sig) this.raise(w, "signalfail", "malfunction", sigText);
+    else if (lostSignals && sig && sig.text !== sigText) sig.text = sigText;
+    if (!lostSignals && sig) this.alarms = this.alarms.filter((a) => a.key !== "signalfail");
+    const frozen = !!w.sensors.pictureFrozen;
+    const hasFrozen = this.alarms.some((a) => a.key === "picturefreeze");
+    if (frozen && !hasFrozen) this.raise(w, "picturefreeze", "malfunction", "PICTURE FREEZE: the radar picture is not being updated. Do not use it.");
+    if (!frozen && hasFrozen) this.alarms = this.alarms.filter((a) => a.key !== "picturefreeze");
     // Memory full stays on until a target has been dropped.
     if (this.activeCount() < this.cfg.maxTracks) this.alarms = this.alarms.filter((a) => a.kind !== "capacity");
   }

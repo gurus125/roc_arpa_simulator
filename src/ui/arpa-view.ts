@@ -2,7 +2,7 @@ import { G, K } from "./palette";
 import { Vec2, add, length, normalizeDeg, scale, sub, velocityOf } from "../core/vec";
 import { ZoneSetting } from "../arpa/index";
 import { collisionPoints, dangerAreas } from "../core/pad";
-import { measuredHeading, measuredRotation, ownGroundVelocity, toScreenNm } from "../engine/index";
+import { measuredHeading, measuredRotation, ownGroundVelocity, radarSignalsLostText, toScreenNm } from "../engine/index";
 import { AppState, aisLocked } from "./app";
 import { AIS_TURNING_ROT, aisFilterLabel, aisFilterOn, aisFilteredOut } from "../ais/index";
 import { ownShipSymbol } from "./view";
@@ -507,6 +507,10 @@ export function arpaStatusLines(app: AppState): { text: string; cls: string }[] 
     line(a.stabLabel());
     if (!s.lostWarning) line("LOST TGT WARNING OFF", "wn");
   }
+  // A failed radar signal or a frozen picture is always indicated (IMO MSC.192(79) 9: a permanent indication).
+  const lostSignals = radarSignalsLostText(app.world.sensors);
+  if (lostSignals) line(`RADAR SIGNAL LOST: ${lostSignals}`, "wn");
+  if (app.world.sensors.pictureFrozen) line("PICTURE FREEZE", "wn");
   // The AIS display has its own key: its state is shown whether the ARPA is on or in standby.
   if (aisLocked(app)) line("AIS OFF FOR THIS EXERCISE", "wn");
   else if (app.ais.settings.on) {

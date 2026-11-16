@@ -863,7 +863,7 @@
         <p class="hint" id="aisLockNote" hidden>The AIS display is off for this manual plotting exercise: plot the targets from the radar alone. It can be switched on again after Finish.</p>
         <div class="check"><input type="checkbox" id="aisLost" checked><label for="aisLost">Lost AIS target alarm</label></div>
         <div class="row two"><label for="aisAutoAct">Activate automatically</label><select id="aisAutoAct"><option value="">Off (by hand only)</option><option value="3">Within 3 NM</option><option value="6">Within 6 NM</option><option value="12">Within 12 NM</option></select></div>
-        <p class="hint">Sleeping AIS targets closer than the range chosen are activated by themselves. With automatic acquisition on, an AIS target in an acquisition zone is activated too, with a NEW AIS TARGET warning. A dangerous target is always activated. At most 20 targets can be activated: a caution comes at 19, and a further activation is refused with a warning.</p>
+        <p class="hint">Sleeping AIS targets closer than the range chosen are activated by themselves. With automatic acquisition on, an AIS target in an acquisition zone is activated too, with a NEW AIS TARGET warning. A dangerous target is always activated. At most 40 targets can be activated: a caution comes at 38, and a further activation is refused with a warning.</p>
         <p class="small"><b>Filter for sleeping targets</b></p>
         <div class="row two"><label for="aisFilter">Hide beyond</label><select id="aisFilter"><option value="">Off</option><option value="3">3 NM</option><option value="6">6 NM</option><option value="12">12 NM</option></select></div>
         <div class="row two"><label for="aisFiltCpa">Hide passing wider than</label><select id="aisFiltCpa"><option value="">Off</option><option value="1">CPA 1 NM</option><option value="2">CPA 2 NM</option><option value="3">CPA 3 NM</option></select></div>
@@ -944,6 +944,11 @@
           <div class="check"><input type="checkbox" id="logFail"><label for="logFail">Speed log FAILED (no signal: the ARPA shows SPEED LOG INPUT ABSENT)</label></div>
           <div class="check"><input type="checkbox" id="gyroFail"><label for="gyroFail">Gyro compass FAILED (ARPA gives an equipment malfunction alarm and loses all tracks)</label></div>
           <div class="check"><input type="checkbox" id="gnssFail"><label for="gnssFail">EPFS (GNSS) FAILED (no position on the display or the cursor; the ARPA warns EPFS INPUT ABSENT)</label></div>
+          <div class="check"><input type="checkbox" id="sigVideo"><label for="sigVideo">Radar VIDEO signal LOST (no radar picture, tracked targets are lost, AIS targets stay; alert RADAR SIGNAL LOST)</label></div>
+          <div class="check"><input type="checkbox" id="sigSync"><label for="sigSync">Radar SYNC (trigger) signal LOST (the same effect)</label></div>
+          <div class="check"><input type="checkbox" id="sigAzimuth"><label for="sigAzimuth">AZIMUTH (antenna bearing) signal LOST (the same effect)</label></div>
+          <div class="check"><input type="checkbox" id="sigHm"><label for="sigHm">HEADING MARKER signal LOST (the same effect)</label></div>
+          <div class="check"><input type="checkbox" id="picFreeze"><label for="picFreeze">Picture FROZEN (the echoes stop being updated and stay on the screen; alert PICTURE FREEZE)</label></div>
           <div class="check"><input type="checkbox" id="anchorDrag"><label for="anchorDrag">Own ship's anchor DRAGGING (0.5 kn with the current; only while at anchor)</label></div>
           <div class="check"><input type="checkbox" id="aisRepeat"><label for="aisRepeat">AIS shore station REPEATING reports (30 s late, every 10 s, own ship's too): the display must not use them while it hears the ships directly</label></div>
           <p class="small" id="faultNow"></p>

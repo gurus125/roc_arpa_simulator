@@ -89,7 +89,7 @@ or outside ROC and ARPA).
 | Section | Simulator |
 |---------|-----------|
 | 4.2 Acquisition: manual, automatic by area, guard zones, area rejection | Yes |
-| 4.3 Tracking: number of targets, target loss, target swop, the tracker's smoothing and its delay, tracking history | Yes (20 targets; preliminary data after about a minute and steady after about three; swop; past positions) |
+| 4.3 Tracking: number of targets, target loss, target swop, the tracker's smoothing and its delay, tracking history | Yes (40 targets; preliminary data after about a minute and steady after about three; swop; past positions) |
 | 4.4 Relative and true vectors; trial manoeuvre with delay | Yes |
 | 4.5 The ARPA display: range scales, modes, data not hiding the picture, data brilliance | Yes |
 | 4.6 The display of alphanumeric data (the data of a selected target) | Yes: range, bearing, CPA, TCPA, course, speed, and bow crossing range and time |
@@ -183,6 +183,8 @@ answers. Example 1 of chapter 3 (closest point of approach) is now a test
 (`tests/pub1310.test.ts`): the simulator's plot gives the book's direction and speed of relative
 movement, CPA and time to CPA within plotting accuracy. The other examples (course and speed of a
 contact, course to pass at a given CPA, the manoeuvring board problems) have not been used yet.
+Since 16 Nov 2026 the whole book has been read chapter by chapter and ten more of its answers are
+tests: see `BOOK-CHECK-PUB1310.md`.
 
 ## The third edition (2014), checked rule by rule
 
@@ -287,7 +289,7 @@ and tests (`iec-tt.test.ts`, `imo-arpa.test.ts`, `arpa.test.ts`; see `IEC-CHECK.
 
 | Book | Rule | Simulator | Result |
 |------|------|-----------|--------|
-| 4.1.2, Table 4.2 | Capacity by ship size: 20 radar targets under 500 gt, 30 to 10 000 gt, 40 above (and AIS 20 / 30 / 40 activated); automatic acquisition and the trial manoeuvre are required only above 10 000 gt | **20 radar targets and 20 activated AIS (the smallest category), but with automatic acquisition and the trial manoeuvre (the largest category's facilities)** | **For the user to decide**: which ship size the simulator stands for. Not changed |
+| 4.1.2, Table 4.2 | Capacity by ship size: 20 radar targets under 500 gt, 30 to 10 000 gt, 40 above (and AIS 20 / 30 / 40 activated); automatic acquisition and the trial manoeuvre are required only above 10 000 gt | 20 radar targets and 20 activated AIS (the smallest category), but with automatic acquisition and the trial manoeuvre (the largest category's facilities) | **Settled 16 Nov 2026**: the simulator stands for the largest category, since it has that category's facilities. 40 radar targets, 40 activated AIS, 240 AIS in all |
 | 4.2 | Manual and automatic acquisition; guard zones; a target first seen inside a zone is not acquired; exclusion areas shown | Same | Agrees (ARPA exercise 4) |
 | 4.2.1 | Acquisition at relative speeds up to 100 kn | Not tested before | Agrees (test: a target closing at 100 kn is acquired and tracked) |
 | 4.3.1 | Vector held back for about the first minute; full accuracy after 3 minutes | 60 s and 180 s | Agrees (test) |
@@ -432,7 +434,7 @@ book's 30 to 50), the racon length (2 NM, within 1.5 to 3), the effect of the ra
 rejection on a racon, the tuning needed for a racon, and the Class A AIS range (30 NM, within 20 to 40). An
 instructor should judge them.
 
-One question for the user: the tracker's capacity (chapter 4).
+The one question for the user, the tracker's capacity (chapter 4), was settled on 16 Nov 2026: 40 targets.
 
 ## Still to do from this book
 

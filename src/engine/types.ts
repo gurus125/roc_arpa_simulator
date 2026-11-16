@@ -290,6 +290,28 @@ export interface Sensors {
    * the ground reaches the radar, the ARPA or the AIS. The ship's position must be fixed by radar.
    */
   gnssFailed?: boolean;
+  /**
+   * Radar signals that have failed (IMO MSC.192(79) 5.34.2: the failure of the azimuth, video, sync or heading
+   * marker signal is alarmed). The simulator's fall-back is the same for all four: no radar picture is painted
+   * (a frozen picture is never shown), the ARPA gets no plots, so tracked targets are lost, and AIS targets are
+   * still shown (9.5). Empty or absent = all signals present.
+   */
+  radarSignalsLost?: RadarSignal[];
+  /**
+   * The display has stopped updating the radar picture: the echoes stay where they were on the screen. An alert
+   * says so (MSC.192(79) 5.34.1, "picture freeze"). Tracking and the AIS go on.
+   */
+  pictureFrozen?: boolean;
+}
+
+/** The radar's own signals whose failure is alarmed (IMO MSC.192(79) 5.34.2). */
+export type RadarSignal = "video" | "sync" | "azimuth" | "heading-marker";
+export const RADAR_SIGNALS: readonly RadarSignal[] = ["video", "sync", "azimuth", "heading-marker"];
+export const RADAR_SIGNAL_NAMES: Record<RadarSignal, string> = { video: "VIDEO", sync: "SYNC (TRIGGER)", azimuth: "AZIMUTH", "heading-marker": "HEADING MARKER" };
+/** The failed radar signals by name, in the order of RADAR_SIGNALS ("" when none has failed). */
+export function radarSignalsLostText(sensors: Sensors): string {
+  const lost = sensors.radarSignalsLost ?? [];
+  return RADAR_SIGNALS.filter((x) => lost.includes(x)).map((x) => RADAR_SIGNAL_NAMES[x]).join(", ");
 }
 
 /** Atmospheric refraction other than ducting (Bole and Dineley 3.8.1 to 3.8.3). */

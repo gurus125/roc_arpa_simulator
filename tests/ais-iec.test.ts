@@ -74,21 +74,22 @@ describe("IEC 62288 5.5.7 and 5.5.11: rate of turn and the turn indicator", () =
 });
 
 describe("IEC 62388 11.5.2 (Table 26) and IEC 62288 5.5.6: capacity and automatic activation", () => {
-  it("20 targets can be activated; a caution comes at 19 and the 21st is refused with a warning", () => {
-    expect(AIS_CAPACITY).toEqual({ activated: 20, total: 120 });
-    const ships = Array.from({ length: 22 }, (_, i) => ship(i + 1, (i * 16) % 360, 8 + (i % 3), (i * 37) % 360, 10));
+  it("40 targets can be activated (ships of 10 000 gt and above); a caution comes at 38 and the 41st is refused with a warning", () => {
+    expect(AIS_CAPACITY).toEqual({ activated: 40, total: 240 });
+    const ships = Array.from({ length: 42 }, (_, i) => ship(i + 1, (i * 8) % 360, 8 + (i % 3), (i * 37) % 360, 10));
     const w = world(ships);
     const ais = new AisSystem();
     run(w, ais, 1);
-    for (let id = 1; id <= 18; id++) expect(ais.activate(id, w)).toBe(true);
+    for (let id = 1; id <= 37; id++) expect(ais.activate(id, w)).toBe(true);
     ais.targets(w, null, { cpaNm: 0.01, tcpaMin: 1 });
     expect(ais.alarms.some((a) => a.key === "ais-cap-near-act")).toBe(false);
-    ais.activate(19, w);
+    ais.activate(38, w);
     ais.targets(w, null, { cpaNm: 0.01, tcpaMin: 1 });
     expect(ais.alarms.some((a) => a.key === "ais-cap-near-act")).toBe(true);
-    expect(ais.activate(20, w)).toBe(true);
-    expect(ais.activate(21, w)).toBe(false);
-    expect(ais.activated.size).toBe(20);
+    expect(ais.activate(39, w)).toBe(true);
+    expect(ais.activate(40, w)).toBe(true);
+    expect(ais.activate(41, w)).toBe(false);
+    expect(ais.activated.size).toBe(40);
     expect(ais.alarms.some((a) => a.key === "ais-cap-act")).toBe(true);
     ais.ack("ais-cap-act");
     expect(ais.alarms.some((a) => a.key === "ais-cap-act")).toBe(false);

@@ -99,6 +99,12 @@ export interface ArpaConfig {
   maxTracks: number;
   /** Size of the cells used to turn coastline echoes into plots, NM. */
   landCellNm: number;
+  /**
+   * Automatic acquisition leaves out an echo this large or larger in range or in bearing, metres: it is taken to
+   * be land. PLACEHOLDER: 800 m is the figure of the sample ARPA described in Pub. 1310 (2001), chapter 5; other
+   * sets use other figures. Manual acquisition is not affected, and smaller pieces of land are still acquired.
+   */
+  landEchoMinM: number;
   /** Random clutter samples per antenna revolution for the plot extractor. */
   clutterSamplesPerScan: number;
 }
@@ -140,8 +146,9 @@ export const ARPA_PLACEHOLDERS: ArpaConfig = {
   candidateMaxMisses: 1,
   candidateGateNm: 0.15,
   maxCandidates: 150,
-  maxTracks: 20,
+  maxTracks: 40,
   landCellNm: 0.2,
+  landEchoMinM: 800,
   clutterSamplesPerScan: 600,
 };
 

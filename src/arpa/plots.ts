@@ -15,6 +15,65 @@ export interface ArpaPlot {
   kind: PlotKind;
   /** Truth, for the instructor only: ids of the targets that made this plot. Empty for land/clutter. */
   truthIds: number[];
+  /**
+   * A land plot that is part of an echo `landEchoMinM` or more across in range or in bearing: automatic
+   * acquisition leaves it out. Only worked out when the tracker asks for it (see `landContext`).
+   */
+  landSized?: boolean;
+}
+
+/** One cell of coastline echo: its place on the cell grid and its position from own ship, NM. */
+export interface LandCell {
+  i: number;
+  j: number;
+  v: Vec2;
+}
+
+/**
+ * The size of the land echo each cell belongs to, metres: cells that touch (sideways or cornerwise) form one
+ * echo, and its size is the larger of its extent in range and its extent in bearing, each with one cell
+ * added because a cell stands for a stretch of coast one cell long. Returned in the order of `cells`.
+ */
+export function landEchoExtentsM(cells: LandCell[], cellNm: number): number[] {
+  const at = new Map<string, number>();
+  cells.forEach((c, k) => at.set(`${c.i},${c.j}`, k));
+  const group = cells.map(() => -1);
+  const out = cells.map(() => 0);
+  for (let k = 0; k < cells.length; k++) {
+    if (group[k] !== -1) continue;
+    const members: number[] = [];
+    const stack = [k];
+    group[k] = k;
+    while (stack.length > 0) {
+      const m = stack.pop()!;
+      members.push(m);
+      const c = cells[m]!;
+      for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+        if (di === 0 && dj === 0) continue;
+        const n = at.get(`${c.i + di},${c.j + dj}`);
+        if (n !== undefined && group[n] === -1) {
+          group[n] = k;
+          stack.push(n);
+        }
+      }
+    }
+    const b0 = bearingOf(cells[k]!.v);
+    let rMin = Infinity, rMax = -Infinity, bMin = 0, bMax = 0, rSum = 0;
+    for (const m of members) {
+      const r = length(cells[m]!.v);
+      const b = angleDiffDeg(bearingOf(cells[m]!.v), b0);
+      rMin = Math.min(rMin, r);
+      rMax = Math.max(rMax, r);
+      bMin = Math.min(bMin, b);
+      bMax = Math.max(bMax, b);
+      rSum += r;
+    }
+    const inRange = rMax - rMin + cellNm;
+    const inBearing = (((bMax - bMin) * Math.PI) / 180) * (rSum / members.length) + cellNm;
+    const extentM = Math.max(inRange, inBearing) * 1852;
+    for (const m of members) out[m] = extentM;
+  }
+  return out;
 }
 
 /** Standard normal deviate from a uniform generator (Box-Muller). */
@@ -29,6 +88,7 @@ interface RawPlot {
   kind: PlotKind;
   truthIds: number[];
   strength: number;
+  landSized?: boolean;
 }
 
 /**
@@ -39,6 +99,8 @@ interface RawPlot {
  *
  * Simplification: the whole revolution is treated as one instant.
  * `wantLand(relTrue)` limits the (expensive) coastline plots to where the tracker needs them.
+ * `landContext(relTrue)` names more coastline, round the acquisition zones, that is looked at only to measure
+ * how large each land echo is (`landSized`); it gives no plots of its own.
  */
 /**
  * Bearing error from the tilt of the antenna as the ship rolls and pitches, degrees. An antenna
@@ -86,6 +148,7 @@ export function extractPlots(
   cfg: ArpaConfig,
   rng: () => number,
   wantLand: (relTrue: Vec2) => boolean = () => false,
+  landContext: ((relTrue: Vec2) => boolean) | null = null,
 ): ArpaPlot[] {
   const heading = w.own.heading;
   const raw: RawPlot[] = [];
@@ -135,6 +198,8 @@ export function extractPlots(
 
   // Coastline, one plot per small cell.
   const cells = new Set<string>();
+  const landCells: LandCell[] = [];
+  const landPlots: (RawPlot | null)[] = [];
   const maxR = cfg.maxRangeNm;
   for (const s of w.coastSamples) {
     // Most samples are far from any track: the cheap tests first.
@@ -142,17 +207,31 @@ export function extractPlots(
     const dn = s.pos.n - w.own.pos.n;
     if (de > maxR || de < -maxR || dn > maxR || dn < -maxR) continue;
     const v = { e: de, n: dn };
-    if (!wantLand(v)) continue;
+    const wanted = wantLand(v);
+    if (!wanted && !(landContext && landContext(v))) continue;
     const r = length(v);
     if (r > maxR) continue;
-    const key = `${Math.floor(s.pos.e / cfg.landCellNm)},${Math.floor(s.pos.n / cfg.landCellNm)}`;
+    const ci = Math.floor(s.pos.e / cfg.landCellNm), cj = Math.floor(s.pos.n / cfg.landCellNm);
+    const key = `${ci},${cj}`;
     if (cells.has(key)) continue;
     const e = effectiveSignal(w, { rcs: rcsForDetectionRange(shorelineDetectionNm(s.heightM)), height: s.heightM, rangeNm: r, relBearing: relativeBearing(bearingOf(v), heading), pos: s.pos, kind: "coast" }, rx);
     if (rng() >= detectionProbability(e)) continue;
     // With terrain, the shoreline is hidden by higher land in front of it; drawn coastlines hide what lies behind them.
     if (w.terrain ? landHides(w, s.pos, s.heightM) : lineOfSightBlocked(w, s.pos, s.edge)) continue;
     cells.add(key);
-    raw.push({ relTrue: v, kind: "land", truthIds: [], strength: 1 });
+    const plot: RawPlot | null = wanted ? { relTrue: v, kind: "land", truthIds: [], strength: 1 } : null;
+    if (plot) raw.push(plot);
+    if (landContext) {
+      landCells.push({ i: ci, j: cj, v });
+      landPlots.push(plot);
+    }
+  }
+  if (landContext) {
+    // How large is the echo each land plot belongs to? (Echoes as large as land are not acquired automatically.)
+    const extents = landEchoExtentsM(landCells, cfg.landCellNm);
+    landPlots.forEach((p, k) => {
+      if (p && extents[k]! >= cfg.landEchoMinM) p.landSized = true;
+    });
   }
 
   // Sea clutter near own ship.
@@ -194,6 +273,8 @@ export function extractPlots(
     const lim = cfg.bearingErrorLimitDeg;
     const err = Math.max(-lim, Math.min(lim, gaussian(rng) * cfg.bearingNoiseDeg + tilt + par.bearingDeg));
     const b = tb + g + err;
-    return { rel: fromPolar(b, r), kind: p.kind, truthIds: p.truthIds };
+    const out: ArpaPlot = { rel: fromPolar(b, r), kind: p.kind, truthIds: p.truthIds };
+    if (p.landSized) out.landSized = true;
+    return out;
   });
 }

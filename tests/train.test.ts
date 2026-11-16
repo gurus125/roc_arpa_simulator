@@ -369,8 +369,8 @@ describe("records, replay frames and the store", () => {
 });
 
 describe("capacity and performance", () => {
-  it("the ARPA tracks 20 targets at once and reports memory full for the 21st", () => {
-    const targets = Array.from({ length: 25 }, (_, i) => ({ id: i + 1, name: `T${i + 1}`, kind: "ship" as const, pos: fromPolar(i * 14 + 5, 4 + (i % 5)), course: (i * 37) % 360, speed: 6 + (i % 7), rcs: 1, height: 20, events: [] }));
+  it("the ARPA tracks 40 targets at once (IMO MSC.192(79) Table 1, ships of 10 000 gt and above) and reports memory full for the 41st", () => {
+    const targets = Array.from({ length: 45 }, (_, i) => ({ id: i + 1, name: `T${i + 1}`, kind: "ship" as const, pos: fromPolar(i * 8 + 3, 4 + (i % 5) * 1.5), course: (i * 37) % 360, speed: 6 + (i % 7), rcs: 1, height: 20, events: [] }));
     const w = createWorld({ id: "cap", name: "cap", description: "", own: { heading: 0, speed: 12 }, env: { seaState: 0 }, coasts: [], targets }, 62);
     w.radar.controls.tuning = 62;
     w.radar.shadowSectors = [];
@@ -379,17 +379,17 @@ describe("capacity and performance", () => {
     a.step(w, rng);
     let refused = 0;
     for (const t of w.targets) if (!a.acquire(w, sub(t.pos, w.own.pos))) refused++;
-    expect(a.cfg.maxTracks).toBe(20);
+    expect(a.cfg.maxTracks).toBe(40);
     expect(refused).toBe(5);
     expect(a.alarms.some((x) => x.kind === "capacity")).toBe(true);
-    // 25 targets on the screen, 20 tracked: ten simulated minutes must run far faster than real time.
+    // 45 targets on the screen, 40 tracked: ten simulated minutes must run far faster than real time.
     const t0 = Date.now();
     while (w.time < 600) {
       stepWorld(w, 0.5);
       a.step(w, rng);
     }
     const wallSeconds = (Date.now() - t0) / 1000;
-    expect(a.activeCount()).toBeGreaterThanOrEqual(18);
+    expect(a.activeCount()).toBeGreaterThanOrEqual(36);
     expect(wallSeconds).toBeLessThan(20); // 600 simulated seconds: at least 30 times faster than real time
   });
 });

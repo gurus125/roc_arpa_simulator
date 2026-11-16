@@ -1,7 +1,7 @@
 import { G, K, bgOuter, echoColour, landEchoColour, pic, ppiGradient } from "./palette";
 import { fromPolar, normalizeDeg } from "../core/vec";
 import { rangeBearing } from "../core/nav";
-import { pulseFor, radarPower, warmUpLeftSec, ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead } from "../engine/index";
+import { pulseFor, radarPower, warmUpLeftSec, ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead, radarSignalsLostText } from "../engine/index";
 import { AppState, ECHO_LIFETIME_S } from "./app";
 import { ShipType, shipTypeById } from "../core/shipmodel";
 
@@ -266,7 +266,8 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.stroke();
     ctx.setLineDash([]);
   }
-  if (!app.hlOff) {
+  // The heading line is not painted while the heading marker signal is lost.
+  if (!app.hlOff && !w.sensors.radarSignalsLost?.includes("heading-marker")) {
     ctx.strokeStyle = PC.heading;
     ctx.lineWidth = 1.2;
     ctx.beginPath();
@@ -443,7 +444,8 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
 
   }
 
-  // Sweep line with a smooth fading tail
+  // Sweep line with a smooth fading tail. Not drawn while a radar signal is lost: there is no picture to paint.
+  if (!radarSignalsLostText(w.sensors)) {
   const sweepScreen = w.own.heading - orient + app.sweep;
   const toCanvasRad = (screenDeg: number): number => ((screenDeg - 90) * Math.PI) / 180;
   for (let i = 0; i < 16; i++) {
@@ -461,6 +463,7 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
   ctx.moveTo(own.x, own.y);
   ctx.lineTo(own.x + sd.dx * R * 2, own.y + sd.dy * R * 2);
   ctx.stroke();
+  }
   ctx.restore();
 
   // Bearing scale (outside the clip)
@@ -513,6 +516,16 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
     ctx.fillStyle = G("#ffb347");
     ctx.font = `bold ${hudM.big}px monospace`;
     ctx.fillText("STANDBY", size / 2, size / 2 - 3 * hudM.lh);
+  } else if (radarSignalsLostText(w.sensors) || w.sensors.pictureFrozen) {
+    // A permanent indication of the failed input (IMO MSC.192(79) 9), also when the ARPA and its alert list are off.
+    const hudM = hudText(size);
+    const lost = radarSignalsLostText(w.sensors);
+    ctx.textAlign = "center";
+    ctx.fillStyle = G("#ffb347");
+    ctx.font = `bold ${hudM.big}px monospace`;
+    ctx.fillText(lost ? "NO RADAR PICTURE" : "PICTURE FREEZE", size / 2, size / 2 - 3 * hudM.lh);
+    ctx.font = `${hudM.fs}px monospace`;
+    ctx.fillText(lost ? `SIGNAL LOST: ${lost}` : "The radar picture is not being updated", size / 2, size / 2 - 3 * hudM.lh + 1.6 * hudM.lh);
   }
 
   // The range, rings, presentation mode, band and pulse are shown in the PICTURE panel beside the picture,

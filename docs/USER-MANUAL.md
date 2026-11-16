@@ -75,6 +75,13 @@ If the gyro compass fails, the picture changes by itself to head-up (unstabilise
 motion, "HDG FAIL: UNSTAB, REL BRG ONLY" is shown in the PICTURE & RADAR CONTROL panel, and the EBLs read relative
 bearings only. That is what a real radar does when it loses its heading input.
 
+If the display loses one of the radar's own signals (video, sync, azimuth or heading marker), the
+warning RADAR SIGNAL LOST names it, the echoes fade and the picture reads NO RADAR PICTURE. The
+tracked targets are lost within a few turns of the aerial. The AIS targets are still shown, with their data, CPA and
+TCPA: use them, your position and a look-out until the radar is back. If the picture stops being
+updated, PICTURE FREEZE is written across it and a warning is given: the echoes on the screen are
+old and must not be used.
+
 The settings are not written over the picture but kept in the panels beside it: the PICTURE & RADAR
 CONTROL panel shows the range scale, ring interval, band, orientation, motion and stabilisation, and the pulse
 length in use (SP short, MP medium, LP long); the VRM / ARPA panel shows the vector mode and time,
@@ -171,7 +178,9 @@ The same panel has **VECTOR** (REL or TRUE vectors of tracked targets, and the v
    MISSING for anything its report does not carry. A yellow ? after a value means it is still preliminary. The VRM / ARPA
    panel shows the CPA and TCPA limits, the past positions setting and the ARPA's speed input.
 4. **Cancel** drops one target; **Cancel all** drops them all. **Auto** acquires targets that
-   enter a guard zone.
+   enter a guard zone. It leaves out echoes as large as land (800 m or more across or deep), so the
+   coast is not acquired; a small rock or a patch of clutter can be, and an exclusion area (GUARD)
+   keeps those out. Anything can still be acquired by hand. The ARPA tracks 40 targets.
 5. **The list of tracked targets** at the top of TARGET DATA gives each target's number, bearing,
    range, CPA, TCPA, course and speed (CTW and STW, or COG and SOG, as above) and a status light:
    green for a steady track, orange while acquiring, preliminary or lost, red for a dangerous
@@ -208,7 +217,7 @@ Alerts (IMO resolution MSC.302(87), IEC 62288 and IEC 62388) have three prioriti
 |----------|------|-------|-------|
 | ALARM | A dangerous target (CPA and TCPA inside the limits) | Red, flashing until acknowledged, then steady until the danger has gone | Three short signals, repeated every 8 seconds until acknowledged |
 | WARNING | Lost target, new target in a zone, capacity exceeded, sensor failure and the rest | Orange, flashing until acknowledged | Two short signals; again every 5 minutes if left unacknowledged |
-| CAUTION | The tracker is nearly full (19 of 20 targets) | Yellow, steady | None; nothing to acknowledge |
+| CAUTION | The tracker is nearly full (38 of 40 targets) | Yellow, steady | None; nothing to acknowledge |
 
 Alerts are acknowledged one at a time. Under **CPA/ALARM**, "Silence sound 30 s" stops the sound
 without acknowledging anything, and the lost target warning for tracked targets can be switched
@@ -337,7 +346,7 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
   limit 2 NM, TCPA limit 12 minutes). Gain, clutter and tuning stay as they are.
 - **AIS LIST**: "Activate automatically" activates sleeping AIS targets within 3, 6 or 12 NM by
   themselves; with automatic acquisition on, an AIS target in an acquisition zone is activated too,
-  with a NEW AIS TARGET warning. At most 20 targets can be activated (a caution at 19). An activated
+  with a NEW AIS TARGET warning. At most 40 targets can be activated (a caution at 38). An activated
   target shows its past positions (as set under PAST POS), a turn indicator on its heading line when
   it is turning, and on the shortest range scales its outline to scale. Its data gives its rate of
   turn (ROT) when it reports one, and CTW and STW when the ARPA is sea stabilised.

@@ -577,6 +577,38 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await st.click("#rfClear");
     await p.waitForTimeout(500);
     check(`${tag} faults cleared from the instructor station`, !(await p.evaluate(() => window.__simTest.headingLost())));
+    // A radar signal lost (IMO MSC.192(79) 5.34.2 and 9.5): no radar picture, the warning names the signal, the AIS targets stay.
+    {
+      const echoes = async () => Object.values(await p.evaluate(() => window.__simTest.hitKinds())).reduce((a, b) => a + b, 0);
+      const before = await echoes();
+      await st.check("#rf_sigVideo");
+      await st.check("#rf_sigHm");
+      await st.click("#rfAll");
+      await p.waitForTimeout(5000);
+      const lost = await echoes();
+      const ais = await p.evaluate(() => window.__simTest.aisDrawn());
+      const stLost = await text("#cArpaSt");
+      const hdrLost = (await text("#hdrAlarm")).trim();
+      check(`${tag} radar signals lost: no echoes, the warning names them, AIS targets stay`, before > 0 && lost === 0 && ais > 0 && /RADAR SIGNAL LOST: VIDEO, HEADING MARKER/.test(stLost) && hdrLost !== "No Alarms", `${before} -> ${lost} echoes, ${ais} AIS | ${stLost} | ${hdrLost}`);
+      await st.uncheck("#rf_sigVideo");
+      await st.uncheck("#rf_sigHm");
+      await st.click("#rfClear");
+      await p.waitForTimeout(5000);
+      const back = await echoes();
+      // Picture freeze (5.34.1): the echoes stay, the alert is given.
+      await st.check("#rf_picFreeze");
+      await st.click("#rfAll");
+      await p.waitForTimeout(1500);
+      const f1 = await echoes();
+      await p.waitForTimeout(4000);
+      const f2 = await echoes();
+      const stFrozen = await text("#cArpaSt");
+      check(`${tag} picture freeze: the echoes stay as they were and the alert is given`, back > 0 && f1 > 0 && f2 === f1 && /PICTURE FREEZE/.test(stFrozen) && !/RADAR SIGNAL LOST/.test(stFrozen), `${back} back, frozen ${f1} then ${f2} | ${stFrozen}`);
+      await st.uncheck("#rf_picFreeze");
+      await st.click("#rfClear");
+      await p.waitForTimeout(800);
+      check(`${tag} picture freeze cleared`, !/PICTURE FREEZE/.test(await text("#cArpaSt")));
+    }
     await p.selectOption("#orient", "north-up");
     // Unstabilised head-up cannot be used in true motion (Radar and ARPA Manual, 3rd edition, 1.5.2.1).
     {

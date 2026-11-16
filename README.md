@@ -123,6 +123,15 @@ EXERCISES, Marking sheets). A draft syllabus table, STCW A-II/1, Model Course 1.
 the exercises, with the gaps: `docs/SYLLABUS-MATRIX.md` (no instructor has reviewed it). From IEC 62288 and
 62388: the stern line and the antenna position mark; AIS reports repeated by a shore station, not used while the
 vessel is heard directly (instructor switch); the high-speed-craft versions of TT scenarios 2 to 5, all met.
+Fifth round (16 Nov 2026), after Pub. 1310 (Radar Navigation and Maneuvering Board Manual, 2001) was read chapter
+by chapter (`docs/BOOK-CHECK-PUB1310.md`): automatic acquisition leaves out echoes as large as land (`landEchoMinM`
+in `src/arpa/config.ts`, a placeholder; `landEchoExtentsM` in `src/arpa/plots.ts`; tests
+`tests/land-acquisition.test.ts`); instructor faults for the loss of the radar's video, sync, azimuth and heading
+marker signals and for a frozen picture, with the alerts of IMO MSC.192(79) 5.34 and the fall-back of 9.5 (no radar
+picture, AIS targets kept; `radarSignalsLost` and `pictureFrozen` in `src/engine/types.ts`; tests
+`tests/signal-failure.test.ts`); capacity raised to the largest class of MSC.192(79) Table 1 (40 tracked targets, 40
+activated AIS targets, 240 AIS targets in all); and ten more of the book's worked answers as tests
+(`tests/pub1310.test.ts`).
 Hardware control panel: keys for every radar function, changeable, and knob-box (game controller) inputs
 (`src/ui/panel-map.ts`, `src/ui/panel.ts`; SETTINGS > Control panel). No real panel has been tried.
 `npm run test:link` starts the classroom server and checks the instructor station and four student displays in separate
@@ -138,7 +147,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 679 tests
+    npm test            # 708 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

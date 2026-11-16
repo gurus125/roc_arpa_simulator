@@ -31,7 +31,7 @@ export interface StationStatus {
 }
 
 /** The fault controls an instructor station can set on a display (the ids of the display's own controls). */
-export const FAULT_IDS = ["gyroErr", "logErr", "hmErr", "vrmErr", "perf", "logFail", "gyroFail", "gnssFail", "anchorDrag", "aisRepeat"] as const;
+export const FAULT_IDS = ["gyroErr", "logErr", "hmErr", "vrmErr", "perf", "logFail", "gyroFail", "gnssFail", "sigVideo", "sigSync", "sigAzimuth", "sigHm", "picFreeze", "anchorDrag", "aisRepeat"] as const;
 
 /** What the instructor station keeps for the whole class and sends to every display: batches and assignments, scoring. */
 export interface ClassConfig {

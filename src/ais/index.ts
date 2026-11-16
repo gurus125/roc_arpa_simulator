@@ -86,11 +86,12 @@ const AIS_SHIP_TYPE: Record<string, string> = {
 /** Rate of turn at or above which a vessel counts as changing course, and its turn indicator is drawn, degrees a minute (this simulator's choice). */
 export const AIS_TURNING_ROT = 2;
 /**
- * AIS capacity of the display (IEC 62388:2013 Table 26, category 3, the same category as the
- * tracker's 20 targets): activated targets, and all targets and data reports together. A caution is
- * given at a nominal 95% and a warning when the capacity is exceeded (11.5.2.1).
+ * AIS capacity of the display (IMO MSC.192(79) Table 1 and IEC 62388:2013 Table 26, ships of 10 000 gt
+ * and above, the same class as the tracker's 40 targets and the one that must have automatic
+ * acquisition and the trial manoeuvre): 40 activated targets, and 240 in all (40 activated and 200
+ * sleeping). A caution is given at a nominal 95% and a warning when the capacity is exceeded (11.5.2.1).
  */
-export const AIS_CAPACITY = { activated: 20, total: 120 };
+export const AIS_CAPACITY = { activated: 40, total: 240 };
 /** Past positions of activated AIS targets are taken from samples this far apart, seconds (this simulator's choice). */
 export const AIS_PAST_SAMPLE_SEC = 30;
 /** A vessel's beam as a share of its length, when only the length is known (the same placeholder as the echo shapes). */

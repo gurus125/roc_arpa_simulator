@@ -15,7 +15,7 @@ were not available when this was built: please check everything below against th
 | 6 | Monitoring of other displays, pause/run/message/fault from the instructor | Instructor tab |
 | 7 | Scoring settings, exercise records, replay, CSV export, printable report (save as PDF) | Instructor tab |
 | 8 | ECDIS: removed. It is a separate course and simulator. The trial code is set aside in `archive/ecdis-trainer/` and is not part of the simulator | - |
-| 8 | Radar transmitter standby; ARPA capacity 20 targets; speed test with 25 targets | Own ship box; tests |
+| 8 | Radar transmitter standby; ARPA capacity 20 targets (40 since 16 Nov 2026); speed test with 25 targets | Own ship box; tests |
 
 ## Placeholders to confirm (none comes from an approved scheme)
 
@@ -31,7 +31,7 @@ were not available when this was built: please check everything below against th
 | Instructor PIN at first start | 0000 (change it; it is a classroom lock, not security) |
 | Students per display / hours per pair | 2 / not set |
 | Records kept on one computer | newest 60 |
-| ARPA tracking capacity | 20 targets |
+| ARPA tracking capacity | 40 targets (20 until 16 Nov 2026) |
 
 ## Things to try
 

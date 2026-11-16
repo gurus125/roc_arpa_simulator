@@ -5,7 +5,7 @@ import { SILENCE_SEC, alertSound, nextToAcknowledge } from "../arpa/index";
 import { acknowledge, alertRows } from "./alerts-view";
 import { createAlarmSound } from "./alarm-sound";
 import { Track, VECTOR_TIME_RANGE_MIN, ZoneSetting } from "../arpa/index";
-import { World, measuredHeading, setAnchorDrag } from "../engine/index";
+import { RadarSignal, World, measuredHeading, setAnchorDrag } from "../engine/index";
 import { aisFilterLabel, aisFilterOn, ownShipAisData } from "../ais/index";
 import { formatLatLon, latLonOf } from "../core/nav";
 import { AppState, aisLocked } from "./app";
@@ -39,6 +39,9 @@ export interface ArpaUi {
   /** A click on the PPI while the ARPA tab is open. `rel` is gyro frame, `radiusNm` the pick radius. */
   click: (app: AppState, rel: Vec2, radiusNm: number) => void;
 }
+
+/** The instructor's boxes for the radar signals that can fail, and the signal each stands for. */
+const SIGNAL_BOXES: [string, RadarSignal][] = [["sigVideo", "video"], ["sigSync", "sync"], ["sigAzimuth", "azimuth"], ["sigHm", "heading-marker"]];
 
 const ZONES: { key: string; label: string; list: "guardZones" | "exclusionZones"; i: number }[] = [
   { key: "g0", label: "Guard 1", list: "guardZones", i: 0 },
@@ -181,6 +184,15 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
   // change them only when clicked, and follow them otherwise (in tick).
   $("gnssFail").addEventListener("change", () => {
     api.getApp().world.sensors.gnssFailed = inp("gnssFail").checked;
+  });
+  // Radar signal failures and the frozen picture are states of the world too.
+  for (const [id] of SIGNAL_BOXES) {
+    $(id).addEventListener("change", () => {
+      api.getApp().world.sensors.radarSignalsLost = SIGNAL_BOXES.filter(([box]) => inp(box).checked).map(([, sig]) => sig);
+    });
+  }
+  $("picFreeze").addEventListener("change", () => {
+    api.getApp().world.sensors.pictureFrozen = inp("picFreeze").checked;
   });
   $("anchorDrag").addEventListener("change", () => {
     const w = api.getApp().world;
@@ -332,6 +344,11 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
   const tick = (app: AppState): void => {
     ownAisTick(app.world);
     if (inp("gnssFail").checked !== !!app.world.sensors.gnssFailed) inp("gnssFail").checked = !!app.world.sensors.gnssFailed;
+    for (const [id, sig] of SIGNAL_BOXES) {
+      const lost = (app.world.sensors.radarSignalsLost ?? []).includes(sig);
+      if (inp(id).checked !== lost) inp(id).checked = lost;
+    }
+    if (inp("picFreeze").checked !== !!app.world.sensors.pictureFrozen) inp("picFreeze").checked = !!app.world.sensors.pictureFrozen;
     const dragging = !!app.world.own.anchor && app.world.own.anchor.dragKn > 0;
     if (inp("anchorDrag").checked !== dragging) inp("anchorDrag").checked = dragging;
     if (inp("aisRepeat").checked !== app.ais.shoreRepeat.on) inp("aisRepeat").checked = app.ais.shoreRepeat.on;

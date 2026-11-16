@@ -47,7 +47,8 @@ tell me the real ones, or tell me if the behaviour is wrong.
 | "FADE" shown when fewer than | 60% of the last 10 scans had an echo |
 | Manual acquisition search radius / scans to wait | 0.3 NM / 4 scans, then "No echo found" |
 | Automatic acquisition confirms an echo after | 3 scans, at most 1 missed scan in between |
-| Track capacity | 20 targets |
+| Track capacity | 40 targets (20 until 16 Nov 2026; IMO MSC.192(79) Table 1, ships of 10,000 gt and more) |
+| Automatic acquisition leaves out, as land, an echo this large in range or in bearing | 800 m (since 16 Nov 2026; the figure of the sample set in Pub. 1310 chapter 5) |
 | Maximum ARPA range | 24 NM |
 | Default CPA / TCPA alarm limits (the student can change them) | 1.0 NM / 12 min |
 | Vector time (student can type any value) | 1 to 60 min, default 6 |
@@ -96,13 +97,16 @@ tell me the real ones, or tell me if the behaviour is wrong.
 8. **Guard zone and auto acquisition.** Turn on Guard 1. With automatic acquisition off, a ship
    entering the ring gives "Echo entering guard zone". With it on, the ship is acquired and gives
    "New target acquired".
-9. **Exclusion area.** Coastal waters, Guard 1 (0 to 360, inner 1 NM, outer 6 NM), automatic
-   acquisition on: the coast and clutter are acquired until the track capacity is full (MEMORY
-   FULL alarm, which stays on until a target is dropped). Restart and turn on Exclude 1 over
-   the coast: fewer false acquisitions (in one 5-minute test run, 30 active tracks instead of
-   40, the capacity). The display clutter controls do not help the ARPA; only exclusion areas
-   do. Some false tracks remain from land outside the exclusion areas; widen Exclude 1 or use
-   Exclude 2. Question 6 below asks whether this is too severe.
+9. **Land, clutter and the exclusion area.** Coastal waters, Guard 1 (0 to 360, inner 1 NM, outer
+   6 NM), automatic acquisition on. Since 16 Nov 2026 the coast is not acquired: an echo 800 m or
+   more across or deep is left out as land. (Before that the coast alone took every track: in one
+   5-minute test run 37 of the 40.) Sea clutter is still acquired where the zone reaches it: in
+   the same run 31 false tracks, all within 1.6 NM of own ship, and none with the zone's inner
+   limit at 2 NM. Small pieces of land are acquired too: ARPA exercise 4 has two rocks for that,
+   and Exclude 1 over them keeps them out. The display clutter controls do not help the ARPA;
+   only the zone limits and the exclusion areas do. An exclusion area stops acquisition inside
+   it; a target already tracked that moves into it is kept. Question 6 below asks whether the
+   clutter is too severe.
 10. **Lost target and fading.** Open sea traffic: acquire Buoy E (2.2 NM) and Fishing boat D.
     Their echoes are near the detection limit of the ARPA's fixed receiver, so they come and go:
     the buoy shows FADE and then LOST with a flashing diamond (in a 5-minute test run), the boat
@@ -162,7 +166,9 @@ tell me the real ones, or tell me if the behaviour is wrong.
 6. With the display clutter controls no longer reaching the ARPA, automatic acquisition in
    coastal waters picks up a lot of false targets unless exclusion areas are set. Real sets
    reject clutter in the processor. Should the ARPA be made stricter (more hits to confirm,
-   a clutter filter), or is this a useful exercise?
+   a clutter filter), or is this a useful exercise? Answered in part on 16 Nov 2026: land is
+   now left out by its size (800 m, a placeholder: is that the right figure?). Sea clutter
+   near own ship is still acquired; the question stands for that.
 7. ~~Are 3, 6, 12 and 24 NM the right ARPA range scales?~~ Answered 14 Nov 2026: the ARPA is now
    shown on every scale, as on real sets (IMO MSC.192(79) 5.25.1.3 asks for at least 3, 6 and 12 NM;
    Bole, Wall, Norris 4.5.2). Should the ARPA be unavailable when the display is not gyro-stabilised?
@@ -189,8 +195,8 @@ tell me the real ones, or tell me if the behaviour is wrong.
   ARPA. The ARPA has its own control for it.
 - A wandering gyro (injected gyro error) and a wrong log are NOT detected by the ARPA, as in the
   textbook. Only a total gyro failure raises EQUIPMENT MALFUNCTION.
-- Track capacity is 20 for manual and automatic targets together (the textbook gives about 10 manual
-  and 20 automatic for typical sets).
+- Track capacity is 40 for manual and automatic targets together (20 until 16 Nov 2026; the
+  textbook gives about 10 manual and 20 automatic for typical sets of its time).
 - Symbols follow IMO SN.1/Circ.243/Rev.2 since 12 Nov 2026 (broken circle acquiring, circle
   tracked, bold red circle dangerous, circle with a bold cross lost). Checked against IEC 62288
   Annex A on 13 Nov 2026 (see `IEC-CHECK.md`).

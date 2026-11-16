@@ -101,7 +101,7 @@ export const SECOND_TRACE: Scenario = {
 export const HEAVY_TRAFFIC: Scenario = {
   id: "heavy-traffic",
   name: "Heavy traffic (22 ships)",
-  description: "Twenty-two ships on crossing and reciprocal courses within 12 NM, with a tidal stream. Use the 12 NM range scale. The ARPA tracks 20 at most: decide which targets matter.",
+  description: "Twenty-two ships on crossing and reciprocal courses within 12 NM, with a tidal stream. Use the 12 NM range scale. The ARPA can track them all (40 at most), but decide which targets matter.",
   own: { heading: 45, speed: 13 },
   env: { seaState: 3, tidal: { floodSet: 90, maxRateKn: 2, hoursAfterSlackAtStart: 2 } },
   coasts: [],

@@ -5,7 +5,7 @@ import { AisSystem } from "../ais/index";
 import { Vec2 } from "../core/vec";
 import {
   DisplayState, Hit, Scenario, TrailStore, World, createWorld, newDisplayState, scanWedge,
-  stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading, radarTransmitting, settleDisplayModes, resetTrueMotionAhead,
+  stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading, radarTransmitting, settleDisplayModes, resetTrueMotionAhead, radarSignalsLostText,
 } from "../engine/index";
 
 /** Latitude and longitude of the scenarios' 0,0: the same point the real Mumbai coastline is laid out from. */
@@ -219,7 +219,10 @@ export function advance(app: AppState, wallDt: number, rng: () => number = Math.
     if (advancing && app.advanceTo! - w.time < simDt) simDt = Math.max(0, app.advanceTo! - w.time);
     const steps = Math.max(1, Math.ceil(simDt / 0.5));
     for (let i = 0; i < steps; i++) {
+      const e0 = w.own.pos.e, n0 = w.own.pos.n;
       stepWorld(w, simDt / steps);
+      // A frozen picture stays where it was on the screen: the echoes are carried along with own ship.
+      if (w.sensors.pictureFrozen) for (const h of app.hits) h.hit.pos = { e: h.hit.pos.e + w.own.pos.e - e0, n: h.hit.pos.n + w.own.pos.n - n0 };
       // Speed input of the display's sea stabilisation: the speed set by hand, else the log (nothing when the log has failed).
       const as = app.arpa.settings;
       stepSpeedInput(w, app.display, simDt / steps, as.logMode === "manual" ? as.manualSpeedKn : app.arpa.logFailed ? 0 : logSpeed(w));
@@ -237,7 +240,8 @@ export function advance(app: AppState, wallDt: number, rng: () => number = Math.
       }
       app.arpaEx?.step(w, app.arpa, { pi: app.pi, navLines: app.navLines.filter((l) => l.length >= 2).length, pmOn: app.pmOn });
       app.recorder?.sample(w, app.roc ? null : app.arpa);
-      app.trails.sample(w, app.display);
+      // Trails are made from the radar picture: none while it is not being painted.
+      if (!w.sensors.pictureFrozen && !radarSignalsLostText(w.sensors)) app.trails.sample(w, app.display);
       if (app.roc && app.roc.step(w)) {
         app.running = false;
         app.advanceTo = null;
@@ -250,9 +254,13 @@ export function advance(app: AppState, wallDt: number, rng: () => number = Math.
     }
   }
 
-  const dA = app.radarStandby ? 0 : w.radar.rpm * 6 * dt;
+  // A frozen picture is not updated: no new echoes, and the old ones do not fade (their age stands still).
+  const frozen = !!w.sensors.pictureFrozen && !app.radarStandby;
+  if (frozen) for (const h of app.hits) h.born += dt;
+  const dA = app.radarStandby || frozen ? 0 : w.radar.rpm * 6 * dt;
   if (dA > 0) {
-    for (const h of scanWedge(w, app.sweep, app.sweep + dA, rng)) app.hits.push({ hit: h, born: app.wall });
+    // With a radar signal lost (video, sync, azimuth or heading marker) nothing is painted; what was there fades out.
+    if (!radarSignalsLostText(w.sensors)) for (const h of scanWedge(w, app.sweep, app.sweep + dA, rng)) app.hits.push({ hit: h, born: app.wall });
     app.sweep = (app.sweep + dA) % 360;
   }
   const cutoff = app.wall - ECHO_LIFETIME_S;

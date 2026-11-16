@@ -107,7 +107,7 @@ Tick "Show target tracks on this display" to see every programmed track in blue.
 only on the station's own radar, never on a trainee's display.
 
 Each of up to 100 targets can have its own track. The scenario "Traffic: 100 ships on programmed
-tracks" shows 100 ships running together. The ARPA tracks 20 targets at a time.
+tracks" shows 100 ships running together. The ARPA tracks 40 targets at a time.
 
 ## 5. Faults
 
@@ -125,6 +125,9 @@ are not told. (On the station's own radar the same faults are under MENU, FAULTS
 | Speed log FAILED | The ARPA shows SPEED LOG INPUT ABSENT |
 | Gyro compass FAILED | The ARPA gives an equipment malfunction warning and loses all tracks; the picture goes to unstabilised head-up with relative motion, and bearings are relative only |
 | EPFS (GNSS) FAILED | No position anywhere: NO FIX in the position, no latitude and longitude at the cursor, COG and SOG blank, own ship's AIS sends no position, and the ARPA warns EPFS INPUT ABSENT. The trainee must fix by radar (exercise 23 starts this way) |
+| Radar VIDEO signal LOST | The warning RADAR SIGNAL LOST: VIDEO. The echoes fade and the picture reads NO RADAR PICTURE; trails stop; after six turns of the aerial without an echo every tracked target is lost (lost target warnings). The AIS targets stay, with their data and their CPA and TCPA alarm (IMO MSC.192(79) 9.5). Clear the fault and the picture comes back; the targets must be acquired again |
+| Radar SYNC (trigger) signal LOST, AZIMUTH signal LOST, HEADING MARKER signal LOST | The same effect, and the warning names the signal (IMO MSC.192(79) 5.34.2 asks for an alarm on each). With the heading marker lost the heading line is not painted either. Several can be set together: the warning names them all |
+| Picture FROZEN | The echoes stop being updated and stay where they were on the screen, under the words PICTURE FREEZE, with a warning (IMO MSC.192(79) 5.34.1). The ARPA and the AIS go on working, so the symbols move away from the frozen echoes: that is what the trainee should notice |
 | Own ship's anchor DRAGGING | Only while own ship is at anchor: she drags at 0.5 kn with the current. An anchor watch set on a fixed echo gives its alarm once she has moved the set distance (exercise 24 does this by itself ten minutes after anchoring) |
 | AIS shore station REPEATING | A shore station repeats every AIS report it hears, own ship's too, 30 s late and every 10 s. The display must not use them while it hears the ships directly (IEC 62388 11.5.3.1), so the trainee sees no change. The line under the faults counts the repeated reports received, not used and used |
 
@@ -329,7 +332,14 @@ mode (which screen it opens on) has not been tried either.
   but no real panel has been plugged in: only simulated inputs have been tried.
 - Symbols follow IMO SN.1/Circ.243/Rev.2 and IEC 62288 Annex A; alerts follow IMO MSC.302(87) and
   IEC 62288 Table 2. Not done: a 24-hour alert history.
-- The ARPA tracks 20 targets. It cannot acquire a false echo; a real ARPA can.
+- The ARPA tracks 40 targets and the display holds 40 activated AIS targets and 240 AIS targets in
+  all: the figures of IMO MSC.192(79) Table 1 for ships of 10,000 gt and more (until 16 Nov 2026 it
+  was 20, 20 and 120, the smallest class). It cannot acquire a false echo; a real ARPA can.
+- Automatic acquisition leaves out an echo 800 m or more across or deep, as land. The 800 m is a
+  placeholder, the figure of one set described in Pub. 1310: sets differ.
+- The four radar signal faults all have the same effect (no picture, tracks lost, AIS kept; without
+  the heading marker, no heading line either). On a real set the loss of the heading marker or of
+  the azimuth signal may look different.
 - The simulator was compared with the radar standards IEC 62388:2013 and IEC 62288:2014: see
   `IEC-CHECK.md` for what was changed and what is still not met (now only 62388 18.1.2, a target
   simulator inside a real radar, which this product as a whole is). The standard's tracking

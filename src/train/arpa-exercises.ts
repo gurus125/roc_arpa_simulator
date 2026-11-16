@@ -164,13 +164,22 @@ const EX3: ArpaExercise = {
 };
 
 // ---------------------------------------------------------------- 4
+/**
+ * A rock about 150 m across (a square of 0.08 NM), small enough to be acquired automatically: the ARPA leaves out only
+ * echoes as large as land (ARPA_PLACEHOLDERS.landEchoMinM). The two rocks lie to the north-east, inside the guard ring
+ * at the start and inside the sector of Exclude 1; each sits inside one cell of the plot extractor.
+ */
+const rock = (name: string, e: number, n: number): Scenario["coasts"][number] => ({
+  name, closed: true, heightM: 15,
+  points: [{ e: e - 0.04, n: n - 0.04 }, { e: e + 0.04, n: n - 0.04 }, { e: e + 0.04, n: n + 0.04 }, { e: e - 0.04, n: n + 0.04 }],
+});
 const EX4: ArpaExercise = {
   id: "arpa-4", number: 4, title: "Automatic acquisition, guard zones and exclusion areas", rangeNm: 12, safeNm: 0.5,
-  aim: "Set guard zones and automatic acquisition in coastal waters, and keep land and clutter out with exclusion areas.",
-  scenario: { ...COASTAL, id: "arpa-4", name: "ARPA 4: coastal waters" },
+  aim: "Set guard zones and automatic acquisition in coastal waters, and keep rocks, small pieces of land and clutter out with exclusion areas.",
+  scenario: { ...COASTAL, id: "arpa-4", name: "ARPA 4: coastal waters", coasts: [...COASTAL.coasts, rock("Outer Rock", 3.7, 4.5), rock("North Rock", 3.1, 4.9)] },
   briefing: [
     "Switch Guard 1 on (ring 5.5 to 6 NM) and tick automatic acquisition.",
-    "Land echoes entering the zone are acquired too and fill the memory. Set an exclusion area over the coast (Exclude 1), cancel the false targets and watch the difference.",
+    "The ARPA leaves out echoes as large as land (800 m or more across), so the coast itself is not acquired. Smaller echoes are: the two rocks to the north-east, bearing 032° and 039° at 5.8 NM, are acquired as if they were ships. Set an exclusion area over them (Exclude 1), cancel the false targets and watch the difference.",
     "A target that first appears INSIDE the guard ring is not acquired: acquire it by hand.",
     "Acknowledge the new-target alarms.",
   ],
