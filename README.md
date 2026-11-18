@@ -141,6 +141,25 @@ is disturbed by interference (`src/arpa/plots.ts`); random traffic (`src/engine/
 trainee's targets and weather from the station (`src/ui/link.ts`); time limits, five more marked exercises (27 to 31,
 `src/train/nav-exercises.ts`, every limit a placeholder in `NAV_LIMITS`) and examinations made of several exercises
 (`examSheetsHtml` in `src/train/marking.ts`). Tests: `tests/b41-core.test.ts`, `tests/b41-train.test.ts`.
+Seventh round (18 Nov 2026), so that one instructor can follow several displays (the difficulty reported by Karlsson,
+Chalmers, 2011): each display works out what the instructor should look at (`attentionFlags` in
+`src/train/attention.ts`, every limit a placeholder in `ATTENTION_LIMITS`) and reports it; the station ranks the flags of
+all displays, shows a class table (`progressReport`) and, on request, one display's own radar picture and settings; the
+flags are bookmarks in the record, which the replay can jump to; an observation checklist (`DEFAULT_OBSERVATION_ITEMS`, a
+proposal) goes into the record; the record keeps which trainee was at the controls (`controlsShare`) and a decision for
+each trainee. Tests: `tests/b42-attention.test.ts`.
+Eighth round (18 Nov 2026), on four more difficulties of simulator assessment (one trainee inside a group, subjective
+evaluation, exercise sheets without consistent criteria, debriefing that depends on the instructor):
+`src/train/assess.ts` and `src/train/roc-score.ts`. Every answer, action and first manoeuvre carries the name of the
+trainee at the controls, each trainee has a result (`traineeResults`) and a file (`traineeFileHtml`), and the
+controls can change over by the clock. Each checklist item has a written standard (`OBSERVATION_STANDARDS`, a proposal)
+and the measured facts beside it (`evidenceOf`); the criteria in force are kept in each record (`criteriaSnapshot`); a
+decision that goes against the record needs a written reason (`decisionConflicts`); assessors can be compared
+(`assessorStats`). One exercise sheet of a fixed form for every exercise, made from the data that does the marking
+(`sheetHtml`). The six ROC exercises give points from their reports, on the first check (`rocResultFrom`). A guided
+debrief in five steps and a debrief pack are laid out from the record (`debriefPack`), with a comparison of the class
+on one exercise. Older records stay without their replay for the files and comparisons (`lightRecord`). The assessor
+still decides; every standard, limit and rule is a proposal or a placeholder. Tests: `tests/b43-assess.test.ts`.
 Hardware control panel: keys for every radar function, changeable, and knob-box (game controller) inputs
 (`src/ui/panel-map.ts`, `src/ui/panel.ts`; SETTINGS > Control panel). No real panel has been tried.
 `npm run test:link` starts the classroom server and checks the instructor station and four student displays in separate
@@ -156,7 +175,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 756 tests
+    npm test            # 809 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 

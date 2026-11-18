@@ -60,6 +60,8 @@ export interface AppState {
   /** Own ship's planned route on the radar: waypoints fixed to the ground (NM), and the leg being sailed (0 = waypoint 1 to 2). */
   route: Vec2[];
   routeLeg: number;
+  /** The trainee at the controls now (one of the names logged in at this display), for the exercise's record. */
+  ctlName: string;
   /** Man overboard mark: where own ship was when the MOB key was pressed, and the exercise time. */
   mob: { pos: Vec2; time: number } | null;
   /** The charted coastline of the scenario drawn over the radar picture (a radar map), for comparing the two. */
@@ -181,6 +183,7 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     pi: Array.from({ length: 4 }, () => ({ on: false, bearing: 0, range: 1, ahead: null, astern: null })),
     navLines: [],
     navMarks: [],
+    ctlName: "",
     route: [],
     routeLeg: 0,
     mob: null,
@@ -251,7 +254,7 @@ export function advance(app: AppState, wallDt: number, rng: () => number = Math.
         if (app.snapshots.length > 40) app.snapshots.shift();
       }
       if (app.route.length >= 2) app.routeLeg = advanceLeg(app.route, w.own.pos, Math.min(app.routeLeg, app.route.length - 2), 0);
-      app.arpaEx?.step(w, app.arpa, { pi: app.pi, navLines: app.navLines.filter((l) => l.length >= 2).length, pmOn: app.pmOn, mobAt: app.mob?.time ?? null, routePoints: app.route.length });
+      app.arpaEx?.step(w, app.arpa, { pi: app.pi, navLines: app.navLines.filter((l) => l.length >= 2).length, pmOn: app.pmOn, mobAt: app.mob?.time ?? null, routePoints: app.route.length, ctl: app.ctlName });
       app.recorder?.sample(w, app.roc ? null : app.arpa);
       // Trails are made from the radar picture: none while it is not being painted.
       if (!w.sensors.pictureFrozen && !radarSignalsLostText(w.sensors)) app.trails.sample(w, app.display);

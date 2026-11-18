@@ -350,6 +350,13 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await st.click("#stLoginBtn");
     await st.waitForTimeout(300);
     const stTabs = await st.$$eval("#topTabs button", (b) => b.map((x) => x.textContent).join(","));
+    const stHdr = await st.evaluate(() => {
+      const h = document.querySelector("header");
+      const t = document.querySelector("#topTabs").getBoundingClientRect();
+      const b = document.querySelector("#brand b").getBoundingClientRect();
+      return { fits: h.scrollWidth <= h.clientWidth + 1, clear: b.right <= t.left + 1, title: Math.round(b.width) };
+    });
+    check(`${tag} station header: the title is clear of the six tabs and nothing is cut off`, stHdr.fits && stHdr.clear && stHdr.title > 150, JSON.stringify(stHdr));
     check(`${tag} instructor station: PIN first (a wrong one refused), then its own tabs`, pinFirst && refused && !(await st.isVisible("#stLogin")) && stTabs === "CLASSROOM,RECORDS,EXERCISES,BATCHES,SCENARIOS,OWN RADAR", stTabs);
     check(`${tag} student display: no instructor keys, no PIN`, (await p.locator('#cMenu button[data-key="instr"], #cMenu button[data-key="fault"]').count()) === 0 && !(await p.isVisible("#inPin")) && !(await p.isVisible("#stPin")));
     const stTab = async (k) => {
@@ -838,6 +845,169 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
       await stTab("recs");
       await st.waitForTimeout(1500);
       check(`${tag} examination results can be printed from the station`, await st.isVisible("#exmPrint").catch(() => false) || (await st.$("#exmPrint")) !== null);
+      // ---- What the instructor should look at: the attention list, the class table, the live view, the checklist, bookmarks.
+      await stTab("class");
+      await st.selectOption("#inExSel", "arpa-1");
+      await st.click('#inStations button[data-cmd="ex"]');
+      await waitFor(() => /^1\. /.test(document.getElementById("exTitle")?.textContent ?? ""));
+      await closeMenu();
+      await p.evaluate(() => {
+        const b = document.getElementById("run");
+        if (/run/i.test(b.textContent)) b.click();
+      });
+      const stWait = (fn, ms = 15000) => st.waitForFunction(fn, null, { timeout: ms }).then(() => true, () => false);
+      // The class table has a row for the display, with its exercise and no action yet.
+      const rowOk = await stWait(() => /Exercise 1/.test(document.getElementById("classRows").innerText) && /none yet/.test(document.getElementById("classRows").innerText));
+      check(`${tag} class table: one row for the display with its exercise, items, points and action`, rowOk, await stText("#classRows"));
+      // A ship put right ahead on the opposite course, 1.2 NM off: three minutes to a collision.
+      const hdg = await T("orderedCourse");
+      await st.fill("#rtNewName", "Collision");
+      await st.fill("#rtNewBrg", String(hdg));
+      await st.fill("#rtNewRng", "1.2");
+      await st.fill("#rtNewC", String((hdg + 180) % 360));
+      await st.fill("#rtNewS", "12");
+      await st.click("#rtAdd");
+      const flagged = await stWait(() => /NOW/.test(document.getElementById("attList").innerText) && /Collision will pass at 0\.\d\d NM/.test(document.getElementById("attList").innerText));
+      const firstRow = await st.$eval("#attList li", (e) => e.innerText.replace(/\s+/g, " "));
+      check(`${tag} attention list: the vessel about to pass too close is flagged and listed first`, flagged && /NOW/.test(firstRow) && /Collision/.test(firstRow), await stText("#attList"));
+      check(`${tag} class table counts the flags of the display`, /now/.test(await stText("#classRows")), await stText("#classRows"));
+      // The live view: the picture and the settings of that display.
+      await st.click("#attList li button");
+      const gotPic = await stWait(() => (document.getElementById("watchImg").getAttribute("src") ?? "").startsWith("data:image/jpeg"));
+      check(`${tag} live view: the trainee's radar picture and settings on the station`, gotPic && (await st.isVisible("#watchBox")) && /Gain \d+/.test(await stText("#watchSet")) && /watching/i.test(await stText("#watchTitle")), `${await stText("#watchTitle")} | ${await stText("#watchSet")}`);
+      await st.click("#watchClose");
+      check(`${tag} live view closed`, !(await st.isVisible("#watchBox")));
+      // The observation checklist: a tick goes into the record of that exercise.
+      await st.click('#inStations button[data-cmd="obs"]');
+      await st.waitForTimeout(400);
+      const items = await st.$$eval("#obsItems .btns", (r) => r.length);
+      // Under each item: its written standard, and what that display has measured so far.
+      await stWait(() => /Measured: Range/.test(document.getElementById("obsItems").innerText));
+      const obsText = await stText("#obsItems");
+      check(`${tag} checklist: each item has its standard, and the measured facts of that display beside it`, /Yes: /.test(obsText) && /No: /.test(obsText) && /Measured: Range \d+(\.\d+)? NM, gain \d+/.test(obsText) && /Measured: Collision will pass at 0\.\d\d NM in \d+ min if nothing changes/.test(obsText), obsText.slice(0, 600));
+      await st.uncheck("#obsStd");
+      const noStd = !/Yes: /.test(await stText("#obsItems")) && /Measured: /.test(await stText("#obsItems"));
+      await st.check("#obsStd");
+      check(`${tag} checklist: the standards can be hidden, the measured facts stay`, noStd);
+      await st.click('#obsItems button[data-obs="0"][data-mark="yes"]');
+      await st.click('#obsItems button[data-obs="5"][data-mark="no"]');
+      await st.fill("#obsNotes", "Slow to see the ship ahead.");
+      await st.click("#obsSave");
+      const ticked = await st.$eval('#obsItems button[data-obs="0"][data-mark="yes"]', (b) => b.classList.contains("on"));
+      check(`${tag} observation checklist: twelve items, ticks kept`, items === 12 && ticked && /saved/i.test(await stText("#obsMsg")), `${items} ${ticked} ${await stText("#obsMsg")}`);
+      await key("ex");
+      await p.click("#exFinish");
+      await closeMenu();
+      await stTab("recs");
+      const recHere = await stWait(() => /ARPA 1:/.test(document.getElementById("inRecs").innerText));
+      await st.click('#inRecs button[data-act="open"]');
+      await st.waitForTimeout(1200);
+      const obsInRec = await stText("#inRecDebrief");
+      const marks = await st.$$eval("#inRecMarks button", (b) => b.map((x) => x.textContent).join(" | "));
+      check(`${tag} the record holds the instructor's observations and notes`, recHere && /instructor's observations/i.test(obsInRec) && /Radar set up before use/.test(obsInRec) && /Slow to see the ship ahead/.test(obsInRec), obsInRec.slice(0, 300));
+      check(`${tag} the record has a bookmark for what was flagged, and the replay goes there`, /Collision will pass/.test(marks), marks);
+      await st.click("#inRecMarks button");
+      check(`${tag} a bookmark moves the replay`, Number(await st.$eval("#inScrub", (e) => e.value)) >= 0 && (await stText("#inRecMarksT")).includes("Bookmarks"), await stText("#inRecMarksT"));
+      check(`${tag} with no names logged in, "at the controls" is not shown`, await p.$eval("#ctlRow", (e) => e.hidden));
+      // ---- Added 18 Nov 2026 (second round): the evidence before the decision, the guided debrief, each trainee of a group, sheets, ROC points.
+      const evid = await stText("#inRecEvid");
+      check(`${tag} record: the evidence is set out before the decision (score, flags, observations, measured facts, criteria in force)`,
+        /Score: \d+%/.test(evid) && /needing attention at once/.test(evid) && /1 yes, 1 no/.test(evid) && /Measured \(as it stood at the end\):/.test(evid) && /criteria in force/.test(evid), evid.slice(0, 500));
+      await st.selectOption("#asDec", "competent");
+      await st.fill("#asName", "Rao");
+      await st.click("#asSave");
+      const refusedSave = /Not saved/.test(await stText("#asMsg")) && /goes against the record/i.test(await stText("#asCheck")) && /needing attention at once/.test(await stText("#asCheck"));
+      await st.fill("#asRem", "The ship was put ahead by the instructor just before the end.");
+      await st.click("#asSave");
+      check(`${tag} a decision against the record is refused without a reason, and saved with one`, refusedSave && /^Saved/.test(await stText("#asMsg")) && /reason written/.test(await stText("#asCheck")), `${refusedSave} ${await stText("#asMsg")} | ${await stText("#asCheck")}`);
+      const gdSteps = await st.$$eval("#gdSteps input[type=checkbox]", (c) => c.length);
+      const dbText = await stText("#gdSteps");
+      await st.check("#gd_0");
+      await st.check("#gd_1");
+      await st.fill("#gdGoals", "Look further ahead.");
+      await st.click("#gdSave");
+      check(`${tag} guided debrief: five steps, the key moments and questions written from the record, goals saved`,
+        gdSteps === 5 && /Collision will pass/.test(dbText) && /What did the radar show you at that moment/.test(dbText) && /2 of 5 steps done/.test(await stText("#gdMsg")), `${gdSteps} ${await stText("#gdMsg")} ${dbText.slice(0, 300)}`);
+      await st.click("#gdMoments button");
+      await st.click("#clsShow");
+      check(`${tag} the class on this exercise is listed for a class debrief`, (await st.$$eval("#clsTable tbody tr", (r) => r.length)) >= 1 && /recorded attempt/.test(await stText("#clsOut")), await stText("#clsOut"));
+      await st.click("#asCmp");
+      check(`${tag} assessors compared: decisions, mean scores, decisions against the record`, /Rao 1 1 \(100%\)/.test(await stText("#asCmpOut")) && /against the record/i.test(await stText("#asCmpOut")), await stText("#asCmpOut"));
+      // The exercise sheet: one form for every exercise, read from the window it prints in.
+      await stTab("ex");
+      const nSheets = await st.$$eval("#xsEx option", (o) => o.length);
+      await st.selectOption("#xsEx", "arpa-1");
+      const readPopup = async (click) => {
+        const [pop] = await Promise.all([st.waitForEvent("popup", { timeout: 8000 }).catch(() => null), st.click(click)]);
+        if (!pop) return "";
+        const body = await Promise.race([pop.evaluate(() => document.body.innerText).catch(() => ""), new Promise((r) => setTimeout(() => r(""), 4000))]);
+        await pop.close().catch(() => {});
+        return String(body).replace(/\s+/g, " ");
+      };
+      const sheet = await readPopup("#xsPrint");
+      check(`${tag} exercise sheets: 31 exercises and six ROC, each with the marked items, the limits and the checklist standards`,
+        nSheets === 38 && /Exercise 1\./.test(sheet) && /what the simulator measures/i.test(sheet) && /CPA of Ship A/.test(sheet) && /Radar set up before use/.test(sheet) && /not type approved/.test(sheet), `${nSheets} ${sheet.slice(0, 300)}`);
+      await st.selectOption("#xsEx", "roc-plot");
+      const rocSheet = await readPopup("#xsPrint");
+      check(`${tag} exercise sheet of a ROC exercise: points, and the first check counts`, /ROC: Manual plotting/.test(rocSheet) && /first check/.test(rocSheet) && /Total 90/.test(rocSheet), rocSheet.slice(0, 300));
+      // A group of two: the instructor sets a changeover every minute of exercise time.
+      await stTab("batch");
+      await st.fill("#inChange", "1");
+      await st.click("#inBatchSave");
+      const gotChange = await waitFor(() => window.__simTest.changeover() === 1, 15000);
+      await p.evaluate(() => document.getElementById("whoChange").click());
+      await p.fill("#lgS0", "Asha");
+      await p.fill("#lgS1", "Ravi");
+      await p.click("#lgStart");
+      await T("startExercise", "arpa-1");
+      await p.waitForTimeout(600);
+      await closeMenu();
+      const firstAt = await T("atControls");
+      await setVal("speed", "10");
+      await p.evaluate(() => {
+        const b = document.getElementById("run");
+        if (/run/i.test(b.textContent)) b.click();
+      });
+      const changed = await waitFor(() => window.__simTest.atControls() === "Ravi", 20000);
+      check(`${tag} timed changeover: after a minute of the exercise the next trainee has the controls, with a message`,
+        gotChange && firstAt === "Asha" && changed && /Change over: Ravi takes the controls now/.test(await T("bannerText")) && (await p.$eval("#ctlWho", (e) => e.value)) === "Ravi" && !(await p.$eval("#ctlRow", (e) => e.hidden)), `${gotChange} ${firstAt} ${changed} ${await T("bannerText")}`);
+      await setVal("speed", "1");
+      await key("ex");
+      await p.click("#exFinish");
+      await closeMenu();
+      await stTab("recs");
+      const groupRec = await stWait(() => /Asha \/ Ravi/.test(document.getElementById("inRecs").innerText));
+      await st.click('#inRecs button[data-act="open"]');
+      await st.waitForTimeout(800);
+      const byText = await stText("#inRecBy");
+      const tfNames = await st.$$eval("#tfWho option", (o) => o.map((x) => x.textContent).join(","));
+      check(`${tag} a group's record shows each trainee: time at the controls, own answers, observations`, groupRec && /each trainee/i.test(byText) && /Asha 0[01]:\d\d \(\d+%\)/.test(byText) && /Ravi 0\d:\d\d \(\d+%\)/.test(byText), byText);
+      await st.selectOption("#tfWho", "Asha");
+      const file = await readPopup("#tfPrint");
+      check(`${tag} trainee file: one page for one person across the recorded exercises`, tfNames === "Asha,Ravi" && /Trainee file: Asha/.test(file) && /1\. |ARPA 1/.test(file) && /Ravi/.test(file) && /not a certificate of competence/i.test(file), `${tfNames} | ${file.slice(0, 300)}`);
+      // A ROC exercise now ends with points, which go into its record.
+      await T("startExercise", "roc-fix");
+      await p.waitForTimeout(600);
+      await p.evaluate(() => document.getElementById("rocFinish").click());
+      await p.waitForTimeout(600);
+      const rocPts = await p.$eval("#rocPoints", (e) => e.innerText.replace(/\s+/g, " ")).catch(() => "");
+      const rocRec = await stWait(() => /ROC: Position fixing/.test(document.querySelector("#inRecs tr")?.innerText ?? ""));
+      const rocRow = await st.$eval("#inRecs tr", (e) => e.innerText.replace(/\s+/g, " "));
+      check(`${tag} ROC exercise: points on the display at the end, and in the record at the station`, /0 of 30 \(0%\)/.test(rocPts) && /no valid fix/.test(rocPts) && rocRec && /ROC: Position fixing.* 0 /.test(rocRow), `${rocPts.slice(0, 200)} | ${rocRow}`);
+      // Two elements with one id would make a key or a field act on the wrong one.
+      const dupIds = (pg) => pg.evaluate(() => {
+        const seen = new Map();
+        for (const e of document.querySelectorAll("[id]")) seen.set(e.id, (seen.get(e.id) ?? 0) + 1);
+        return [...seen].filter(([, n]) => n > 1).map(([k]) => k);
+      });
+      const dups = [...(await dupIds(st)), ...(await dupIds(p))];
+      check(`${tag} no element id is used twice, on the station or on the display`, dups.length === 0, dups.join(", "));
+      // Back to no changeover and no names.
+      await stTab("batch");
+      await st.fill("#inChange", "");
+      await st.click("#inBatchSave");
+      await p.evaluate(() => document.getElementById("whoChange").click());
+      await p.click("#lgSkip");
     }
     await st.close();
     p.off("dialog", acceptAll);

@@ -23,9 +23,9 @@ instructor pages at all: no INSTR or FAULTS key and no PIN box.
 | Tab | What is there |
 |-----|---------------|
 | CLASSROOM | Every display that is reporting, with a small picture and its state, and for each: Pause, Run, Start exercise, Send faults, Clear faults. Beside it, what goes to all displays: pause and run, an exercise to start, the faults to send, the weather, a linked exercise, a typed message |
-| RECORDS | The records of every display's finished exercises (each display sends its record to the station when an exercise is finished, and again when the trainees save their debrief notes), with the replay, the reports and the assessor's decision |
-| EXERCISES | Scoring settings, marking sheets, the self-test of the exercises |
-| BATCHES | Batches, students and assigned exercises; display limits; the instructor PIN |
+| RECORDS | The records of every display's finished exercises (each display sends its record to the station when an exercise is finished, and again when the trainees save their debrief notes), with the replay, the reports, the guided debrief, the evidence and the assessor's decision; the trainee files and the comparison of assessors |
+| EXERCISES | Examinations, scoring settings, exercise sheets, marking sheets, the self-test of the exercises |
+| BATCHES | Batches, students and assigned exercises; display limits and the changeover time at the controls; the instructor PIN |
 | SCENARIOS | The scenario editor |
 | OWN RADAR | The station's own radar, as a trainee's: to try a scenario, programme target tracks (MENU, INSTR), set faults on it (MENU, FAULTS) and start a linked exercise with it |
 
@@ -161,6 +161,60 @@ heading and speed, tracks, answers, alarms), with Pause, Run, Start exercise, Se
 faults for each, and Pause and Run for all. "Message to all displays" sends a typed message. Trainees answer with the
 VHF/SIGNAL key (typed messages; there is no voice channel in this simulator).
 
+### 6a. Watching several displays at once
+
+One instructor cannot watch four displays: while he or she attends to one, events on the others go
+unnoticed, and the assessment then rests on what happened to be seen (T. Karlsson, *The importance of
+structured briefings and debriefings for objective evaluation of ARPA simulator training*, Chalmers
+University of Technology, 2011: interviews with six instructors at one institute). So each display
+watches itself and tells the station what to look at. On the station, CLASSROOM:
+
+- **Needs attention.** One list for all displays, the most urgent first, and among equals the one that
+  has waited longest. NOW: a vessel about to pass inside the safe distance within 6 minutes (it says
+  whether action has been taken), a vessel already inside it, land within 0.3 NM while under way.
+  SOON: a vessel that will pass too close within 12 minutes and is not tracked, the ship off her route
+  by more than 0.3 NM, in a separation zone or against the flow of a lane, an alert left
+  unacknowledged for a minute, a turn to port in a plotting exercise, the radar not transmitting under
+  way, time up. NOTE: two minutes left, the gain very low or a clutter control very high, no control
+  touched for three minutes, paused for three minutes. "Watch" beside a line opens that display.
+- **The class table.** One row for each display: the trainee at the controls, the exercise and its
+  time, questions and actions done, points so far (the final percentage when finished), the vessel
+  that has come closest and how close, when own ship first altered course or speed, and the number
+  of flags.
+- **Watch** (on a display's card, or in the list): the trainee's own radar picture, sent every two
+  seconds, with the settings in use (range, band, pulse, gain and clutter, presentation, ARPA and AIS)
+  and that display's flags. "Stop watching" ends it; it also ends by itself if the station is closed.
+- **Observe** (on a display's card): the observation checklist for what the simulator cannot judge.
+  Tick Yes or No as you see it, for the whole group or for one trainee ("About"); pressing a tick
+  again takes it off. "Save notes" keeps free text. The ticks and notes go into the record of the
+  exercise that display is working and are printed in its report. Under each item is its
+  **standard** (what Yes looks like and what No looks like), so that every instructor ticks against
+  the same words, and, for eight of the twelve items, what that display has **measured** so far: the
+  radar settings, the range scales used, when the dangerous vessels were tracked, the most dangerous
+  vessel now, the first action with who took it and the risk at that moment, the closest approach,
+  the distance off the track and the land, and the alerts. "Show the standard of each item" hides
+  the standards to save room. "Checklist items" holds the list, one item a line; a standard may
+  follow the item as `item :: what Yes looks like :: what No looks like`. Put in the objectives you
+  gave at the briefing. The twelve items and their standards are a proposal, not from a syllabus.
+
+Every flag of the NOW and SOON kinds is also written into the display's record as a **bookmark**, so
+what was missed live can be found afterwards (section 8). The flags use the real positions of the
+ships, which the trainee does not have; they are for the instructor only and take no part in the
+marking. All their limits are placeholders (`ATTENTION_LIMITS` in `src/train/attention.ts`).
+
+**Who did what in a group.** When two or more names are logged in at a display, the trainees choose
+who is "At the controls" (MENU, own ship keys); in an examination they take the controls in turn,
+one part each. The record keeps who had the controls and for how long, and every answer, every
+action and the first alteration of course or speed carries the name of the trainee who had the
+controls then. The assessor can give a decision for each trainee as well as for the group
+(section 8a).
+
+**Timed changeovers.** Station, BATCHES, "Change over at the controls every ... minutes", then "Save
+batch and limits" (it saves with or without a batch chosen). A display with two or more trainees
+then gives the controls to the next one each time that many minutes of exercise time have passed,
+with a message on the screen, so that each gets a like share. A change made by hand in between is
+kept: the turn passes on from whoever has the controls. Blank: the trainees change by hand.
+
 ## 7. Several displays working together
 
 Other browser tabs on the same computer link by themselves. For several computers:
@@ -201,13 +255,71 @@ exercise and the score. "Open" shows:
   picture as the trainee saw it, one picture every 15 seconds, in step with the slider. Pictures
   are kept in the browser of the display that recorded them: a record sent by a display on another
   PC, or brought from another computer, has none;
-- the result, item by item, and the trainees' own debrief notes and radio log;
-- the assessor's decision: "Competent" or "Not yet competent", the assessor's name and remarks. The
+- the bookmarks: one key for each moment something was flagged on the display during the exercise
+  (section 6a); a click takes the replay to ten seconds before it;
+- the result, item by item, the trainees' own debrief notes and radio log, who was at the controls
+  and for how long, and the instructor's observations and notes;
+- the assessor's decision: "Competent" or "Not yet competent", the assessor's name and remarks, and for
+  a group a decision and remarks for each trainee. What the assessor enters stays when the display
+  sends the record again (after the trainees save their debrief). The
   score is a guide only; the assessor's decision is the prime criterion (STCW Code A-I/12,
   paragraph 8);
 - "Result (CSV)", "Report (print or save as PDF)" and "Record (JSON)". "Export all (CSV)" saves the
   whole list. Records are kept in the station's browser (and each display keeps its own): export
-  them to keep them.
+  them to keep them. The newest 60 exercises are kept with their replay; when one is dropped to make
+  room, what the trainee file and the comparisons need is kept without the replay (up to 300 more).
+
+## 8a. Assessing fairly: each trainee, the evidence, the sheets, the debrief
+
+Four difficulties are often raised about assessment on a simulator: one trainee is hard to assess
+inside a group, the evaluation depends on the instructor, exercise sheets do not give the same
+criteria every time, and the debrief is as good as the instructor who gives it. The remedy built
+here follows what Karlsson's study (section 6a) recommends: stated objectives, one sheet of them
+ticked during the exercise, and a structured debrief. The simulator answers each difficulty with a
+record of facts and a fixed form. It does not decide: the assessor does (STCW Code A-I/12,
+paragraph 8). Every standard, limit and rule here is a proposal or a placeholder, and none has
+been tried by an instructor with trainees.
+
+**Each trainee of a group.** In an opened record, "Each trainee" shows for each name the time at
+the controls, how many answers and actions were given while he or she had them and how many were
+right, the points of those, the instructor's observations about him or her, and how many moments
+were flagged NOW while he or she had the controls (such a moment may have grown from what was done
+before the changeover: look at it in the replay). What is judged from the whole exercise (a safe
+passing, the time limit) belongs to the group. Under the records list,
+choose a name and press "Trainee file": one page for one person, every recorded exercise he or she
+took part in, oldest first.
+
+**The evidence before the decision.** Above the decision the record sets out: the score against the
+pass mark that was in force, any safety outcome not met, how many moments were flagged, the
+instructor's ticks, the measured facts, and the criteria the exercise was marked with on its day
+(kept in the record, so a later change of the limits does not change what an old result means).
+When a decision goes against this, the station says where and will not save it until a reason is
+written in the remarks: "Competent" with a safety outcome failed, a moment flagged NOW, a score
+below the pass mark or more No than Yes; "Not yet competent" with nothing in the record against the
+trainees. The same is done for each trainee of a group. The decision can still be made either way;
+the reason is kept with it.
+
+**Assessors compared** (under the records list): for each assessor, how many exercises were decided,
+how many found competent, the mean score of those and of the ones found not yet competent, and how
+many decisions went against the record. Like figures mean like marking. A difference is a reason to
+talk, not a proof: the classes may have differed.
+
+**One sheet for every exercise** (station, EXERCISES, Exercise sheets): the same form for all 31
+exercises and the six ROC exercises: the objective, the briefing, every item the simulator marks
+with the limit it uses and its points, the instructor's checklist with the standard for each item,
+the time allowed, the pass standard and the debrief questions. It is made from the data that does
+the marking, so the sheet and the marking cannot differ. Give it out at the briefing. (The marking
+sheets of section 9 are a different paper: they are for the institute to write in its own limits.)
+
+**The guided debrief** (in an opened record): five steps, the same every time. 1 The trainees' own
+view, before anything is shown. 2 The key moments: one key for each flag, each change at the
+controls, each act of the instructor and each alarm; a click takes the replay there. 3 The facts
+against the criteria: what was met and what was not. 4 The questions: written from what happened in
+this exercise (each flagged moment, the first action or the lack of one, each outcome not met, each
+wrong value), then the exercise's own. 5 The goals agreed. Tick each step as it is done, type the
+goals, "Save the debrief". "Debrief pack" prints all of it on paper. "The class on this exercise"
+lists every recorded attempt at the same exercise, the best score first, with the first action, the
+closest vessel and the flags of each, for a debrief of the whole class.
 
 ## 9. Scoring settings and marking sheets
 
@@ -274,9 +386,20 @@ examination" or "Start the ARPA examination". The display starts part 1; when th
 Finish it offers the next part. Each part is recorded and marked as usual and tagged as part of
 that sitting. "Examination results" prints one page for each examination taken: the parts with
 their points, the total, the pass mark if one is set, and room for the assessor's decision. The
-six ROC exercises give a report, not points: their lines are printed and they are left out of the
-total. The parts proposed (ROC: 22, 13, 15, ROC position fixing, 10; ARPA: 1, 5, 6, 8, 31) are only
+six ROC exercises now give points as well as their report, and count in the total (below). The parts proposed (ROC: 22, 13, 15, ROC position fixing, 10; ARPA: 1, 5, 6, 8, 31) are only
 a proposal: no syllabus read for this project lists the parts of either examination.
+
+**Points for the six ROC exercises.** Each ROC exercise ends with a table of points under its
+report, worked from that same report. Plotting: the six values, the aspect, the risk and the
+situation (90 points). Position fixing: the fix within 0.15 NM and an angle of cut of 30° or more
+(30). Set and drift: the two fixes, the set and the drift (40). Clearing range: the range recorded,
+kept outside it, clear of the shoal (50). Blind pilotage: the last waypoint reached, within 0.4 NM
+of the track, afloat (50). Traffic: every ship passed at the safe distance, action in ample time,
+action large enough (60). What counts for the plot and for the set and drift is the **first** check
+of the answers, and a fix is marked as it stands when first completed (two charted objects),
+because the report then shows the real values. In the traffic exercise the notes about the
+collision regulations stay advice and carry no points. All these limits and points are
+placeholders.
 
 ## 10. Checking the exercises: the self-test
 
@@ -380,6 +503,19 @@ mode (which screen it opens on) has not been tried either.
 - From the station a trainee's display cannot yet be taken back in time, and a programmed track
   cannot be given to one of its targets: those work on the station's own radar. Its targets can be
   altered, added and removed (section 4).
+- The attention flags are a help, not a judgement: their limits are placeholders, they can be wrong
+  about what matters in a given exercise, and they do not see what the trainees say to each other.
+  The live picture is a copy every two seconds, 480 pixels square: enough to follow, not to measure.
+- The simulator records who was named at the controls, not whose hand was on the mouse. A trainee's
+  "own answers" are those given while his or her name was at the controls: a partner may have
+  worked the answer out. The observations about each trainee are the instructor's own.
+- The check of a decision against the record is a help to weigh the same evidence every time, not a
+  rule of competence. Its four tests are a proposal. The measured facts beside the checklist come
+  only in the 31 marked exercises, not in the ROC exercises or free practice.
+- The debrief questions are written by fixed rules from what was recorded. They do not know what
+  the trainees said or meant: the instructor chooses among them.
+- The trainee file and the comparisons hold what is in this station's browser: at most the newest
+  60 exercises in full and 300 older ones in short. Export the records to keep more.
 - There is no chart: the route, the traffic separation scheme and the charted coastline are lines
   on the radar. A separation scheme can only be straight (an axis, the width of the zone and of the
   lanes), set in a scenario file ("tss"); the scenario editor does not draw one.

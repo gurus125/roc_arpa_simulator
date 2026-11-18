@@ -89,6 +89,10 @@ await students[0].click("#exFinish");
 await instr.click('#topTabs button[data-st="recs"]');
 const recs = () => text(instr, "#inRecs");
 check("the finished exercise's record reaches the station", await until(async () => /ARPA 1:/.test(await recs())), await recs());
+// The record brings what the assessor weighs: the criteria in force on the display, and what it measured.
+await instr.click('#inRecs button[data-act="open"]');
+const evid = () => text(instr, "#inRecEvid");
+check("the record brings the criteria in force and the measured facts through the server", await until(async () => /criteria in force/.test(await evid()) && /Measured/.test(await evid()) && /Range scales used/.test(await evid())), (await evid()).slice(0, 300));
 await instr.click('#topTabs button[data-st="class"]');
 // Through the server, while the exercise runs: the station adds a target on every display, alters one, and sends random traffic.
 {
@@ -110,6 +114,27 @@ await instr.click('#topTabs button[data-st="class"]');
   const tc = async () => Promise.all(students.map((p) => p.evaluate(() => window.__simTest.targetCount())));
   // Seven new ships in place of the exercise's ships; the other displays' own ships stay as targets.
   check("random traffic with one seed gives every display the same number of ships", await until(async () => (await tc()).every((n) => n === 7 + STUDENTS - 1)), (await tc()).join(","));
+  // What the instructor follows: a row for every display, and one display's own radar picture, through the server.
+  const rows = async () => instr.$$eval("#classRows tr", (r) => r.length);
+  check("the class table has a row for every display", await until(async () => (await rows()) === STUDENTS), String(await rows()));
+  await instr.click('#inStations button[data-cmd="watch"]');
+  const src = async () => (await instr.$eval("#watchImg", (e) => e.getAttribute("src"))) ?? "";
+  check("the live radar picture of a display reaches the station through the server", await until(async () => (await src()).startsWith("data:image/jpeg"), 20000), (await src()).slice(0, 30));
+  await instr.click("#watchClose");
+  // The checklist shows what a display has measured, through the server.
+  await instr.click('#inStations button[data-cmd="obs"]');
+  const obs = () => text(instr, "#obsItems");
+  check("the measured facts of a display reach the instructor's checklist through the server", await until(async () => /Measured: Range/.test(await obs()), 20000), (await obs()).slice(0, 200));
+  await instr.click("#obsClose");
+  // The changeover time set at the station reaches every display.
+  await instr.click('#topTabs button[data-st="batch"]');
+  await instr.fill("#inChange", "3");
+  await instr.click("#inBatchSave");
+  const change = async () => Promise.all(students.map((p) => p.evaluate(() => window.__simTest.changeover())));
+  check("the changeover time set at the station reaches every display", await until(async () => (await change()).every((c) => c === 3), 20000), (await change()).join(","));
+  await instr.fill("#inChange", "");
+  await instr.click("#inBatchSave");
+  await instr.click('#topTabs button[data-st="class"]');
 }
 
 // The server stops (power cut, cable out) and comes back: the displays find it again by themselves.

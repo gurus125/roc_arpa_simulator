@@ -32,7 +32,7 @@ export interface StationOpts {
 const TABS: { key: string; label: string; sections: string[] }[] = [
   { key: "class", label: "CLASSROOM", sections: ["Monitor other displays", "Send to the displays"] },
   { key: "recs", label: "RECORDS", sections: ["Records, replay and reports"] },
-  { key: "ex", label: "EXERCISES", sections: ["Examinations", "Scoring settings (placeholders)", "Marking sheets", "Self-test of the exercises"] },
+  { key: "ex", label: "EXERCISES", sections: ["Examinations", "Scoring settings (placeholders)", "Exercise sheets", "Marking sheets", "Self-test of the exercises"] },
   { key: "batch", label: "BATCHES", sections: ["Batches, students and assignments", "Instructor access"] },
   { key: "scen", label: "SCENARIOS", sections: ["Scenario editor"] },
   { key: "radar", label: "OWN RADAR", sections: [] },
@@ -113,7 +113,7 @@ export function initStationUi(o: StationOpts): StationUi {
   const sendConfig = (): void => {
     if (o.role() !== "instructor") return;
     const d = o.store.data;
-    o.link.sendConfig({ batches: d.batches, scoring: d.scoring, maxStudentsPerDisplay: d.maxStudentsPerDisplay, targetHoursPerPair: d.targetHoursPerPair });
+    o.link.sendConfig({ batches: d.batches, scoring: d.scoring, maxStudentsPerDisplay: d.maxStudentsPerDisplay, targetHoursPerPair: d.targetHoursPerPair, changeoverMin: d.changeoverMin ?? null });
   };
   const tryLogin = (): void => {
     if (o.store.checkPin(pin.value)) {

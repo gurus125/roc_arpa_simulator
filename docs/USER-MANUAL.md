@@ -413,6 +413,16 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
 The instructor's pages are not on your display: the instructor has a station of his or her own, from
 which he or she can pause your display, start an exercise on it, change the weather, give your
 instruments faults and send you a message (it appears in a box under the header: click it to close it).
+The instructor can also look at your radar picture and settings from the station.
+
+**At the controls.** When two or more names are logged in, MENU, own ship keys shows "At the
+controls": choose who is working the radar, and change it when you change over. It is written in
+the record, so that each of you can be assessed: every answer you give, every action and the first
+alteration of course or speed carries the name of whoever was at the controls then, and the result
+shows it when more than one of you answered. In an examination you take the controls in turn, one
+part each, and the message at the start of each part says whose turn it is. The instructor can also
+set a changeover time: the controls then pass to the next of you each time that many minutes of the
+exercise have gone, with a message on the screen ("Change over: ... takes the controls now").
 
 ## 9. Doing an exercise
 
@@ -451,6 +461,16 @@ course and the line from the target to your ship, as seen from the target: **Red
 is on its port side, **Green** when on its starboard side, from 0° (you are right ahead of it) to
 180° (right astern). A target steering 270° that bears 050° from you has you bearing 230° from
 it, 40° to the left of its course: Red 40°.
+
+**Points in the ROC exercises.** Each ROC exercise ends with a table of points under its report.
+In the plotting exercise and in set and drift, the answers that count are those of your **first**
+check: the report then shows the real values, so later checks are for learning and do not change
+the points (the screen says so). A fix is marked as it stands when you first complete it, that is
+when the second charted object has been observed, so choose your objects before you start.
+
+**The exercise sheet.** Your instructor can give you a sheet for each exercise: its objective, the
+briefing, every item the simulator marks with its limit and points, what the instructor will look
+for and the standard for each item. It is the same list as "How you will be assessed" on the screen.
 
 ## 10. Limits of this simulator
 

@@ -5,8 +5,8 @@ import { aisFilterLabel } from "../ais/index";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
 import { BAND_DATA, currentVelocity, pulseFor, prfChoices, addTypedTarget, addRandomTraffic, RANDOM_TRAFFIC_DEFAULT, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
-import { ARPA_EXERCISES, PLOTTING_EXERCISES, PLOT_RULES, RADAR_EXERCISES, ArpaExSession, ArpaExercise, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
-import { initTrainUi } from "./train-ui";
+import { ARPA_EXERCISES, PLOTTING_EXERCISES, PLOT_RULES, RADAR_EXERCISES, ArpaExSession, ArpaExercise, attentionFlags, progressReport, evidenceOf, criteriaSnapshot, rocCriteria, rocResult, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
+import { initTrainUi, resultHtml } from "./train-ui";
 import { initInstructorUi } from "./instructor-ui";
 import { FAULT_IDS, Link } from "./link";
 import { byId, esc, mmss } from "./dom";
@@ -73,15 +73,78 @@ function startRecorder(id: string, title: string, kind: "arpa" | "roc"): void {
   app.pictures = [];
   app.nextPictureAt = 0;
   app.recorder = new Recorder({ exerciseId: id, title, kind, students: [...session.students], batch: batchName() }, app.world, new Date().toISOString());
+  app.recorder.atControls(app.world, ctlName);
+  app.ctlName = ctlName;
+  ctlSlot = 0;
+  flagSeen.clear();
 }
+
+// ---- For the instructor: the trainee at the controls, how long since a control was touched, bookmarks, the live picture.
+/** The trainee working the radar now (one of the names logged in at this display), written in the record. */
+let ctlName = "";
+function fillControls(): void {
+  const el = byId<HTMLSelectElement>("ctlWho");
+  const row = byId("ctlRow");
+  if (!el || !row) return;
+  const names = session.students;
+  if (!names.includes(ctlName)) ctlName = names[0] ?? "";
+  row.hidden = names.length < 2;
+  const sig = names.join("|");
+  if (el.dataset["sig"] !== sig) {
+    el.dataset["sig"] = sig;
+    el.innerHTML = names.map((n) => `<option>${esc(n)}</option>`).join("");
+  }
+  el.value = ctlName;
+}
+function setControls(name: string): void {
+  ctlName = name;
+  app.ctlName = name;
+  fillControls();
+  app.recorder?.atControls(app.world, ctlName);
+}
+/**
+ * Timed changeovers: when the instructor has set an interval, the next trainee of the group takes the controls
+ * each time that many minutes of exercise time have passed, so that each gets a like share. A change made by
+ * hand in between is kept: the turn passes on from whoever has the controls. In an examination the trainees
+ * change with the parts instead.
+ */
+let ctlSlot = 0;
+function timedChangeover(): void {
+  const min = store.data.changeoverMin ?? null;
+  const names = session.students;
+  if (STATION || exam || !min || min <= 0 || names.length < 2 || !app.recorder) return;
+  if (app.arpaEx ? !!app.arpaEx.finished : !app.roc || app.roc.finished) return;
+  const slot = Math.floor(app.world.time / (min * 60));
+  if (slot > ctlSlot) {
+    const next = names[(Math.max(0, names.indexOf(ctlName)) + 1) % names.length]!;
+    setControls(next);
+    banner(`Change over: ${next} takes the controls now (every ${min} min of exercise time, set by the instructor).`);
+  }
+  ctlSlot = slot;
+}
+/** When each attention flag was last seen (exercise time): one is bookmarked in the record when it is raised. */
+const flagSeen = new Map<string, number>();
+let lastInputAt = performance.now();
+let pausedSince: number | null = null;
+for (const ev of ["pointerdown", "keydown", "wheel"]) document.addEventListener(ev, (e) => {
+  if (e.isTrusted) lastInputAt = performance.now();
+}, { capture: true, passive: true });
+/** Until when the instructor station is watching this display's picture (it asks again every few seconds). */
+let watchedUntil = 0;
+let nextLiveAt = 0;
+const LIVE_PICTURE_PX = 480;
+const LIVE_PICTURE_EVERY_MS = 2000;
 /** The practical examination being taken on this display: its parts (exercise ids) and the one being worked. */
 let exam: { id: string; name: string; parts: string[]; index: number; recorded: Set<string>; nextReady: boolean } | null = null;
 function startExamPart(): void {
   if (!exam) return;
   exam.nextReady = false;
   setCheck("names", false); // no study aid in an examination
+  // In a group the trainees take the controls in turn, one part each.
+  if (session.students.length > 1) ctlName = session.students[exam.index % session.students.length]!;
+  fillControls();
   startExerciseById(exam.parts[exam.index]!);
-  banner(`${exam.name}: part ${exam.index + 1} of ${exam.parts.length}. Read the briefing, then press RUN. Press Finish when the part is done.`);
+  banner(`${exam.name}: part ${exam.index + 1} of ${exam.parts.length}.${session.students.length > 1 ? ` ${ctlName} takes the controls.` : ""} Read the briefing, then press RUN. Press Finish when the part is done.`);
 }
 function saveRecord(a: AppState): void {
   if (!a.recorder) return;
@@ -122,7 +185,14 @@ const trainUi = initTrainUi({
     setTab("ex");
   },
   finished: (a, r) => {
-    if (a.recorder) a.recorder.rec.result = r;
+    if (a.recorder) {
+      a.recorder.rec.result = r;
+      // The measured facts and the progress, kept for the assessor's decision, the debrief and the class comparison.
+      if (a.arpaEx) {
+        a.recorder.rec.evidence = evidenceOf(a.arpaEx, a.world, a.arpa);
+        a.recorder.rec.progress = progressReport(a.world, a.arpaEx);
+      }
+    }
     saveRecord(a);
   },
   saveDebrief: (a, d) => {
@@ -195,8 +265,9 @@ link.onRecord = (r) => {
 link.onConfig = (c) => {
   if (STATION) return;
   const d = store.data;
-  const now = JSON.stringify([d.batches, d.scoring, d.maxStudentsPerDisplay, d.targetHoursPerPair]);
-  if (now === JSON.stringify([c.batches, c.scoring, c.maxStudentsPerDisplay, c.targetHoursPerPair])) return;
+  const now = JSON.stringify([d.batches, d.scoring, d.maxStudentsPerDisplay, d.targetHoursPerPair, d.changeoverMin ?? null]);
+  if (now === JSON.stringify([c.batches, c.scoring, c.maxStudentsPerDisplay, c.targetHoursPerPair, c.changeoverMin ?? null])) return;
+  d.changeoverMin = c.changeoverMin ?? null;
   d.batches = c.batches;
   d.scoring = c.scoring;
   d.maxStudentsPerDisplay = c.maxStudentsPerDisplay;
@@ -245,6 +316,7 @@ function heard(from: string, text: string): void {
 function showWho(): void {
   const names = session.students.length > 0 ? session.students.map(esc).join(" / ") : "free practice, no names";
   const hrs = session.students.length > 0 ? ` &nbsp; display time ${store.pairHours(session.students).toFixed(1)} h${store.data.targetHoursPerPair !== null ? ` of ${store.data.targetHoursPerPair} h` : ""}` : "";
+  fillControls();
   $("who").innerHTML = STATION ? (session.role === "instructor" ? "logged in" : "") : `${names}${batchName() ? ` (${esc(batchName())})` : ""}${hrs}${session.role === "instructor" ? ' &nbsp; <b style="color:var(--warn)">INSTRUCTOR</b>' : ""}`;
 }
 
@@ -525,9 +597,20 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
     setRange(app, ex.rangeNm);
     setSelect("range", String(ex.rangeNm));
     startRecorder(`roc-${ex.id}`, `ROC: ${ex.name}`, "roc");
+    if (app.recorder) app.recorder.rec.criteria = { atIso: app.recorder.rec.startedIso, rows: rocCriteria(ex.id, store.data.scoring), passPercent: store.data.scoring.passPercent, timeLimitMin: null };
+    const scoring = JSON.parse(JSON.stringify(store.data.scoring)) as typeof store.data.scoring;
     app.onRocFinish = () => {
       rocUi.showFinish(a);
       if (a.recorder) a.recorder.rec.summary = $("rocResult").innerText.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 30);
+      if (a.roc) {
+        // Points from the same reports the trainee sees, with the limits in force when the exercise started.
+        const r = rocResult(a.roc, a.world, rocUi.marked(), scoring);
+        if (a.recorder) {
+          a.recorder.rec.result = r;
+          a.recorder.rec.progress = progressReport(a.world, null);
+        }
+        rocUi.setPoints(`<div id="rocPoints"><h2 style="margin-top:10px">Points</h2>${resultHtml(r)}</div>`);
+      }
       saveRecord(a);
     };
   } else if (opts.arpa) {
@@ -578,6 +661,8 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
       app.hits = [];
     }
     startRecorder(opts.arpa.id, `${opts.arpa.group ?? "ARPA"} ${opts.arpa.number}: ${opts.arpa.title}`, "arpa");
+    // The criteria and limits in force are kept in the record, so that a later change of the limits does not change what this exercise was marked with.
+    if (app.recorder) app.recorder.rec.criteria = criteriaSnapshot(opts.arpa, app.arpaEx.cfg, app.recorder.rec.startedIso);
   }
   trainUi.onAppChanged(app);
   $("radarSb").textContent = "RADAR: ON";
@@ -733,6 +818,10 @@ function setup(): void {
     if (c.cmd === "startExercise") {
       exam = null;
       startExerciseById(c.id);
+      return;
+    }
+    if (c.cmd === "watch") {
+      watchedUntil = c.on ? Date.now() + 15000 : 0;
       return;
     }
     if (c.cmd === "startExam") {
@@ -1137,6 +1226,7 @@ function setup(): void {
     setSelect("spDatum", "mob");
     app.recorder?.note(app.world, "MOB key pressed.", false);
   });
+  $("ctlWho").addEventListener("change", () => setControls(sel("ctlWho")));
   $("outlineSheet").addEventListener("click", () => {
     const win = window.open("", "_blank");
     if (!win) {
@@ -1394,13 +1484,58 @@ function updateReadouts(): void {
   panelUi?.tick();
 }
 
+/** The radar and ARPA settings in use, as short lines for the instructor's live view. */
+function settingsLines(): string[] {
+  const c = app.world.radar.controls;
+  const pl = pulseFor(c.rangeNm, c.pulse, c.prfHz);
+  const a = app.arpa.settings;
+  const auto = (id: string): string => (chk(id) ? " (auto)" : "");
+  return [
+    `Radar ${radarTransmitting(app.world) ? "transmitting" : "NOT transmitting"}: ${c.rangeNm} NM, ${app.world.radar.band} band, ${pl.name} pulse, PRF ${pl.prfHz}`,
+    `Gain ${Math.round(c.gain)}  Sea ${Math.round(c.stc)}${auto("autoSea")}  Rain ${Math.round(c.ftc)}${auto("autoRain")}  Tune ${Math.round(c.tuning)}${auto("autoTune")}  Brilliance ${Math.round(c.brilliance)}`,
+    `${sel("orient")}, ${sel("motion")} motion, ${sel("stab")} stabilised; trails ${sel("trails")}${sel("trails") === "off" ? "" : ` ${sel("trailMin")} min`}`,
+    app.roc ? "ARPA off (ROC exercise)" : `ARPA ${a.standby ? "STANDBY" : "on"}: ${app.arpa.activeCount()} tracked, ${a.vectorMode} vectors ${a.vectorMinutes} min, automatic acquisition ${a.autoAcquire ? "on" : "off"}, limits CPA ${a.cpaLimitNm} NM TCPA ${a.tcpaLimitMin} min`,
+    `AIS ${app.ais.settings.on ? "on" : "off"}${app.ebl.on ? `; EBL 1 ${pad3(app.ebl.bearing)}°` : ""}${app.vrm.on ? `; VRM 1 ${app.vrm.range.toFixed(2)} NM` : ""}${app.route.length >= 2 ? `; route of ${app.route.length} waypoints` : ""}`,
+  ];
+}
+/** Send the radar picture to the instructor station that is watching this display. */
+function sendLivePicture(): void {
+  try {
+    liveCanvas.width = LIVE_PICTURE_PX;
+    liveCanvas.height = LIVE_PICTURE_PX;
+    const c = liveCanvas.getContext("2d");
+    if (!c) return;
+    c.drawImage(ctx.canvas, 0, 0, ctx.canvas.width, ctx.canvas.height, 0, 0, LIVE_PICTURE_PX, LIVE_PICTURE_PX);
+    link.sendPicture({ station: link.station, t: Math.round(app.world.time), url: liveCanvas.toDataURL("image/jpeg", 0.6) });
+  } catch {
+    // A picture that cannot be taken is left out.
+  }
+}
 /** Every second: report this display to the instructor's monitor and count display time for the pair. */
 let lastPairSave = 0;
 function heartbeat(): void {
   const w = app.world;
   const s = app.arpaEx;
+  app.ctlName = ctlName;
+  timedChangeover();
+  // What the instructor should look at here, and bookmarks of it in the record (the two most urgent kinds).
+  if (app.running) pausedSince = null;
+  else pausedSince ??= performance.now();
+  const flags = STATION ? [] : attentionFlags({
+    w, a: app.roc ? null : app.arpa, session: s ?? null, running: app.running, route: app.route,
+    idleSec: (performance.now() - lastInputAt) / 1000, pausedSec: pausedSince === null ? 0 : (performance.now() - pausedSince) / 1000,
+  });
+  if (app.recorder && !s?.finished && !(app.roc?.finished)) {
+    for (const f of flags) {
+      const last = flagSeen.get(f.key);
+      if (f.level >= 2 && (last === undefined || w.time - last > 60)) app.recorder.note(w, `ATTENTION: ${f.text}.`, true, f.level);
+      flagSeen.set(f.key, w.time);
+    }
+  }
   // The instructor station is not a display: it does not report (and its own ship is not shown to the trainees).
   if (!STATION) link.sendStatus({
+    flags, prog: progressReport(w, s ?? null), ctl: ctlName, recId: app.recorder?.rec.id ?? "", set: settingsLines(),
+    ...(s ? { ev: evidenceOf(s, w, app.arpa) } : {}),
     station: link.station, students: session.students, batch: batchName(),
     exercise: s ? `Exercise ${s.def.number}` : app.roc ? `ROC ${app.roc.ex.id}` : `Free: ${app.scenario.name}`,
     time: w.time, running: app.running, hdg: measuredHeading(w), spd: w.own.speedThroughWater, ordC: w.own.ordered.course, ordS: w.own.ordered.speed,
@@ -1437,6 +1572,7 @@ let panelUi: PanelUi | null = null;
 let last = performance.now();
 /** While an exercise is being recorded, keep a small copy of the radar picture every few seconds for the replay. */
 const pictureCanvas = document.createElement("canvas");
+const liveCanvas = document.createElement("canvas");
 function takePicture(): void {
   if (!app.recorder || app.world.time + 1e-9 < app.nextPictureAt) return;
   app.nextPictureAt = app.world.time + PICTURE_INTERVAL_SEC;
@@ -1473,6 +1609,10 @@ function step(now: number): void {
   }
   drawPpi(ctx, cssSize, app);
   takePicture();
+  if (!STATION && Date.now() < watchedUntil && Date.now() >= nextLiveAt) {
+    nextLiveAt = Date.now() + LIVE_PICTURE_EVERY_MS;
+    sendLivePicture();
+  }
   rocUi.frame(app);
   readoutClock += dt;
   if (readoutClock > 0.15) {
@@ -1551,6 +1691,10 @@ window.addEventListener("beforeunload", () => store.save());
   },
   aisFilterLabel: (): string => aisFilterLabel(app.ais.settings.sleepFilter),
   headingLost: (): boolean => app.headingLost,
+  /** The changeover time the station has set (minutes), the trainee at the controls, and the message on the screen. */
+  changeover: (): number | null => store.data.changeoverMin ?? null,
+  atControls: (): string => ctlName,
+  bannerText: (): string => ($("banner").hidden ? "" : $("banner").textContent ?? ""),
   /** The names of the batches this display knows. */
   batchNames: (): string[] => store.data.batches.map((b) => b.name),
   /** The autopilot course ordered now. */

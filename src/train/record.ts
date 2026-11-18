@@ -1,6 +1,7 @@
 import { World } from "../engine/index";
 import { ArpaSystem } from "../arpa/index";
-import { ExerciseResult } from "./session";
+import { ExerciseResult, TaskCriterion } from "./session";
+import type { ProgressReport } from "./attention";
 
 /** One moment of an exercise, kept for the debrief replay. Positions in NM (east, north). */
 export interface Frame {
@@ -17,6 +18,18 @@ export interface RecordEvent {
   text: string;
   /** True when only the instructor should see it during the exercise (it reveals the truth). */
   instructor: boolean;
+  /** A bookmark for the debrief: an attention flag raised at this moment, and how urgent it was (3 most). */
+  flag?: 1 | 2 | 3;
+}
+
+/** One item of the instructor's observation checklist, as ticked for one display during one exercise. */
+export interface Observation {
+  item: string;
+  /** "yes": seen done well; "no": seen not done or done badly; left out of the list: not observed. */
+  mark: "yes" | "no";
+  /** Exercise time on the display when it was ticked, seconds, and the trainee it is about ("" for the whole group). */
+  t: number;
+  student: string;
 }
 
 export interface SessionRecord {
@@ -44,6 +57,20 @@ export interface SessionRecord {
   assessor?: { decision: "" | "competent" | "not-yet"; remarks: string; name: string };
   /** Radio messages exchanged during the exercise. */
   comms?: { t: number; from: string; text: string }[];
+  /** Who was at the controls, from when (exercise time, s): the trainee named on the display, in order. */
+  controls?: { t: number; name: string }[];
+  /** The instructor's observation checklist for this exercise, and his or her notes, added at the station. */
+  observations?: Observation[];
+  observerNotes?: string;
+  /** The assessor's decision for each trainee of a group, by name (the single `assessor` decision stands for the group). */
+  assessorBy?: Record<string, { decision: "" | "competent" | "not-yet"; remarks: string }>;
+  /** How the exercise was marked when it was taken: the criteria and limits in force then, so that later changes of the settings do not alter what an old result means. */
+  criteria?: { atIso: string; rows: TaskCriterion[]; passPercent: number | null; timeLimitMin: number | null };
+  /** What the simulator measured, as short lines by subject (see train/assess.ts), and the progress figures at the end. */
+  evidence?: Record<string, string>;
+  progress?: ProgressReport;
+  /** The guided debrief: which steps were done, the goals agreed, and when. */
+  debriefDone?: { steps: boolean[]; goals: string; atIso: string };
   /** When the exercise was one part of a practical examination: which examination (one id for each sitting), its name, and which part of how many. */
   exam?: { id: string; name: string; part: number; of: number };
 }
@@ -71,8 +98,16 @@ export class Recorder {
     };
   }
 
-  note(w: World, text: string, instructor = false): void {
-    this.rec.events.push({ t: Math.round(w.time), text, instructor });
+  note(w: World, text: string, instructor = false, flag?: 1 | 2 | 3): void {
+    this.rec.events.push({ t: Math.round(w.time), text, instructor, ...(flag ? { flag } : {}) });
+  }
+
+  /** The trainee at the controls from now on. */
+  atControls(w: World, name: string): void {
+    const list = (this.rec.controls ??= []);
+    if (list[list.length - 1]?.name === name) return;
+    list.push({ t: Math.round(w.time), name });
+    if (list.length > 1) this.note(w, `${name || "Nobody named"} takes the controls.`, false);
   }
 
   /** Call after every simulation step. */
@@ -183,4 +218,20 @@ export function resultCsv(r: SessionRecord): string {
   const rows: (string | number)[][] = [["Item", "Type", "Student", "Correct", "OK", "Points", "Maximum"]];
   for (const i of r.result?.items ?? []) rows.push([i.label, i.kind, i.student, i.correct, i.ok ? "yes" : "no", i.points, i.max]);
   return toCsv(rows);
+}
+
+/** Seconds each trainee was at the controls during a recorded exercise, in the order they first took them. */
+export function controlsShare(rec: Pick<SessionRecord, "controls" | "simSeconds">): { name: string; seconds: number }[] {
+  const out = new Map<string, number>();
+  const list = rec.controls ?? [];
+  list.forEach((c, i) => {
+    const until = list[i + 1]?.t ?? rec.simSeconds;
+    out.set(c.name, (out.get(c.name) ?? 0) + Math.max(0, until - c.t));
+  });
+  return [...out].map(([name, seconds]) => ({ name, seconds }));
+}
+
+/** The bookmarks of a record: the moments at which an attention flag was raised, most urgent kinds included, in time order. */
+export function bookmarks(rec: Pick<SessionRecord, "events">): RecordEvent[] {
+  return rec.events.filter((e) => e.flag !== undefined).sort((a, b) => a.t - b.t);
 }

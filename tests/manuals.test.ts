@@ -57,6 +57,8 @@ describe("the instructor's manual names every tab and section of the instructor 
     const quoted = ["Records, replay and reports", "Scoring settings (placeholders)", "Marking sheets", "Self-test of the exercises", "Scenario editor",
       "Batches, students and assignments", "Inject events (this display)", "Faults to send", "Set this weather", "Send the weather to", "Start this exercise on all displays",
       "Targets on a display, while the exercise runs", "Alter this target now", "Remove this target", "Add this target now", "Random traffic", "New seed",
+      "Needs attention", "Stop watching", "Checklist items", "Save notes",
+      "Exercise sheets", "Trainee file", "Assessors compared", "Save the debrief", "Debrief pack", "The class on this exercise", "Save batch and limits", "Show the standard of each item",
       "Examinations", "Save the parts", "Start the ROC examination", "Start the ARPA examination", "Examination results", "Time limit for the exercise", "Set this time limit",
       "Send these faults to all displays", "Programme a track", "Set track", "Take off track", "Undo point", "Show target tracks on this display",
       "Take exercise back 2 min", "Alter target now", "Add target now", "Start a LINKED exercise on all displays"];

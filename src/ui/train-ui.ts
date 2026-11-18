@@ -24,12 +24,14 @@ export interface TrainUi {
 }
 
 export function resultHtml(r: ExerciseResult): string {
+  // In a group, who was at the controls when each answer was given or each action done.
+  const who = new Set(r.items.map((i) => i.by).filter(Boolean)).size > 1;
   const rows = r.items
-    .map((i) => `<tr><td>${esc(i.label)}</td><td>${esc(i.student)}</td><td>${esc(i.correct)}</td><td class="${i.ok ? "ok" : "no"}">${i.ok ? "✓" : "✗"}</td><td>${i.points}/${i.max}</td></tr>`)
+    .map((i) => `<tr><td>${esc(i.label)}</td><td>${esc(i.student)}</td><td>${esc(i.correct)}</td><td class="${i.ok ? "ok" : "no"}">${i.ok ? "✓" : "✗"}</td><td>${i.points}/${i.max}</td>${who ? `<td>${esc(i.by ?? "")}</td>` : ""}</tr>`)
     .join("");
   const verdict = r.passed === null ? "No pass mark has been set by the instructor." : r.passed ? '<span class="ok">Passed.</span>' : '<span class="no">Not yet passed.</span>';
   return `<p><b>${esc(r.title)}</b> &nbsp; ${mmss(r.simSeconds)} simulated</p>
-    <table class="res"><thead><tr><th>Item</th><th>Yours</th><th>Correct</th><th></th><th>Pts</th></tr></thead><tbody>${rows}</tbody></table>
+    <table class="res"><thead><tr><th>Item</th><th>Yours</th><th>Correct</th><th></th><th>Pts</th>${who ? "<th>At the controls</th>" : ""}</tr></thead><tbody>${rows}</tbody></table>
     <p><b>${r.score} of ${r.max} (${r.percent.toFixed(0)}%)</b>. ${verdict}</p>
     <p class="small">${esc(r.placeholderNote)}</p>
     <h2 style="margin-top:10px">Debrief questions</h2><ol class="steps">${r.debrief.map((d) => `<li>${esc(d)}</li>`).join("")}</ol>`;

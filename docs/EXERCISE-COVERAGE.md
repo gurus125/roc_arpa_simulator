@@ -46,8 +46,9 @@ the simulator has no type approval.
 - **A person in the water** gives no echo, so the search is by the mark and the pattern, with
   nothing to find on the radar.
 - **Examinations**: the six ROC exercises (plotting board, fix, set and drift, clearing range,
-  pilotage, traffic) still give a report and no points, so they are printed on the result sheet but
-  left out of the total. There is no theory paper or oral: those stay with the assessor.
+  pilotage, traffic) gave a report and no points on the morning of 18 Nov 2026. The same day they
+  were given points worked from that report (placeholders; the first check of the answers counts),
+  so they now count in the total. There is no theory paper or oral: those stay with the assessor.
 - **Programmed tracks** cannot yet be given to a target on a trainee's display from the station, and
   a trainee's display cannot be taken back in time from the station.
 - **Random traffic** is placed without regard to land.

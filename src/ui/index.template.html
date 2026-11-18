@@ -610,6 +610,12 @@
   #stationPage #inReplay, #stationPage #inPic { max-width:560px; }
   body[data-station=instructor] #shipWinKey { display:none; }
   body[data-station=instructor] #topTabs button { padding:0 16px; font-size:13px; }
+  /* The station has six tabs: on a narrow screen they close up, and the title is cut short rather than written under them. */
+  #brand > div { min-width:0; overflow:hidden; }
+  #brand b { overflow:hidden; text-overflow:ellipsis; }
+  @media (max-width: 1500px) { body[data-station=instructor] #topTabs button { padding:0 8px; font-size:12.5px; letter-spacing:.03em; } body[data-station=instructor] #brand { flex:0 0 auto; } body[data-station=instructor] #brand .logo { display:none; } body[data-station=instructor] header { gap:10px; } }
+  @media (max-width: 1400px) { body[data-station=instructor] #brand b { font-size:15px; } body[data-station=instructor] #topTabs button { padding:0 6px; font-size:12px; letter-spacing:0; } }
+  @media (max-width: 1300px) { body[data-station=instructor] #brand b { font-size:14px; } body[data-station=instructor] #hdrRight > * { padding:0 8px; } }
 </style>
 </head>
 <body>
@@ -659,6 +665,7 @@
       <div class="btns" id="telegraph"></div>
       <div class="btns"><span class="small">Anchor</span><button id="anchorKey" title="Let go the anchor (only with less than 1 kn over the ground), or weigh it">LET GO ANCHOR</button><span class="small" id="anchorNow"></span></div>
       <div class="btns"><span class="small">Emergency</span><button id="mobKey" title="Man overboard: marks own ship's position at this moment on the radar (it needs a position from the EPFS)">MOB</button><span class="small" id="mobNow"></span></div>
+      <div class="btns" id="ctlRow" hidden><span class="small">At the controls</span><select id="ctlWho" style="width:auto" title="The trainee working the radar now. It is written in the record, so that each trainee of a group can be assessed."></select></div>
       <div class="btns"><span class="small">Engine order</span><button id="engDn" class="pm1">−</button><b id="ordSpeedV" style="min-width:60px;text-align:center">12</b><button id="engUp" class="pm1">+</button><span class="small">kn</span></div>
       <input type="range" id="ordSpeed" min="-10" max="25" step="0.5" value="12" hidden>
       <p id="shipNow" style="font:13px ui-monospace, Consolas, monospace; margin:4px 0"></p>

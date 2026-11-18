@@ -87,6 +87,9 @@ export interface Observed {
     speedTo: number;
     /** Vessels with which a close-quarters situation was developing at that moment. */
     threats: { id: number; relBearing: number }[];
+    /** The trainee at the controls then, and how close each of those vessels would have passed, and when, had nothing been done. */
+    by?: string;
+    risk?: { id: number; name: string; cpa: number; tcpaMin: number }[];
   };
   /** Parallel index lines the student has set (latest), and navigation lines drawn (most at any time). */
   pi: { on: boolean; bearing: number; range: number }[];
@@ -113,6 +116,14 @@ export interface Observed {
   routePoints: number;
   /** Own ship's speed over the ground every 10 seconds: [exercise time s, knots]. */
   speedLog: [number, number][];
+  /** When each real target first had a settled track (exercise time, s), and its range then, NM. */
+  trackedAt: Record<number, { t: number; rangeNm: number }>;
+  /** The range scales used, in the order they were first chosen, and how often the scale was changed. */
+  rangesUsed: number[];
+  rangeChanges: number;
+  /** Alerts raised so far, and the longest any was left unacknowledged, seconds. */
+  alertsRaised: number;
+  maxUnackedSec: number;
   /**
    * Coming back to a target: the closest range reached to it after it had first been more than RETURN_OPEN_NM
    * away, NM, and own speed through the water at that moment. (A person who falls overboard starts at range 0.)
@@ -212,6 +223,8 @@ export interface ResultItem {
   ok: boolean;
   points: number;
   max: number;
+  /** The trainee at the controls when the answer was given or the action done. Left out for what is judged from the whole exercise. */
+  by?: string;
 }
 export interface ExerciseResult {
   exerciseId: string;
@@ -276,6 +289,8 @@ interface AnswerRec {
   correct: string;
   ok: boolean;
   time: number;
+  /** The trainee at the controls when the answer was given ("" or left out: not named). */
+  by?: string;
 }
 
 export class ArpaExSession {
@@ -291,6 +306,11 @@ export class ArpaExSession {
   /** What the script has told the trainee, in order; `noticesShown` is how many the display has shown. */
   notices: string[] = [];
   noticesShown = 0;
+  /** The trainee at the controls now (set by the display), and who was there when each action was first seen done. */
+  controls = "";
+  actionBy = new Map<string, string>();
+  private alertKeys = new Set<string>();
+  private lastRange: number | null = null;
   private routeLeg = 0;
   private nextSpeedAt = 0;
   private opened = new Set<number>();
@@ -313,6 +333,7 @@ export class ArpaExSession {
       pi: [], navLines: 0, pmUsed: false, maxXte: 0, trackDone: false, closeSpeed: {},
       minLandNm: distanceToLandNm(w), anchorPos: null,
       tss: { withFlow: 0, crossing: 0, against: 0, zone: 0 }, mobKeyAt: null, routePoints: 0, speedLog: [], returnRange: {}, returnSpeed: {},
+      trackedAt: {}, rangesUsed: [], rangeChanges: 0, alertsRaised: 0, maxUnackedSec: 0,
     };
     this.lastTime = w.time;
     def.setup?.(a, w);
@@ -323,12 +344,13 @@ export class ArpaExSession {
   }
 
   /** Call after every simulation step. */
-  step(w: World, a: ArpaSystem, ui?: { pi: { on: boolean; bearing: number; range: number }[]; navLines: number; pmOn?: boolean; mobAt?: number | null; routePoints?: number }): void {
+  step(w: World, a: ArpaSystem, ui?: { pi: { on: boolean; bearing: number; range: number }[]; navLines: number; pmOn?: boolean; mobAt?: number | null; routePoints?: number; ctl?: string }): void {
     if (this.finished) return;
     const dt = Math.max(0, w.time - this.lastTime);
     this.lastTime = w.time;
     if (ui) {
       if (ui.mobAt !== undefined && ui.mobAt !== null && this.obs.mobKeyAt === null) this.obs.mobKeyAt = ui.mobAt;
+      if (ui.ctl !== undefined) this.controls = ui.ctl;
       this.obs.routePoints = Math.max(this.obs.routePoints, ui.routePoints ?? 0);
       this.obs.pi = ui.pi.map((p) => ({ ...p }));
       this.obs.navLines = Math.max(this.obs.navLines, ui.navLines);
@@ -376,7 +398,25 @@ export class ArpaExSession {
     }
     const o = this.obs;
     const st = a.settings;
-    for (const t of a.tracks) if (t.truthId !== null && t.state === "tracking" && t.quality !== "acquiring") o.tracked.add(t.truthId);
+    for (const t of a.tracks) {
+      if (t.truthId === null || t.state !== "tracking" || t.quality === "acquiring") continue;
+      o.tracked.add(t.truthId);
+      const tg = targetById(w, t.truthId);
+      if (tg && !o.trackedAt[t.truthId]) o.trackedAt[t.truthId] = { t: Math.round(w.time), rangeNm: Math.round(length(sub(tg.pos, w.own.pos)) * 100) / 100 };
+    }
+    // The range scale in use, and the alerts: how many, and how long one was left unacknowledged.
+    const rs = w.radar.controls.rangeNm;
+    if (this.lastRange !== null && rs !== this.lastRange) o.rangeChanges++;
+    this.lastRange = rs;
+    if (!o.rangesUsed.includes(rs)) o.rangesUsed.push(rs);
+    for (const al of a.alarms) {
+      if (al.kind === "capacity-near") continue;
+      if (!this.alertKeys.has(`${al.key}@${al.raisedAt}`)) {
+        this.alertKeys.add(`${al.key}@${al.raisedAt}`);
+        o.alertsRaised++;
+      }
+      if (!al.acked) o.maxUnackedSec = Math.max(o.maxUnackedSec, w.time - al.raisedAt);
+    }
     if (st.autoAcquire) o.autoAcqUsed = true;
     if (st.guardZones.some((z) => z.on)) o.guardUsed = true;
     if (st.exclusionZones.some((z) => z.on)) o.exclusionUsed = true;
@@ -417,6 +457,12 @@ export class ArpaExSession {
         speedFrom: this.startSpeed,
         speedTo: w.own.ordered.speed,
         threats: threats(w, this.def.safeNm).map((id) => ({ id, relBearing: normalizeDeg(bearingOf(sub(targetById(w, id)!.pos, w.own.pos)) - w.own.heading) })),
+        ...(this.controls ? { by: this.controls } : {}),
+        risk: threats(w, this.def.safeNm).map((id) => {
+          // As it stood on the course and speed held until now (the ordered values have just changed; the ship has not yet).
+          const r = truthCpa(w, id);
+          return { id, name: targetById(w, id)?.name ?? "", cpa: Math.round((r?.cpa ?? 0) * 100) / 100, tcpaMin: Math.round((r?.tcpaMinutes ?? 0) * 10) / 10 };
+        }),
       };
     }
     if (o.manoeuvre) {
@@ -424,7 +470,10 @@ export class ArpaExSession {
       o.minSpeedRatio = Math.min(o.minSpeedRatio, ratio);
     }
     for (const t of this.def.tasks) {
-      if (t.kind === "action" && !this.actionsDone.has(t.id) && t.done(this.ctx(w, a))) this.actionsDone.add(t.id);
+      if (t.kind === "action" && !this.actionsDone.has(t.id) && t.done(this.ctx(w, a))) {
+        this.actionsDone.add(t.id);
+        if (this.controls) this.actionBy.set(t.id, this.controls);
+      }
     }
   }
 
@@ -450,12 +499,12 @@ export class ArpaExSession {
       if (truth === null || !Number.isFinite(value)) return false;
       const err = t.circular ? Math.abs(angleDiffDeg(value, truth)) : Math.abs(value - truth);
       const shown = t.circular ? normalizeDeg(truth) : truth;
-      this.answers.set(taskId, { text: `${value} ${t.unit}`, correct: `${shown.toFixed(t.unit === "°" || t.unit === "min" ? 0 : 1)} ${t.unit} (±${t.tol(this.cfg)})`, ok: err <= t.tol(this.cfg) + 1e-9, time: w.time });
+      this.answers.set(taskId, { text: `${value} ${t.unit}`, correct: `${shown.toFixed(t.unit === "°" || t.unit === "min" ? 0 : 1)} ${t.unit} (±${t.tol(this.cfg)})`, ok: err <= t.tol(this.cfg) + 1e-9, time: w.time, ...(this.controls ? { by: this.controls } : {}) });
       return true;
     }
     if (t.kind === "choice") {
       const right = t.correct(c);
-      this.answers.set(taskId, { text: t.choices[value] ?? "?", correct: t.choices[right] ?? "?", ok: value === right, time: w.time });
+      this.answers.set(taskId, { text: t.choices[value] ?? "?", correct: t.choices[right] ?? "?", ok: value === right, time: w.time, ...(this.controls ? { by: this.controls } : {}) });
       return true;
     }
     return false;
@@ -468,12 +517,13 @@ export class ArpaExSession {
       if (t.kind === "number" || t.kind === "choice") {
         const r = this.answers.get(t.id);
         const max = this.cfg.points.question;
-        return { id: t.id, label: t.prompt, kind: t.kind, student: r ? r.text : "not answered", correct: r ? r.correct : "-", ok: !!r?.ok, points: r?.ok ? max : 0, max };
+        return { id: t.id, label: t.prompt, kind: t.kind, student: r ? r.text : "not answered", correct: r ? r.correct : "-", ok: !!r?.ok, points: r?.ok ? max : 0, max, ...(r?.by ? { by: r.by } : {}) };
       }
       if (t.kind === "action") {
         const ok = this.actionsDone.has(t.id) || t.done(c);
         const max = this.cfg.points.action;
-        return { id: t.id, label: t.prompt, kind: t.kind, student: ok ? "done" : "not done", correct: "done", ok, points: ok ? max : 0, max };
+        const by = this.actionBy.get(t.id);
+        return { id: t.id, label: t.prompt, kind: t.kind, student: ok ? "done" : "not done", correct: "done", ok, points: ok ? max : 0, max, ...(by ? { by } : {}) };
       }
       const j = t.judge(c);
       const max = this.cfg.points.safety;

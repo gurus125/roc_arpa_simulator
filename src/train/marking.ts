@@ -211,3 +211,26 @@ table{border-collapse:collapse;width:100%}td,th{border:1px solid #888;padding:2p
 .who td:nth-child(odd){background:#f4f4f4;width:12%}.box{display:inline-block;width:11px;height:11px;border:1px solid #333;vertical-align:middle}</style></head><body>
 ${sheets || "<p>No examination has been taken yet.</p>"}</body></html>`;
 }
+
+// ---------------------------------------------------------------- observation checklist
+
+/**
+ * What the instructor ticks while watching a display: the things the simulator cannot judge by itself. This
+ * list is a PROPOSAL for the institute to replace with its own objectives (instructor station, CLASSROOM,
+ * Observe, "Checklist items"). It follows the idea of a standard sheet of objectives chosen at the briefing and
+ * ticked during the exercise (Karlsson, Chalmers, 2011); the wording is ours.
+ */
+export const DEFAULT_OBSERVATION_ITEMS: string[] = [
+  "Radar set up before use: range scale, gain, clutter and tuning checked",
+  "Range scale changed to suit the situation, with a look at long range at intervals",
+  "Targets plotted or acquired in good time",
+  "ARPA data checked against the radar picture before it was used",
+  "Risk of collision judged from the information available",
+  "Action taken early, large enough to be seen, and in line with the collision regulations",
+  "Effect of the action checked until the other vessel was past and clear",
+  "Position monitored by radar",
+  "Alerts understood and dealt with, not only acknowledged",
+  "Reports to the master or the bridge team clear and in time",
+  "Worked as a team: tasks shared and cross-checked",
+  "Limits of the radar and the ARPA kept in mind: delays, errors, lost targets",
+];

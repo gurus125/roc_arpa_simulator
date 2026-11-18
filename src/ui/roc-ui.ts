@@ -6,6 +6,7 @@ import {
   EXERCISES, ExerciseKind, Message, PlotReport, PlotAnswerInput, RocSession, SituationAnswer, computeFix,
   evaluateClearing, evaluatePilotage, evaluatePlot, evaluateSetDrift, evaluateTraffic, exerciseById, FixResult, ROC_PLACEHOLDERS,
 } from "../roc/index";
+import { RocMarked } from "../train/roc-score";
 import { AppState } from "./app";
 import { drawBoard, drawChart, drawTriangle } from "./work";
 
@@ -55,6 +56,10 @@ export interface RocUi {
   onAppChanged: (app: AppState) => void;
   /** Call when the exercise ends. */
   showFinish: (app: AppState) => void;
+  /** What counts for the points: the first check of the plot and of the set and drift, and each fix as first completed. */
+  marked: () => RocMarked;
+  /** The table of points, shown under the report from the end of the exercise on. */
+  setPoints: (html: string) => void;
 }
 
 export function initRocUi(api: RocUiApi): RocUi {
@@ -62,6 +67,11 @@ export function initRocUi(api: RocUiApi): RocUi {
   let lastPlot: PlotReport | null = null;
   let lastStudent: PlotAnswerInput | null = null;
   let lastReport: unknown = null;
+  let marked: RocMarked = { plot: null, fixes: {}, setDrift: null };
+  let points = "";
+  let shown = "";
+  const FIRST = '<p class="small">Points are given for this first check.</p>';
+  const LATER = '<p class="small">Points were given for your first check, not for this one.</p>';
   let hover: Vec2 | null = null;
   let toWorld: ((x: number, y: number) => Vec2) | null = null;
   let canvasPx = 0;
@@ -90,6 +100,9 @@ export function initRocUi(api: RocUiApi): RocUi {
   $("viewTri").addEventListener("click", () => setView("tri"));
 
   const setResult = (html: string): void => {
+    shown = html;
+    // Once the exercise has ended its points stay under whatever report is shown.
+    html += points;
     $("secResult").hidden = html === "";
     $("rocResult").innerHTML = html;
   };
@@ -125,6 +138,8 @@ export function initRocUi(api: RocUiApi): RocUi {
     let html = "";
     for (let g = 1; g <= s.group; g++) html += fixHtml(computeFix(s.observations, s.charted, g));
     html += `<p class="small">Largest acceptable fix error ${f2(ROC_PLACEHOLDERS.fixErrorNm)} NM (placeholder). The chart shows each fix as a cross.</p>`;
+    const first = Object.entries(marked.fixes).map(([g, f]) => `fix ${g} ${f2(f.result.errorNm ?? 0)} NM`);
+    if (first.length > 0) html += `<p class="small">Points are given for each fix as it stood when first completed: ${first.join(", ")}.</p>`;
     setResult(html);
   }
 
@@ -183,8 +198,14 @@ export function initRocUi(api: RocUiApi): RocUi {
     const r = s.observe(app.world, app.ebl.bearing, app.vrm.range, fixing ? ($<HTMLSelectElement>("obsUse").value as "both" | "range" | "bearing") : "both");
     refreshTable(app);
     if (!r.ok) setResult(`<p class="no">${r.message}</p>`);
-    else if (s.ex.id === "fix" || s.ex.id === "setdrift") refreshFixResult(app);
-    else setResult(r.obs.objectId === null ? '<p class="wn">That observation did not match any echo. Delete it and set the EBL and VRM on the target again.</p>' : "");
+    else if (s.ex.id === "fix" || s.ex.id === "setdrift") {
+      // A fix is marked as it stands when first completed: its error is shown from then on.
+      if (!marked.fixes[s.group]) {
+        const f = computeFix(s.observations, s.charted, s.group);
+        if (f.valid) marked.fixes[s.group] = { result: f, by: app.ctlName };
+      }
+      refreshFixResult(app);
+    } else setResult(r.obs.objectId === null ? '<p class="wn">That observation did not match any echo. Delete it and set the EBL and VRM on the target again.</p>' : "");
   });
   $("obsDel").addEventListener("click", () => {
     const app = api.getApp();
@@ -231,7 +252,9 @@ export function initRocUi(api: RocUiApi): RocUi {
     lastPlot = rep;
     lastStudent = st;
     lastReport = { plot: rep, answer: st };
-    setResult(plotHtml(rep, st));
+    const first = rep.valid && !marked.plot;
+    if (first) marked.plot = { report: rep, answer: st, by: app.ctlName };
+    setResult(plotHtml(rep, st) + (rep.valid ? (first ? FIRST : LATER) : ""));
     if (rep.valid) setView("tri");
   });
 
@@ -242,6 +265,8 @@ export function initRocUi(api: RocUiApi): RocUi {
     const student = val("ansSet").trim() === "" || val("ansDrift").trim() === "" ? null : { set: Number(val("ansSet")), drift: Number(val("ansDrift")) };
     const rep = evaluateSetDrift(s.observations, s.charted, app.world.env.current, student);
     lastReport = { setDrift: rep, answer: student };
+    const first = rep.valid && !!student && !marked.setDrift;
+    if (first) marked.setDrift = { report: rep, answer: student, by: app.ctlName };
     if (!rep.valid) {
       setResult((rep.fix1 ? fixHtml(rep.fix1) : "") + (rep.fix2 ? fixHtml(rep.fix2) : "") + msgList(rep.messages));
       return;
@@ -253,7 +278,7 @@ export function initRocUi(api: RocUiApi): RocUi {
       <tr><td>Set °</td><td>${student ? f1(student.set) : "-"}</td><td>${f1(ft.set)} ${mark(rep.studentVsFixes?.setOk)}</td><td>${f1(tr.set)} ${mark(rep.studentVsTruth?.setOk)}</td></tr>
       <tr><td>Drift kn</td><td>${student ? f2(student.drift) : "-"}</td><td>${f2(ft.drift)} ${mark(rep.studentVsFixes?.driftOk)}</td><td>${f2(tr.drift)} ${mark(rep.studentVsTruth?.driftOk)}</td></tr></tbody></table>
       ${msgList(rep.messages)}<p class="small">Tolerances are placeholders: set ±${ROC_PLACEHOLDERS.setToleranceDeg}°, drift ±${ROC_PLACEHOLDERS.driftToleranceKn} kn.</p>`;
-    setResult(html);
+    setResult(html + (student ? (first ? FIRST : LATER) : ""));
   });
 
   $("clrRecord").addEventListener("click", () => {
@@ -352,6 +377,8 @@ export function initRocUi(api: RocUiApi): RocUi {
     lastPlot = null;
     lastStudent = null;
     lastReport = null;
+    marked = { plot: null, fixes: {}, setDrift: null };
+    points = "";
     hover = null;
     setResult("");
     $("clrStatus").textContent = "Not recorded.";
@@ -412,7 +439,13 @@ export function initRocUi(api: RocUiApi): RocUi {
     ($("advBtn") as HTMLButtonElement).disabled = app.advanceTo !== null;
   }
 
-  return { frame, tick, onAppChanged, showFinish };
+  return {
+    frame, tick, onAppChanged, showFinish, marked: () => marked,
+    setPoints: (html) => {
+      points = html;
+      setResult(shown);
+    },
+  };
 }
 
 export { length, sub };

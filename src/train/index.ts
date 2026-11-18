@@ -10,3 +10,6 @@ export * from "./store";
 export * from "./joint";
 export * from "./plotting-exercises";
 export * from "./robot";
+export * from "./attention";
+export * from "./assess";
+export * from "./roc-score";

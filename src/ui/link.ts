@@ -1,4 +1,4 @@
-import type { Batch, ScoringConfig, SessionRecord } from "../train/index";
+import type { AttentionFlag, Batch, ProgressReport, ScoringConfig, SessionRecord } from "../train/index";
 
 /**
  * Link between student displays and the instructor station.
@@ -28,6 +28,24 @@ export interface StationStatus {
   /** Real positions relative to own ship (NM east, north) for the instructor's small picture. */
   tg: { e: number; n: number; name: string; id?: number }[];
   at: number;
+  /** What the instructor should look at on this display now, most urgent first (see train/attention.ts). */
+  flags?: AttentionFlag[];
+  /** Progress in the exercise, for the class table. */
+  prog?: ProgressReport;
+  /** The trainee at the controls, and the id of the record being made (for the instructor's observations). */
+  ctl?: string;
+  recId?: string;
+  /** The radar and ARPA settings in use, as short lines, for the instructor's live view. */
+  set?: string[];
+  /** What the simulator has measured so far in a marked exercise, by subject (see train/assess.ts), shown beside the instructor's checklist. */
+  ev?: Record<string, string>;
+}
+
+/** The radar picture of a display that the instructor is watching, as a JPEG data URL, with the exercise time. */
+export interface LivePicture {
+  station: string;
+  t: number;
+  url: string;
 }
 
 /** The fault controls an instructor station can set on a display (the ids of the display's own controls). */
@@ -39,6 +57,8 @@ export interface ClassConfig {
   scoring: ScoringConfig;
   maxStudentsPerDisplay: number;
   targetHoursPerPair: number | null;
+  /** Minutes of exercise time after which the next trainee of a group takes the controls; null or left out: they change by hand. */
+  changeoverMin?: number | null;
 }
 
 export type Command =
@@ -55,6 +75,8 @@ export type Command =
   | { to: string; cmd: "startLinked"; scenarioJson: string }
   | { to: string; cmd: "fault"; gyroDeg: number; logKn: number }
   | { to: string; cmd: "target"; id: number; course?: number; speed?: number }
+  /** The instructor station is watching this display's radar picture (sent every few seconds), or has stopped. */
+  | { to: string; cmd: "watch"; on: boolean }
   /** Start a practical examination: these exercises, one after the other. `examId` marks the sitting. */
   | { to: string; cmd: "startExam"; examId: string; name: string; parts: string[] }
   /** Start this exercise (an ARPA, radar or plotting exercise id, or "roc-" and an ROC exercise). */
@@ -70,6 +92,7 @@ type Envelope = (
   | { kind: "record"; record: SessionRecord }
   /** The instructor station's batches and scoring, for every display. */
   | { kind: "config"; config: ClassConfig }
+  | { kind: "picture"; picture: LivePicture }
 ) & { id?: string };
 
 /** After this many failures in a row the server is treated as out of reach; it is then tried again less often. */
@@ -86,6 +109,7 @@ export class Link {
   onCommand: (c: Command) => void = () => {};
   onRecord: (r: SessionRecord) => void = () => {};
   onConfig: (c: ClassConfig) => void = () => {};
+  onPicture: (p: LivePicture) => void = () => {};
   /** "server", "server out of reach (trying again)", "same computer only", "no classroom server at this address ..." or "off". */
   mode = "off";
   private bc: BroadcastChannel | null = null;
@@ -126,6 +150,7 @@ export class Link {
     if (m.kind === "command" && (m.command.to === this.station || m.command.to === "all")) this.onCommand(m.command);
     if (m.kind === "record" && m.record && typeof m.record.id === "string") this.onRecord(m.record);
     if (m.kind === "config" && m.config && Array.isArray(m.config.batches)) this.onConfig(m.config);
+    if (m.kind === "picture" && m.picture && m.picture.station !== this.station) this.onPicture(m.picture);
   }
 
   private send(m0: Envelope): void {
@@ -189,6 +214,10 @@ export class Link {
     let rec = r;
     while (JSON.stringify(rec).length > 900_000 && rec.frames.length > 20) rec = { ...rec, frames: rec.frames.filter((_, i) => i % 2 === 0) };
     this.send({ kind: "record", record: rec });
+  }
+
+  sendPicture(p: LivePicture): void {
+    this.send({ kind: "picture", picture: p });
   }
 
   sendConfig(c: ClassConfig): void {

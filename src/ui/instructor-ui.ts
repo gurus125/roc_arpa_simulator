@@ -3,7 +3,9 @@ import { IMO_TABLE2, RANDOM_TRAFFIC_DEFAULT, addRandomTraffic, nextTargetId, Sce
 import { MAX_ROUTE_WAYPOINTS } from "../core/route";
 import { EXERCISES } from "../roc/index";
 import {
-  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, markingSheetsHtml, examSheetsHtml, DEFAULT_EXAMS, PLACEHOLDER_SCORING, SETUP_LIMITS, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
+  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, markingSheetsHtml, examSheetsHtml, DEFAULT_EXAMS, Observation, rankFlags, bookmarks, controlsShare,
+  ChecklistItem, parseChecklist, checklistLines, DEBRIEF_STEPS, debriefPack, debriefPackHtml, evidenceHtml, traineeTableHtml, decisionConflicts, traineeConflicts, assessorStats,
+  classComparison, traineeNames, traineeFileHtml, exerciseSheetHtml, exerciseSheetsHtml, rocSheetHtml, syllabusRefs, MAX_RECORDS, PLACEHOLDER_SCORING, SETUP_LIMITS, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
 } from "../train/index";
 import { AppState, rewind } from "./app";
 import { deletePictures, loadPictures } from "./picture-store";
@@ -144,16 +146,35 @@ export function debriefHtml(rec: SessionRecord): string {
   return notes + comms;
 }
 
-export function reportHtml(rec: SessionRecord): string {
+const DECISION_TEXT: Record<string, string> = { competent: "Competent: task carried out safely and effectively", "not-yet": "Not yet competent", "": "Not yet decided" };
+
+/** Who was at the controls, what the instructor ticked and noted, and the decision for each trainee of a group. */
+export function observedHtml(rec: SessionRecord): string {
+  const share = controlsShare(rec).filter((s) => s.name);
+  const ctl = share.length > 0 ? `<p><b>At the controls:</b> ${share.map((s) => `${esc(s.name)} ${mmss(s.seconds)}`).join(", ")}</p>` : "";
+  const obs = rec.observations ?? [];
+  const list = obs.length > 0 ? `<h2>Instructor's observations</h2><table><tbody>${obs.map((o) => `<tr><td class="${o.mark === "yes" ? "ok" : "no"}">${o.mark === "yes" ? "Yes" : "No"}</td><td>${esc(o.item)}</td><td>${esc(o.student || "the group")}</td><td>${mmss(o.t)}</td></tr>`).join("")}</tbody></table>` : "";
+  const notes = rec.observerNotes ? `<p><b>Instructor's notes:</b> ${esc(rec.observerNotes)}</p>` : "";
+  const by = Object.entries(rec.assessorBy ?? {}).filter(([, v]) => v.decision || v.remarks);
+  const each = by.length > 0 ? `<h2>Decision for each trainee</h2><table><tbody>${by.map(([n, v]) => `<tr><td>${esc(n)}</td><td>${DECISION_TEXT[v.decision]}</td><td>${esc(v.remarks)}</td></tr>`).join("")}</tbody></table>` : "";
+  return ctl + list + notes + each;
+}
+
+export function reportHtml(rec: SessionRecord, cfg: ScoringConfig = PLACEHOLDER_SCORING): string {
   const res = rec.result;
-  const events = rec.events.filter((e) => !e.instructor || true).map((e) => `<tr><td>${mmss(e.t)}</td><td>${esc(e.text)}</td></tr>`).join("");
+  const done = rec.debriefDone;
+  const events = rec.events.map((e) => `<tr><td>${mmss(e.t)}</td><td>${e.flag ? `<b>${esc(e.text)}</b>` : esc(e.text)}</td></tr>`).join("");
   return `<!doctype html><html><head><meta charset="utf-8"><title>Exercise report</title>
 <style>body{font:13px/1.45 system-ui,sans-serif;margin:24px;color:#111}h1{font-size:18px}h2{font-size:14px;margin-top:18px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:3px 6px;text-align:left;font-size:12px}.ok{color:#0a6b2d}.no{color:#b3261e}.small{color:#555;font-size:11px}</style></head><body>
 <h1>Radar / ARPA simulator: exercise report</h1>
 <p><b>Exercise:</b> ${esc(rec.title)}<br><b>Students:</b> ${esc(rec.students.join(" / ") || "-")} &nbsp; <b>Batch:</b> ${esc(rec.batch || "-")}<br>
 <b>Started:</b> ${esc(rec.startedIso)} &nbsp; <b>Simulated time:</b> ${mmss(rec.simSeconds)}</p>
 ${res ? resultHtml(res) : `<p>${rec.summary.map(esc).join("<br>")}</p>`}
+${traineeTableHtml(rec)}
 <h2>Debrief</h2>${debriefHtml(rec)}
+${done ? `<p><b>Guided debrief:</b> ${done.steps.filter(Boolean).length} of ${DEBRIEF_STEPS.length} steps done on ${esc(done.atIso.slice(0, 10))}.<br><b>Goals agreed:</b> ${esc(done.goals || "-")}</p>` : ""}
+${observedHtml(rec)}
+<h2>The evidence before the decision</h2>${evidenceHtml(rec, cfg, true)}
 <h2>Assessor's decision</h2><p><b>${rec.assessor?.decision === "competent" ? "Competent: task carried out safely and effectively" : rec.assessor?.decision === "not-yet" ? "Not yet competent" : "Not yet decided"}</b>${rec.assessor?.name ? ` &nbsp; Assessor: ${esc(rec.assessor.name)}` : ""}<br>${esc(rec.assessor?.remarks ?? "")}</p>
 <h2>Event log</h2><table><tbody>${events}</tbody></table>
 <p class="small">Training simulator record. Tolerances and points are placeholders unless the academy has set its own marking scheme. Not a certificate of competence.</p>
@@ -176,11 +197,12 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div class="row two" style="margin-top:8px"><label for="inBatch">Batch</label><select id="inBatch"></select></div>
       <label class="small" for="inStudents">Students (one name per line)</label><textarea id="inStudents" rows="5"></textarea>
       <div class="small" style="margin-top:6px">Assigned exercises:</div><div id="inAssign" class="small"></div>
-      <div class="btns"><button id="inBatchSave">Save batch</button><button id="inBatchDel">Delete batch</button></div>
+      <div class="btns"><button id="inBatchSave">Save batch and limits</button><button id="inBatchDel">Delete batch</button></div>
       <div class="grid2" style="margin-top:8px"><div><label for="inMaxStu">Students per display</label><input type="number" id="inMaxStu" min="1" max="4" step="1"></div>
-        <div><label for="inPairHrs">Hours per pair (blank = not set)</label><input type="number" id="inPairHrs" min="0" step="0.5"></div></div>
+        <div><label for="inPairHrs">Hours per pair (blank = not set)</label><input type="number" id="inPairHrs" min="0" step="0.5"></div>
+        <div style="grid-column:1/3"><label for="inChange">Change over at the controls every (minutes of exercise time; blank = the trainees change by hand)</label><input type="number" id="inChange" min="1" step="1"></div></div>
       <div id="inPairs" class="small" style="margin-top:6px"></div>
-      <p class="hint">Time at the display is counted for each pair of names while a session is open. The limits are the academy's to set; none is enforced unless entered here.</p></section>
+      <p class="hint">Time at the display is counted for each pair of names while a session is open. The limits are the academy's to set; none is enforced unless entered here. With a changeover time set, a display with two or more trainees gives the controls to the next one each time that many minutes of an exercise have passed, with a message on the screen, so that each has a like share; the record shows who had them when. In an examination the trainees change with the parts instead.</p></section>
     <section><h2>Inject events (this display)</h2>
       <div class="row two"><label for="inTgt">Target</label><select id="inTgt"></select></div>
       <div class="grid2"><div><label for="inTgtC">New course (°)</label><input type="number" id="inTgtC" min="0" max="359"></div><div><label for="inTgtS">New speed (kn)</label><input type="number" id="inTgtS" min="0" max="60" step="0.5"></div></div>
@@ -197,7 +219,24 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div class="btns"><button id="inNewAdd">Add target now</button></div>
       <p class="hint">Track: press "Programme a track", click up to ${MAX_ROUTE_WAYPOINTS} points on the radar picture in the order the target is to pass them, then "Set track". The target steers from point to point (a ship of a catalogue type turns on its turning circle) and carries on as it goes after the last point. Altering its course by hand, or "Take off track", ends the track. Tracks are drawn only on this display, never on a student's.</p>
       <p class="hint">"Taking the exercise back" returns the ships, weather and faults to that moment so the trainees can try again. Sensor faults (gyro, log, gyro failure) are in the Instructor box on the ARPA tab. Weather, sea state and current are on the Radar tab. Every injection is written to the exercise record.</p></section>
-    <section><h2>Monitor other displays</h2><p class="small" id="inLinkMode"></p><div id="inStations"></div>
+    <section><h2>Monitor other displays</h2><p class="small" id="inLinkMode"></p>
+      <h2 style="margin-top:6px">Needs attention</h2><ul class="alarms" id="attList"></ul>
+      <div style="overflow-x:auto;margin-top:8px"><table class="res" id="classTable"><thead><tr><th>Display</th><th>At the controls</th><th>Exercise</th><th>Time</th><th>Items</th><th>Points</th><th>Closest vessel</th><th>Action</th><th>Flags</th></tr></thead><tbody id="classRows"></tbody></table></div>
+      <p class="hint">Each display watches itself and reports what the instructor should look at: a vessel about to pass too close with no action taken, a dangerous vessel not tracked, land close, the ship off her route or wrong in a traffic lane, an alert left unacknowledged, the radar not transmitting, time running out, controls that may hide echoes, a display left alone. The list is ranked: the most urgent first, and among equals the one that has waited longest. Every flag of the two upper kinds is also bookmarked in the display's record, so what was missed live can be found in the replay. The flags use the real positions of the ships and take no part in the marking. All their limits are placeholders.</p>
+      <div id="inStations"></div>
+      <div id="watchBox" hidden style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px"><h2 id="watchTitle"></h2>
+        <img id="watchImg" alt="The radar picture of the display being watched" style="width:100%;max-width:560px;aspect-ratio:1/1;background:#000;display:block">
+        <p class="small" id="watchNote"></p><ul class="alarms" id="watchFlags"></ul><div class="small" id="watchSet"></div>
+        <div class="btns"><button id="watchClose">Stop watching</button></div></div>
+      <div id="obsBox" hidden style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px"><h2 id="obsTitle"></h2>
+        <div class="row two"><label for="obsWho">About</label><select id="obsWho"></select></div>
+        <div class="check"><input type="checkbox" id="obsStd" checked><label for="obsStd">Show the standard of each item (what Yes and No look like)</label></div>
+        <div id="obsItems"></div>
+        <label class="small" for="obsNotes">Notes</label><textarea id="obsNotes" rows="2"></textarea>
+        <div class="btns"><button id="obsSave">Save notes</button><button id="obsClose">Close the checklist</button><span class="small" id="obsMsg"></span></div>
+        <details><summary class="small">Checklist items (one a line; its standard may follow as: item :: what Yes looks like :: what No looks like)</summary><textarea id="obsList" rows="8"></textarea>
+          <div class="btns"><button id="obsListSave">Save the list</button><button id="obsListReset">Back to the proposed list</button></div></details>
+        <p class="hint">Tick what you see while the exercise runs: Yes for done well, No for not done or done badly; leave an item alone if you did not see it. "About" names the whole group or one trainee. The ticks and the notes go into that exercise's record and its report. Under each item is its standard, so that every instructor ticks against the same words, and what the simulator has measured about it on that display so far (from the real positions: the trainees do not see it). The items and standards proposed are not from any syllabus: put in the objectives you gave at the briefing.</p></div>
       <div class="btns"><button id="inAllPause">Pause all</button><button id="inAllRun">Run all</button></div>
       <div class="row two" style="margin-top:8px"><label for="inExSel">Exercise</label><select id="inExSel">${REMOTE_EXERCISES.map((e) => `<option value="${e.id}">${esc(e.label)}</option>`).join("")}</select></div>
       <div class="btns"><button id="inExAll">Start this exercise on all displays</button></div>
@@ -235,21 +274,37 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <p class="hint">A linked exercise loads the same scenario on every display at the same moment, puts each own ship at a different start 5 NM from the scenario start, and shows every own ship to the others as a target. It runs at 1x. Other browser tabs on this computer appear here at once. For other computers, start "npm run serve" on one PC and open the address it prints on every display.</p></section>
     <section><h2>Records, replay and reports</h2>
       <table class="res"><thead><tr><th>When</th><th>Students</th><th>Exercise</th><th>%</th><th></th></tr></thead><tbody id="inRecs"></tbody></table>
-      <div class="btns"><button id="inCsvAll">Export all (CSV)</button></div>
+      <div class="btns"><button id="inCsvAll">Export all (CSV)</button><button id="asCmp">Assessors compared</button></div>
+      <div class="row two"><label for="tfWho">Trainee</label><select id="tfWho"></select></div>
+      <div class="btns"><button id="tfPrint">Trainee file (print or save as PDF)</button></div>
+      <div id="asCmpOut"></div>
+      <p class="hint">The trainee file is one page for one person: every recorded exercise he or she took part in, with the time at the controls, the answers and actions that were his or her own, the observations about him or her and the decision. "Assessors compared" sets the assessors side by side: how many exercises each found competent, the mean score of those and of the ones found not yet competent, and how many decisions went against the record. Like figures mean like marking; a difference is a reason to talk, not a proof, since the classes may have differed. The newest ${MAX_RECORDS} exercises are kept with their replay; older ones stay in the files and comparisons without it.</p>
       <div id="inRecView" hidden><h2 style="margin-top:10px" id="inRecTitle"></h2>
         <canvas id="inReplay" style="aspect-ratio:1/1;background:#08100e"></canvas>
         <p class="small" id="inPicNote"></p>
         <img id="inPic" alt="The radar picture as the trainee saw it" style="width:100%;aspect-ratio:1/1;background:#000;display:block" hidden>
         <div class="btns"><button id="inPlay">Play</button><input type="range" id="inScrub" min="0" max="100" value="0" style="flex:1"><span class="val" id="inScrubT">00:00</span></div>
         <div class="row two"><label for="inReplaySpeed">Replay speed</label><select id="inReplaySpeed">${REPLAY_SPEEDS.map((v) => `<option value="${v}"${v === 30 ? " selected" : ""}>${v}x${v < 1 ? " (slow motion)" : v === 1 ? " (real time)" : ""}</option>`).join("")}</select></div>
+        <p class="small" id="inRecMarksT"></p><div class="btns" id="inRecMarks"></div>
         <div class="log" id="inRecEvents"></div><div id="inRecResult"></div>
+        <div id="inRecBy"></div>
         <div id="inRecDebrief" class="small"></div>
+        <h2 style="margin-top:10px">Guided debrief</h2>
+        <div id="gdSteps"></div>
+        <label class="small" for="gdGoals">Goals agreed with the trainees</label><textarea id="gdGoals" rows="2"></textarea>
+        <div class="btns"><button id="gdSave">Save the debrief</button><button id="gdPrint">Debrief pack (print or save as PDF)</button><button id="clsShow">The class on this exercise</button><span class="small" id="gdMsg"></span></div>
+        <div id="clsOut"></div>
+        <p class="hint">The same five steps for every debrief, laid out from the record of this exercise: the trainees speak first, then the key moments in the replay, then the facts against the criteria, then the questions, then the goals. Tick each step as it is done. The questions are written from what happened in this exercise; the exercise's own questions follow them. "The class on this exercise" lists every recorded attempt at it, for a debrief of the whole class.</p>
+        <h2 style="margin-top:10px">The evidence before the decision</h2>
+        <div id="inRecEvid" class="small"></div>
         <h2 style="margin-top:10px">Assessor's decision</h2>
         <div class="grid2"><div><label for="asDec">Decision</label><select id="asDec"><option value="">not yet decided</option><option value="competent">Competent: task carried out safely and effectively</option><option value="not-yet">Not yet competent</option></select></div>
           <div><label for="asName">Assessor</label><input type="text" id="asName"></div></div>
         <label class="small" for="asRem">Remarks</label><textarea id="asRem" rows="2"></textarea>
+        <div id="asBy"></div>
+        <div id="asCheck" class="small"></div>
         <div class="btns"><button id="asSave">Save decision</button><span class="small" id="asMsg"></span></div>
-        <p class="hint">The score is a guide only. The assessor's decision is the prime criterion (STCW Code A-I/12, paragraph 8).</p>
+        <p class="hint">The score is a guide only. The assessor's decision is the prime criterion (STCW Code A-I/12, paragraph 8). The evidence is set out above so that the same things are weighed every time. A decision that goes against it can still be made: the reason must then be written in the remarks, and it is kept with the record.</p>
         <div class="btns"><button id="inRecCsv">Result (CSV)</button><button id="inRecPrint">Report (print or save as PDF)</button><button id="inRecJson">Record (JSON)</button></div></div></section>
     <section><h2>Self-test of the exercises</h2>
       <div class="btns"><button id="stRun">Run self-test (about half a minute)</button><span class="small" id="stMsg"></span></div>
@@ -271,7 +326,11 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div class="row two"><label for="exmTo">Display</label><select id="exmTo"><option value="all">All displays</option></select></div>
       <div class="btns"><button id="exmStartRoc">Start the ROC examination</button><button id="exmStartArpa">Start the ARPA examination</button><button id="exmPrint">Examination results (print or save as PDF)</button></div>
       <p class="small" id="exmNow"></p>
-      <p class="hint">An examination is a set of exercises worked one after the other on a display, in the order of the list. Hold Ctrl (or Cmd) and click to choose the parts. The parts proposed here are not from any syllabus: choose the institute's own. When a part is finished the display offers the next one; every part is recorded as usual and marked as part of the examination. "Examination results" prints one page for each examination taken, with the points of every part, their total and room for the assessor's decision. The ROC exercises give a report instead of points. Target names (a study aid) are switched off on the display.</p></section>
+      <p class="hint">An examination is a set of exercises worked one after the other on a display, in the order of the list. Hold Ctrl (or Cmd) and click to choose the parts. The parts proposed here are not from any syllabus: choose the institute's own. When a part is finished the display offers the next one; every part is recorded as usual and marked as part of the examination. "Examination results" prints one page for each examination taken, with the points of every part, their total and room for the assessor's decision. The ROC exercises are marked on the first check of the answers. Target names (a study aid) are switched off on the display.</p></section>
+    <section><h2>Exercise sheets</h2>
+      <div class="row two"><label for="xsEx">Exercise</label><select id="xsEx"></select></div>
+      <div class="btns"><button id="xsPrint">Print exercise sheet (or save as PDF)</button></div>
+      <p class="hint">One sheet of the same form for every exercise, for the trainees and the instructor: the objective, the briefing, every item the simulator marks and the limit it uses, the instructor's checklist with the standard for each item, the pass standard and the debrief questions. It is made from the same data that does the marking, so the sheet and the marking cannot differ. Give it out at the briefing. The marking sheets below are a different paper: they are for the institute to write in its own limits.</p></section>
     <section><h2>Marking sheets</h2>
       <div class="row two"><label for="msEx">Exercise</label><select id="msEx"></select></div>
       <div class="btns"><button id="msPrint">Print marking sheet (or save as PDF)</button></div>
@@ -353,6 +412,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     showBatch();
     ($("inMaxStu") as HTMLInputElement).value = String(st.data.maxStudentsPerDisplay);
     ($("inPairHrs") as HTMLInputElement).value = st.data.targetHoursPerPair === null ? "" : String(st.data.targetHoursPerPair);
+    ($("inChange") as HTMLInputElement).value = st.data.changeoverMin ? String(st.data.changeoverMin) : "";
     const tgt = st.data.targetHoursPerPair;
     $("inPairs").innerHTML = Object.entries(st.data.pairSeconds).map(([k, s]) => `${esc(k)}: ${(s / 3600).toFixed(2)} h${tgt !== null ? ` of ${tgt} h` : ""}`).join("<br>") || "No display time recorded yet.";
   };
@@ -367,13 +427,17 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
   });
   $("inBatchSave").addEventListener("click", () => {
     const id = batchSel.value;
-    if (!id) return;
-    st.setStudents(id, inputValue("inStudents").split("\n"));
-    st.setAssigned(id, [...$("inAssign").querySelectorAll<HTMLInputElement>("input:checked")].map((c) => c.dataset["as"]!));
+    if (id) {
+      st.setStudents(id, inputValue("inStudents").split("\n"));
+      st.setAssigned(id, [...$("inAssign").querySelectorAll<HTMLInputElement>("input:checked")].map((c) => c.dataset["as"]!));
+    }
+    // The limits for the whole class are saved with or without a batch.
     st.data.maxStudentsPerDisplay = Math.min(4, Math.max(1, Math.round(Number(inputValue("inMaxStu")) || 2)));
     const h = inputValue("inPairHrs");
     st.data.targetHoursPerPair = h === "" ? null : Math.max(0, Number(h));
-    msg(st.save() ? "Batch saved." : "Could not save: the browser's storage is full or blocked.");
+    const ch = inputValue("inChange");
+    st.data.changeoverMin = ch === "" || !(Number(ch) > 0) ? null : Math.max(1, Math.round(Number(ch)));
+    msg(st.save() ? (id ? "Batch saved." : "Class limits saved (no batch is chosen).") : "Could not save: the browser's storage is full or blocked.");
     fillBatches(id);
   });
   $("inBatchDel").addEventListener("click", () => {
@@ -557,6 +621,14 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     if (cmd === "ex") api.link.sendCommand({ to, cmd: "startExercise", id: inputValue("inExSel") });
     if (cmd === "faults") api.link.sendCommand({ to, cmd: "faults", values: faultValues(false) });
     if (cmd === "clear") api.link.sendCommand({ to, cmd: "faults", values: faultValues(true) });
+    if (cmd === "watch") {
+      watch(to);
+      return;
+    }
+    if (cmd === "obs") {
+      observe(to);
+      return;
+    }
     msg(`Sent to display ${to}.`);
   });
   /** The faults set under "Faults to send", or all of them off. */
@@ -577,16 +649,206 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     api.link.sendCommand({ to: "all", cmd: "startExercise", id: inputValue("inExSel") });
     msg("Exercise started on all displays.");
   });
+  // ---- What needs attention, the class table, the live view of one display and the observation checklist.
+  const nameOf = (s: StationStatus): string => s.students.join(" / ") || s.station;
+  const flagSince = new Map<string, number>();
+  let watching: string | null = null;
+  let watchAsked = 0;
+  let observing: string | null = null;
+  const watch = (station: string | null): void => {
+    if (watching && watching !== station) api.link.sendCommand({ to: watching, cmd: "watch", on: false });
+    watching = station;
+    watchAsked = 0;
+    $("watchBox").hidden = !station;
+    if (station) {
+      $<HTMLImageElement>("watchImg").removeAttribute("src");
+      $("watchNote").textContent = "Waiting for the picture...";
+    }
+  };
+  $("watchClose").addEventListener("click", () => watch(null));
+  api.link.onPicture = (p) => {
+    if (p.station !== watching) return;
+    $<HTMLImageElement>("watchImg").src = p.url;
+    $("watchNote").textContent = `The radar picture as the trainee sees it, at exercise time ${mmss(p.t)}. A new picture comes every two seconds.`;
+  };
+  $("attList").addEventListener("click", (ev) => {
+    const b = (ev.target as HTMLElement).closest("button");
+    if (b?.dataset["st"]) watch(b.dataset["st"]!);
+  });
+  const checklist = (): ChecklistItem[] => parseChecklist(st.data.obsItems);
+  const pendingFor = (recId: string): { items: Observation[]; notes: string } => ((st.data.pendingObs ??= {})[recId] ??= { items: [], notes: "" });
+  /** Observations ticked for a display go into its record as soon as the record is here (and again if the display sends it anew). */
+  const mergeObservations = (): void => {
+    const p = st.data.pendingObs;
+    if (!p) return;
+    // Only the observations of the last hundred exercises are kept waiting.
+    for (const k of Object.keys(p).slice(0, Math.max(0, Object.keys(p).length - 100))) delete p[k];
+    let changed = false;
+    for (const r of st.data.records) {
+      const o = p[r.id];
+      if (!o || (o.items.length === 0 && o.notes === "")) continue;
+      if (JSON.stringify(r.observations ?? []) !== JSON.stringify(o.items) || (r.observerNotes ?? "") !== o.notes) {
+        r.observations = o.items.map((x) => ({ ...x }));
+        r.observerNotes = o.notes;
+        changed = true;
+      }
+    }
+    if (changed) st.save();
+  };
+  const drawObs = (): void => {
+    const s = observing ? stations.get(observing) : undefined;
+    $("obsBox").hidden = !observing;
+    if (!observing) return;
+    const recId = s?.recId ?? "";
+    $("obsTitle").textContent = s ? `Observing ${nameOf(s)}: ${s.exercise}${recId ? "" : " (no exercise is being recorded: nothing can be ticked)"}` : "That display is not reporting.";
+    const who = $<HTMLSelectElement>("obsWho");
+    const names = s?.students ?? [];
+    const sig = `${observing}|${names.join("|")}`;
+    if (who.dataset["sig"] !== sig) {
+      who.dataset["sig"] = sig;
+      who.innerHTML = '<option value="">The whole group</option>' + names.map((n) => `<option>${esc(n)}</option>`).join("");
+    }
+    const about = who.value;
+    const have = recId ? (st.data.pendingObs?.[recId]?.items ?? []) : [];
+    const list = checklist();
+    const std = $<HTMLInputElement>("obsStd").checked;
+    const isig = `${recId}|${about}|${std}|${list.map((c) => `${c.item}${c.yes}${c.no}`).join("¦")}|${have.map((h) => `${h.item}:${h.student}:${h.mark}`).join("¦")}`;
+    const box = $("obsItems");
+    if (box.dataset["sig"] !== isig) {
+      box.dataset["sig"] = isig;
+      box.innerHTML = list.map((c, i) => {
+        const m = have.find((h) => h.item === c.item && h.student === about)?.mark;
+        return `<div style="margin:4px 0;padding-top:3px;border-top:1px solid var(--line)"><div class="btns" style="margin:2px 0"><span class="small" style="flex:1"><b>${esc(c.item)}</b></span><button data-obs="${i}" data-mark="yes"${m === "yes" ? ' class="on"' : ""}>Yes</button><button data-obs="${i}" data-mark="no"${m === "no" ? ' class="on"' : ""}>No</button></div>` +
+          (std && (c.yes || c.no) ? `<div class="small"><span class="ok">Yes:</span> ${esc(c.yes)}<br><span class="no">No:</span> ${esc(c.no)}</div>` : "") +
+          (c.evidence ? `<div class="small" data-ev="${c.evidence}"></div>` : "") + `</div>`;
+      }).join("");
+    }
+    // What the display has measured about each item so far (it changes while the exercise runs).
+    for (const el of box.querySelectorAll<HTMLElement>("[data-ev]")) {
+      const text = s?.ev?.[el.dataset["ev"]!];
+      const html = text ? `<b>Measured:</b> ${esc(text)}` : "";
+      if (el.dataset["was"] !== html) {
+        el.dataset["was"] = html;
+        el.innerHTML = html;
+      }
+    }
+  };
+  const observe = (station: string | null): void => {
+    observing = station;
+    const s = station ? stations.get(station) : undefined;
+    $<HTMLTextAreaElement>("obsNotes").value = s?.recId ? (st.data.pendingObs?.[s.recId]?.notes ?? "") : "";
+    $<HTMLTextAreaElement>("obsList").value = checklistLines(checklist()).join("\n");
+    $("obsMsg").textContent = "";
+    delete $("obsItems").dataset["sig"];
+    drawObs();
+  };
+  $("obsClose").addEventListener("click", () => observe(null));
+  $("obsWho").addEventListener("change", drawObs);
+  $("obsStd").addEventListener("change", drawObs);
+  $("obsItems").addEventListener("click", (ev) => {
+    const b = (ev.target as HTMLElement).closest("button");
+    const s = observing ? stations.get(observing) : undefined;
+    const item = checklist()[Number(b?.dataset["obs"])]?.item;
+    if (!b || !s?.recId || item === undefined) return;
+    const mark = b.dataset["mark"] as "yes" | "no";
+    const about = inputValue("obsWho");
+    const p = pendingFor(s.recId);
+    const was = p.items.find((h) => h.item === item && h.student === about);
+    p.items = p.items.filter((h) => h !== was);
+    // Pressing the mark that is already set takes it off again.
+    if (was?.mark !== mark) p.items.push({ item, mark, t: Math.round(s.time), student: about });
+    st.save();
+    mergeObservations();
+    drawObs();
+  });
+  $("obsSave").addEventListener("click", () => {
+    const s = observing ? stations.get(observing) : undefined;
+    if (!s?.recId) {
+      $("obsMsg").textContent = "No exercise is being recorded on that display.";
+      return;
+    }
+    pendingFor(s.recId).notes = inputValue("obsNotes").trim();
+    $("obsMsg").textContent = st.save() ? "Notes saved." : "Could not save.";
+    mergeObservations();
+  });
+  $("obsListSave").addEventListener("click", () => {
+    const list = inputValue("obsList").split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 30);
+    if (list.length === 0) return;
+    st.data.obsItems = list;
+    st.save();
+    drawObs();
+  });
+  $("obsListReset").addEventListener("click", () => {
+    delete st.data.obsItems;
+    st.save();
+    $<HTMLTextAreaElement>("obsList").value = checklistLines(checklist()).join("\n");
+    drawObs();
+  });
+  const drawAttention = (): void => {
+    const now = Date.now();
+    const live = new Set<string>();
+    const rows: { station: string; who: string; level: 1 | 2 | 3; text: string; since: number }[] = [];
+    for (const s of stations.values()) {
+      for (const f of s.flags ?? []) {
+        const k = `${s.station}|${f.key}`;
+        live.add(k);
+        if (!flagSince.has(k)) flagSince.set(k, now);
+        rows.push({ station: s.station, who: nameOf(s), level: f.level, text: f.text, since: flagSince.get(k)! });
+      }
+    }
+    for (const k of [...flagSince.keys()]) if (!live.has(k)) flagSince.delete(k);
+    const ranked = rankFlags(rows).slice(0, 12);
+    const waited = (r: { since: number }): string => {
+      const sec = Math.round((now - r.since) / 1000);
+      return sec < 60 ? "now" : `${Math.floor(sec / 60)} min`;
+    };
+    const list = $("attList");
+    const sig = ranked.map((r) => `${r.station}|${r.level}|${r.text}|${waited(r)}`).join("¦");
+    if (list.dataset["sig"] !== sig) {
+      list.dataset["sig"] = sig;
+      list.innerHTML = ranked.map((r) => `<li class="${r.level === 3 ? "un" : ""}"><span><b class="${r.level === 3 ? "no" : r.level === 2 ? "wn" : ""}">${r.level === 3 ? "NOW" : r.level === 2 ? "SOON" : "NOTE"}</b> &nbsp; <b>${esc(r.who)}</b>: ${esc(r.text)} <span class="small">(${waited(r)})</span></span><button data-st="${esc(r.station)}">Watch</button></li>`).join("")
+        || '<li><span class="small">Nothing needs attention.</span></li>';
+    }
+    // The class table: one row for each display.
+    const body = $("classRows");
+    const html = [...stations.values()].map((s) => {
+      const p = s.prog;
+      const fl = s.flags ?? [];
+      const n3 = fl.filter((f) => f.level === 3).length, n2 = fl.filter((f) => f.level === 2).length, n1 = fl.length - n3 - n2;
+      return `<tr><td>${esc(nameOf(s))}</td><td>${esc(s.ctl || "-")}</td><td>${esc(s.exercise)}</td><td>${mmss(s.time)}${s.running ? "" : " (paused)"}</td>` +
+        `<td>${p && p.of > 0 ? `${p.done} of ${p.of}` : "-"}</td><td>${p && p.max !== null ? (p.finished !== null ? `<b>${p.finished}%</b> finished` : `${p.score} of ${p.max}`) : "-"}</td>` +
+        `<td>${p?.closest ? `${esc(p.closest.name)} ${p.closest.nm.toFixed(2)} NM` : "-"}</td><td>${p && p.max !== null ? (p.actedAt !== null ? `at ${mmss(p.actedAt)}` : "none yet") : "-"}</td>` +
+        `<td>${n3 ? `<b class="no">${n3} now</b> ` : ""}${n2 ? `<b class="wn">${n2} soon</b> ` : ""}${n1 ? `${n1} note` : ""}${fl.length ? "" : "-"}</td></tr>`;
+    }).join("") || '<tr><td colspan="9" class="small">No other display is reporting.</td></tr>';
+    if (body.dataset["sig"] !== html) {
+      body.dataset["sig"] = html;
+      body.innerHTML = html;
+    }
+    // The display being watched: ask again every five seconds, so that it stops by itself if this page is closed.
+    if (watching) {
+      const s = stations.get(watching);
+      if (now - watchAsked > 5000) {
+        watchAsked = now;
+        api.link.sendCommand({ to: watching, cmd: "watch", on: true });
+      }
+      $("watchTitle").textContent = s ? `Watching ${nameOf(s)}${s.ctl ? ` (${s.ctl} at the controls)` : ""}: ${s.exercise}, ${mmss(s.time)}${s.running ? "" : " (paused)"}` : "That display is not reporting.";
+      $("watchFlags").innerHTML = (s?.flags ?? []).map((f) => `<li class="${f.level === 3 ? "un" : ""}"><span>${esc(f.text)}</span></li>`).join("");
+      $("watchSet").innerHTML = (s?.set ?? []).map(esc).join("<br>");
+    }
+    if (observing) drawObs();
+    mergeObservations();
+  };
   const drawStations = (): void => {
     const now = Date.now();
     for (const [k, s] of stations) if (now - s.at > 15000) stations.delete(k);
+    drawAttention();
     const box = $("inStations");
     const sig = [...stations.keys()].join(",");
     if (box.dataset["sig"] !== sig) {
       box.dataset["sig"] = sig;
       box.innerHTML = [...stations.values()].map((s) => `<div style="display:grid;grid-template-columns:110px 1fr;gap:8px;margin:8px 0;border-top:1px solid var(--line);padding-top:8px">
         <canvas id="stC_${s.station}" width="110" height="110" style="width:110px;height:110px;background:#08100e"></canvas>
-        <div><div class="small" id="stT_${s.station}"></div><div class="btns"><button data-st="${s.station}" data-cmd="pause">Pause</button><button data-st="${s.station}" data-cmd="run">Run</button><button data-st="${s.station}" data-cmd="ex">Start exercise</button><button data-st="${s.station}" data-cmd="faults">Send faults</button><button data-st="${s.station}" data-cmd="clear">Clear faults</button></div></div></div>`).join("") || '<p class="small">No other display is reporting.</p>';
+        <div><div class="small" id="stT_${s.station}"></div><div class="btns"><button data-st="${s.station}" data-cmd="pause">Pause</button><button data-st="${s.station}" data-cmd="run">Run</button><button data-st="${s.station}" data-cmd="ex">Start exercise</button><button data-st="${s.station}" data-cmd="faults">Send faults</button><button data-st="${s.station}" data-cmd="clear">Clear faults</button><button data-st="${s.station}" data-cmd="watch">Watch</button><button data-st="${s.station}" data-cmd="obs">Observe</button></div></div></div>`).join("") || '<p class="small">No other display is reporting.</p>';
     }
     if (box.dataset["sel"] !== sig) {
       // The displays that can be chosen for weather and for targets.
@@ -691,17 +953,108 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       drawRec();
     });
     $("inRecResult").innerHTML = r.result ? resultHtml(r.result) : `<p class="small">${r.summary.map(esc).join("<br>")}</p>`;
-    $("inRecDebrief").innerHTML = debriefHtml(r);
+    $("inRecDebrief").innerHTML = debriefHtml(r) + observedHtml(r);
+    $("inRecBy").innerHTML = traineeTableHtml(r);
+    $("inRecEvid").innerHTML = evidenceHtml(r, st.data.scoring);
+    // The guided debrief, laid out from this record.
+    const pack = debriefPack(r);
+    const li = (xs: string[]): string => (xs.length > 0 ? `<ul>${xs.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "<p>-</p>");
+    const body = [
+      r.debrief && (r.debrief.self || r.debrief.peer) ? `<p><b>Their review:</b> ${esc(r.debrief.self || "-")}<br><b>Peer comments:</b> ${esc(r.debrief.peer || "-")}</p>` : "<p>No notes were entered by the trainees.</p>",
+      `<div class="btns" id="gdMoments">${pack.timeline.map((m) => `<button data-t="${m.t}" title="${esc(m.text)}"${m.kind === "flag" ? ' class="on"' : ""}>${mmss(m.t)} ${esc(m.text.slice(0, 70))}</button>`).join("")}</div>`,
+      `<p><b>Met</b></p>${li(pack.well)}<p><b>Not met</b></p>${li(pack.improve)}`,
+      `<ol>${pack.questions.map((q) => `<li>${esc(q)}</li>`).join("")}</ol>`,
+      "",
+    ];
+    $("gdSteps").innerHTML = DEBRIEF_STEPS.map((d, i) => `<div style="margin:6px 0;padding-top:4px;border-top:1px solid var(--line)"><div class="check"><input type="checkbox" id="gd_${i}"${r.debriefDone?.steps[i] ? " checked" : ""}><label for="gd_${i}"><b>${i + 1}. ${esc(d.title)}</b></label></div><p class="hint">${esc(d.guide)}</p><div class="small">${body[i]}</div></div>`).join("");
+    ($("gdGoals") as HTMLTextAreaElement).value = r.debriefDone?.goals ?? r.debrief?.goals ?? "";
+    $("gdMsg").textContent = r.debriefDone ? `Debrief saved on ${r.debriefDone.atIso.slice(0, 10)}.` : "";
+    $("clsOut").innerHTML = "";
+    // Bookmarks: the moments an attention flag was raised on the display. A click takes the replay to ten seconds before.
+    const marks = bookmarks(r);
+    $("inRecMarksT").textContent = marks.length > 0 ? `Bookmarks (${marks.length}): what needed attention during the exercise. Click one to go there.` : "No bookmarks: nothing was flagged during this exercise.";
+    $("inRecMarks").innerHTML = marks.map((m) => `<button data-t="${m.t}" title="${esc(m.text)}"${m.flag === 3 ? ' class="on"' : ""}>${mmss(m.t)} ${esc(m.text.replace(/^ATTENTION: /, "").slice(0, 60))}</button>`).join("");
+    // In a group, a decision for each trainee as well as the one for the group.
+    $("asBy").innerHTML = r.students.length > 1 ? `<p class="small" style="margin:6px 0 2px">For each trainee (the record shows who was at the controls):</p>` + r.students.map((n, i) => {
+      const v = r.assessorBy?.[n];
+      return `<div class="grid2"><div><label for="asBy_${i}">${esc(n)}</label><select id="asBy_${i}"><option value="">not yet decided</option><option value="competent"${v?.decision === "competent" ? " selected" : ""}>Competent</option><option value="not-yet"${v?.decision === "not-yet" ? " selected" : ""}>Not yet competent</option></select></div><div><label for="asByR_${i}">Remarks</label><input type="text" id="asByR_${i}" value="${esc(v?.remarks ?? "")}"></div></div>`;
+    }).join("") : "";
     ($("asDec") as HTMLSelectElement).value = r.assessor?.decision ?? "";
     ($("asName") as HTMLInputElement).value = r.assessor?.name ?? "";
     ($("asRem") as HTMLTextAreaElement).value = r.assessor?.remarks ?? "";
     $("asMsg").textContent = "";
+    checkDecision();
     drawRec();
   };
+  type Decision = "" | "competent" | "not-yet";
+  /** Where the decisions chosen go against the record, and whether a reason has been written for each. */
+  const checkDecision = (): { open: number } => {
+    if (!viewing) return { open: 0 };
+    const rows: { who: string; why: string[]; reasoned: boolean }[] = [];
+    const group = decisionConflicts(viewing, inputValue("asDec") as Decision, st.data.scoring);
+    if (group.length > 0) rows.push({ who: viewing.students.length > 1 ? "The group" : "The decision", why: group, reasoned: inputValue("asRem").trim() !== "" });
+    if (viewing.students.length > 1) viewing.students.forEach((n, i) => {
+      const why = traineeConflicts(viewing!, n, inputValue(`asBy_${i}`) as Decision);
+      if (why.length > 0) rows.push({ who: n, why, reasoned: inputValue(`asByR_${i}`).trim() !== "" });
+    });
+    $("asCheck").innerHTML = rows.length === 0 ? "" : `<p class="wn" style="margin:6px 0 2px"><b>This goes against the record.</b> It can still be decided so: write the reason in the remarks.</p><ul>` +
+      rows.map((r) => `<li><b>${esc(r.who)}</b>${r.reasoned ? " (reason written)" : ""}: ${r.why.map(esc).join(" ")}</li>`).join("") + "</ul>";
+    return { open: rows.filter((r) => !r.reasoned).length };
+  };
+  for (const id of ["asDec", "asRem", "asBy"]) {
+    $(id).addEventListener("change", checkDecision);
+    $(id).addEventListener("input", checkDecision);
+  }
   $("asSave").addEventListener("click", () => {
     if (!viewing) return;
-    viewing.assessor = { decision: inputValue("asDec") as "" | "competent" | "not-yet", name: inputValue("asName").trim(), remarks: inputValue("asRem").trim() };
+    if (checkDecision().open > 0) {
+      $("asMsg").textContent = "Not saved: the decision goes against the record. Write the reason in the remarks, then save again.";
+      return;
+    }
+    viewing.assessor = { decision: inputValue("asDec") as Decision, name: inputValue("asName").trim(), remarks: inputValue("asRem").trim() };
+    if (viewing.students.length > 1) {
+      viewing.assessorBy = Object.fromEntries(viewing.students.map((n, i) => [n, { decision: inputValue(`asBy_${i}`) as Decision, remarks: inputValue(`asByR_${i}`).trim() }]));
+    }
     $("asMsg").textContent = st.save() ? "Saved." : "Could not save.";
+    $("inRecDebrief").innerHTML = debriefHtml(viewing) + observedHtml(viewing);
+  });
+  // The guided debrief: the steps done and the goals agreed are kept with the record.
+  $("gdSave").addEventListener("click", () => {
+    if (!viewing) return;
+    viewing.debriefDone = { steps: DEBRIEF_STEPS.map((_, i) => $<HTMLInputElement>(`gd_${i}`).checked), goals: inputValue("gdGoals").trim(), atIso: new Date().toISOString() };
+    $("gdMsg").textContent = st.save() ? `Debrief saved: ${viewing.debriefDone.steps.filter(Boolean).length} of ${DEBRIEF_STEPS.length} steps done.` : "Could not save.";
+  });
+  $("gdSteps").addEventListener("click", (ev) => {
+    const b = (ev.target as HTMLElement).closest("button");
+    if (!b || !viewing || b.dataset["t"] === undefined) return;
+    replayT = Math.max(0, Math.min(Number(scrub.max), Number(b.dataset["t"]) - 10));
+    scrub.value = String(replayT);
+    playing = false;
+    $("inPlay").textContent = "Play";
+    drawRec();
+    $("inReplay").scrollIntoView({ block: "nearest" });
+  });
+  $("clsShow").addEventListener("click", () => {
+    if (!viewing) return;
+    const rows = classComparison(st.history(), viewing.exerciseId);
+    const full = new Set(st.data.records.map((r) => r.id));
+    $("clsOut").innerHTML = `<table class="res" id="clsTable"><thead><tr><th>Trainees</th><th>Date</th><th>%</th><th>Min</th><th>First action</th><th>Closest vessel</th><th>Flags</th><th></th></tr></thead><tbody>` +
+      rows.map((c) => `<tr${c.recId === viewing!.id ? ' style="font-weight:600"' : ""}><td>${esc(c.who)}</td><td>${esc(c.date)}</td><td>${c.percent === null ? "-" : c.percent}</td><td>${c.minutes}</td><td>${c.actedAt === null ? "-" : `at ${mmss(c.actedAt)}`}</td><td>${c.closest ? `${esc(c.closest.name)} ${c.closest.nm.toFixed(2)} NM` : "-"}</td><td>${c.flagsNow} now, ${c.flagsSoon} soon</td><td>${full.has(c.recId) && c.recId !== viewing!.id ? `<button data-rec="${esc(c.recId)}">Open</button>` : ""}</td></tr>`).join("") +
+      `</tbody></table><p class="small">${rows.length} recorded attempt${rows.length === 1 ? "" : "s"} at this exercise, the best score first. The first action and the closest vessel are kept from this version of the simulator on.</p>`;
+  });
+  $("clsOut").addEventListener("click", (ev) => {
+    const b = (ev.target as HTMLElement).closest("button");
+    const r = st.data.records.find((x) => x.id === b?.dataset["rec"]);
+    if (r) openRec(r);
+  });
+  $("inRecMarks").addEventListener("click", (ev) => {
+    const b = (ev.target as HTMLElement).closest("button");
+    if (!b || !viewing) return;
+    replayT = Math.max(0, Number(b.dataset["t"]) - 10);
+    scrub.value = String(replayT);
+    playing = false;
+    $("inPlay").textContent = "Play";
+    drawRec();
   });
   scrub.addEventListener("input", () => {
     replayT = Number(scrub.value);
@@ -743,7 +1096,38 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     setTimeout(() => win.print(), 300);
   };
   $("inRecPrint").addEventListener("click", () => {
-    if (viewing) printDoc(reportHtml(viewing), "exercise-report.html", "report");
+    if (viewing) printDoc(reportHtml(viewing, st.data.scoring), "exercise-report.html", "report");
+  });
+  $("gdPrint").addEventListener("click", () => {
+    if (viewing) printDoc(debriefPackHtml(viewing), "debrief-pack.html", "debrief pack");
+  });
+  $("tfPrint").addEventListener("click", () => {
+    const name = inputValue("tfWho");
+    if (!name) {
+      msg("No trainee is named in the records yet.");
+      return;
+    }
+    printDoc(traineeFileHtml(st.history(), name), `trainee-file-${name.replace(/[^\w-]+/g, "-")}.html`, "trainee file");
+  });
+  $("asCmp").addEventListener("click", () => {
+    const rows = assessorStats(st.history(), st.data.scoring);
+    const pc = (x: number | null): string => (x === null ? "-" : `${x}%`);
+    $("asCmpOut").innerHTML = rows.length === 0 ? '<p class="small">No assessor has saved a decision yet.</p>'
+      : `<table class="res" id="asCmpTable"><thead><tr><th>Assessor</th><th>Decided</th><th>Competent</th><th>Mean score when competent</th><th>Mean score when not yet</th><th>Against the record</th></tr></thead><tbody>` +
+        rows.map((a) => `<tr><td>${esc(a.name)}</td><td>${a.decided}</td><td>${a.competent} (${Math.round((100 * a.competent) / a.decided)}%)</td><td>${pc(a.meanCompetent)}</td><td>${pc(a.meanNotYet)}</td><td>${a.against}</td></tr>`).join("") + "</tbody></table>";
+  });
+  // Exercise sheets: one form for every exercise, made from the criteria that do the marking.
+  const xsList = [...SELF_TEST_EXERCISES].sort((a, b) => a.number - b.number);
+  $("xsEx").innerHTML = `<option value="">All exercises (${xsList.length + EXERCISES.length} pages)</option>` + xsList.map((e) => `<option value="${esc(e.id)}">${e.number}. ${esc(e.title)}</option>`).join("") +
+    EXERCISES.map((e) => `<option value="roc-${e.id}">ROC: ${esc(e.name)}</option>`).join("");
+  $("xsPrint").addEventListener("click", () => {
+    const id = $<HTMLSelectElement>("xsEx").value;
+    const list = checklist();
+    const sheets = [
+      ...xsList.filter((e) => !id || e.id === id).map((e) => exerciseSheetHtml(e, st.data.scoring, list, syllabusRefs(e))),
+      ...EXERCISES.filter((e) => !id || `roc-${e.id}` === id).map((e) => rocSheetHtml(e, st.data.scoring, list)),
+    ];
+    printDoc(exerciseSheetsHtml(sheets), id ? `exercise-sheet-${id}.html` : "exercise-sheets.html", "exercise sheet");
   });
   // Examinations: the parts of each, started on a display, and the combined result.
   const examPartsOf = (which: "roc" | "arpa"): string[] => st.data.exams?.[which] ?? DEFAULT_EXAMS[which].parts;
@@ -791,6 +1175,11 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     const sig = st.data.records.map((r) => r.id).join("|");
     if (sig === recSig) return;
     recSig = sig;
+    const who = $<HTMLSelectElement>("tfWho");
+    const cur = who.value;
+    const names = traineeNames(st.history());
+    who.innerHTML = names.map((n) => `<option>${esc(n)}</option>`).join("") || '<option value="">no names yet</option>';
+    if (names.includes(cur)) who.value = cur;
     $("inRecs").innerHTML = st.data.records.map((r) => `<tr><td>${esc(r.startedIso.slice(5, 16).replace("T", " "))}</td><td>${esc(r.students.join(" / "))}</td><td>${esc(r.title)}</td><td>${r.result ? r.result.percent.toFixed(0) : "-"}</td>
       <td><button data-rec="${esc(r.id)}" data-act="open">Open</button> <button data-rec="${esc(r.id)}" data-act="del">✕</button></td></tr>`).join("") || '<tr><td colspan="5" class="small">No records yet. A record is saved when an exercise is finished.</td></tr>';
   };

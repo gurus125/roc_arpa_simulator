@@ -1,5 +1,5 @@
 import { Scenario } from "../engine/index";
-import { SessionRecord } from "./record";
+import { Observation, SessionRecord } from "./record";
 import { PLACEHOLDER_SCORING, ScoringConfig } from "./session";
 
 /**
@@ -34,6 +34,17 @@ export interface StoreData {
   /** Students allowed at one display, and the hours each pair should get. Placeholders from the plan's open question. */
   maxStudentsPerDisplay: number;
   targetHoursPerPair: number | null;
+  /** Minutes of exercise time after which the next trainee of a group takes the controls; null or left out: they change by hand. */
+  changeoverMin?: number | null;
+  /** The instructor's observation checklist, one item a line; left out: DEFAULT_OBSERVATION_ITEMS. */
+  obsItems?: string[];
+  /**
+   * Older records without their replay (see lightRecord), newest first: when a record is dropped to make room,
+   * what the trainee file, the class comparison and the comparison of assessors need is kept here.
+   */
+  archive?: SessionRecord[];
+  /** Observations ticked at the station, by the id of the display's record, until (and after) that record arrives. */
+  pendingObs?: Record<string, { items: Observation[]; notes: string }>;
   /** The parts (exercise ids) of the two practical examinations, as the instructor has set them; left out: DEFAULT_EXAMS. */
   exams?: { roc: string[]; arpa: string[] };
   /** Own ship particulars and voyage data typed in by the user (as on an AIS). Starting values are placeholders, not a real ship. */
@@ -61,6 +72,23 @@ export interface KeyValue {
 export const STORE_KEY = "radar-sim-store-v1";
 export const DEFAULT_PIN = "0000";
 export const MAX_RECORDS = 60;
+/** Older records kept without their replay. */
+export const MAX_ARCHIVE = 300;
+
+/**
+ * A record without its replay: no frames, coastline or radio log, only the flagged events, and no criteria rows
+ * or debrief questions. What is left is what the trainee file and the comparisons use: who, when, the marked
+ * items, who was at the controls, the observations, the decisions and the measured facts.
+ */
+export function lightRecord(r: SessionRecord): SessionRecord {
+  const light: SessionRecord = {
+    ...r, names: {}, coasts: [], frames: [], events: r.events.filter((e) => e.flag !== undefined),
+    result: r.result ? { ...r.result, debrief: [] } : null,
+    ...(r.criteria ? { criteria: { ...r.criteria, rows: [] } } : {}),
+  };
+  delete light.comms;
+  return light;
+}
 
 export function emptyStore(): StoreData {
   return {
@@ -148,17 +176,45 @@ export class Store {
   }
 
   /** Newest first; the oldest are dropped beyond MAX_RECORDS. If storage is full, older ones are dropped until it fits. */
-  addRecord(r: SessionRecord): boolean {
-    this.data.records = [r, ...this.data.records.filter((x) => x.id !== r.id)].slice(0, MAX_RECORDS);
+  addRecord(r0: SessionRecord): boolean {
+    // A display sends a record again when the trainees save their debrief: what the assessor and the instructor
+    // added to it at this station (the decision, the observations) stays.
+    const old = this.data.records.find((x) => x.id === r0.id);
+    const r: SessionRecord = old ? {
+      ...r0,
+      ...(r0.assessor === undefined && old.assessor ? { assessor: old.assessor } : {}),
+      ...(r0.assessorBy === undefined && old.assessorBy ? { assessorBy: old.assessorBy } : {}),
+      ...(r0.observations === undefined && old.observations ? { observations: old.observations } : {}),
+      ...(r0.observerNotes === undefined && old.observerNotes ? { observerNotes: old.observerNotes } : {}),
+      ...(r0.debriefDone === undefined && old.debriefDone ? { debriefDone: old.debriefDone } : {}),
+    } : r0;
+    const all = [r, ...this.data.records.filter((x) => x.id !== r.id)];
+    this.data.records = all.slice(0, MAX_RECORDS);
+    this.toArchive(all.slice(MAX_RECORDS));
+    if (this.data.archive) this.data.archive = this.data.archive.filter((x) => x.id !== r.id);
     while (!this.save()) {
-      if (this.data.records.length <= 1) return false;
-      this.data.records.pop();
+      // Storage is full: the oldest replay goes first (its light copy stays), then the oldest of the archive.
+      if (this.data.records.length > 1) this.toArchive([this.data.records.pop()!]);
+      else if (this.data.archive && this.data.archive.length > 0) this.data.archive.pop();
+      else return false;
     }
     return true;
   }
 
+  private toArchive(dropped: SessionRecord[]): void {
+    if (dropped.length === 0) return;
+    const ids = new Set(dropped.map((d) => d.id));
+    this.data.archive = [...dropped.map(lightRecord), ...(this.data.archive ?? []).filter((x) => !ids.has(x.id))].slice(0, MAX_ARCHIVE);
+  }
+
+  /** Every exercise on record, newest first: the full records, then the older ones kept without their replay. */
+  history(): SessionRecord[] {
+    return [...this.data.records, ...(this.data.archive ?? [])];
+  }
+
   removeRecord(id: string): void {
     this.data.records = this.data.records.filter((r) => r.id !== id);
+    if (this.data.archive) this.data.archive = this.data.archive.filter((r) => r.id !== id);
     this.save();
   }
 
