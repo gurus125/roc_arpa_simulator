@@ -44,6 +44,8 @@ export interface SessionRecord {
   assessor?: { decision: "" | "competent" | "not-yet"; remarks: string; name: string };
   /** Radio messages exchanged during the exercise. */
   comms?: { t: number; from: string; text: string }[];
+  /** When the exercise was one part of a practical examination: which examination (one id for each sitting), its name, and which part of how many. */
+  exam?: { id: string; name: string; part: number; of: number };
 }
 
 export const FRAME_INTERVAL_SEC = 10;

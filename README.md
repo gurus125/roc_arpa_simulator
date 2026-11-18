@@ -30,7 +30,7 @@ it only when the target is clicked, and goes when it is clicked again. MENU open
 right-hand side with a grid of menu keys; only the controls of the chosen key are shown, and
 CLOSE or Esc closes it. SHIP CONTROL in the header opens the ship control window
 (`src/ui/ship-window.ts`) for a second screen: steering (autopilot or hand, set course, rudder indicator,
-pump 2), engine telegraph, engine order, anchor, own ship's data, and the exercises (choice, briefing,
+pump 2), engine telegraph, engine order, anchor and MOB key, own ship's data, and the exercises (choice, briefing,
 assessment, answers, finish, result, ROC worksheets). It is a view of the same page: the page's own controls
 are moved into it while it is open and back when it closes, so there is one simulation and one record; and
 while it is in front it keeps the clock running if the radar window is hidden. The page header has the RADAR / ARPA / EXERCISE tabs (they open those menus), the
@@ -132,6 +132,15 @@ picture, AIS targets kept; `radarSignalsLost` and `pictureFrozen` in `src/engine
 `tests/signal-failure.test.ts`); capacity raised to the largest class of MSC.192(79) Table 1 (40 tracked targets, 40
 activated AIS targets, 240 AIS targets in all); and ten more of the book's worked answers as tests
 (`tests/pub1310.test.ts`).
+Sixth round (18 Nov 2026), after the institute's list of 171 exercises was checked (`docs/EXERCISE-COVERAGE.md`): a PRF
+control (`prfChoices` in `src/engine/band.ts`); fixes from ranges only or bearings only (`fixFromPositionLines` in
+`src/core/nav.ts`); a route on the radar with cross-track distance, search patterns (`src/core/search.ts`), a MOB mark,
+straight traffic separation schemes (`src/core/tss.ts`, `tss` in a scenario) and the charted coastline over the picture
+with a printable outline sheet (`src/ui/outline-sheet.ts`); the ARPA acquires multiple, side-lobe and indirect echoes and
+is disturbed by interference (`src/arpa/plots.ts`); random traffic (`src/engine/traffic.ts`) and live control of a
+trainee's targets and weather from the station (`src/ui/link.ts`); time limits, five more marked exercises (27 to 31,
+`src/train/nav-exercises.ts`, every limit a placeholder in `NAV_LIMITS`) and examinations made of several exercises
+(`examSheetsHtml` in `src/train/marking.ts`). Tests: `tests/b41-core.test.ts`, `tests/b41-train.test.ts`.
 Hardware control panel: keys for every radar function, changeable, and knob-box (game controller) inputs
 (`src/ui/panel-map.ts`, `src/ui/panel.ts`; SETTINGS > Control panel). No real panel has been tried.
 `npm run test:link` starts the classroom server and checks the instructor station and four student displays in separate
@@ -147,7 +156,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 708 tests
+    npm test            # 756 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 
@@ -163,8 +172,8 @@ See `PLAN.md` for the full build plan.
 
 ## Added in phases 5 to 8
 
-- **Exercises** (EXERCISE tab, ARPA EX, or the ship control window): 26 exercises with automatic checking and
-  debrief questions: nine ARPA, seven radar (four of them in the real areas) and ten manual plotting.
+- **Exercises** (EXERCISE tab, ARPA EX, or the ship control window): 31 exercises with automatic checking and
+  debrief questions: ten ARPA, eleven radar (four of them in the real areas) and ten manual plotting.
 - **Instructor station** (`radar-simulator.html#instructor`, or `/instructor` from the classroom server; PIN 0000
   at first; `src/ui/station-ui.ts`): CLASSROOM (every display reporting, with pause and run, an exercise to start,
   faults, weather, linked exercise and messages sent to one display or all), RECORDS (each display sends its record

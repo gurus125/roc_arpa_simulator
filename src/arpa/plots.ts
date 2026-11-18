@@ -2,11 +2,12 @@ import { Vec2, add, angleDiffDeg, bearingOf, fromPolar, length, sub } from "../c
 import { rangeBearing } from "../core/nav";
 import {
   BAND_DATA, World, RadarControls, rcsForDetectionRange, shorelineDetectionNm, targetLengthM, detectionProbability, effectiveSignal, isLand, landHides, lineOfSightBlocked, rainClutterProbability,
-  relativeBearing, seaClutterProbability, maskedByClutter,
+  relativeBearing, seaClutterProbability, maskedByClutter, SIDE_LOBES, THRESHOLD, INDIRECT_MIN_SIGNAL, INDIRECT_MAX_RANGE_NM, INDIRECT_STRENGTH,
 } from "../engine/index";
 import { ArpaConfig } from "./config";
 
-export type PlotKind = "target" | "land" | "clutter";
+/** "false": a multiple, side-lobe or indirect echo of a strong, close target, or a mark of interference from another radar. */
+export type PlotKind = "target" | "land" | "clutter" | "false";
 
 /** One echo as the ARPA plot extractor reports it after one antenna revolution. */
 export interface ArpaPlot {
@@ -175,6 +176,27 @@ export function extractPlots(
     const along = t.speed > 0.1 ? fromPolar(t.course, gaussian(rng) * cfg.scintillationNm * (targetLengthM(t) / 200)) : { e: 0, n: 0 };
     const wander = along;
     tgt.push({ relTrue: add(sub(t.pos, w.own.pos), wander), kind: "target", truthIds: [t.id], strength: e });
+    // False echoes of a strong, close target reach the tracker as they reach the picture, and can be acquired
+    // (Radar and ARPA Manual, 3rd edition, 3.9). The same conditions and levels as on the picture (engine/scan.ts).
+    if (!cfg.falseEchoes) continue;
+    const seen = (level: number): boolean => level >= THRESHOLD / 2 && rng() < detectionProbability(level);
+    if (t.rcs >= 0.8 && rb.range < 1.5) {
+      // Multiple echoes at twice and three times the range, on the same bearing.
+      for (const k of [2, 3]) if (seen((Math.min(e, 5) * Math.pow(0.3, k - 1)) / k)) raw.push({ relTrue: fromPolar(rb.bearing, rb.range * k), kind: "false", truthIds: [], strength: 0.4 });
+    }
+    for (const lobe of SIDE_LOBES) {
+      // Side-lobe echoes at the target's own range, either side of it.
+      const es = e * Math.pow(10, -lobe.downDb / 10);
+      if (es < THRESHOLD / 2) break;
+      for (const sgn of [-1, 1]) if (seen(es)) raw.push({ relTrue: fromPolar(rb.bearing + sgn * lobe.offDeg, rb.range), kind: "false", truthIds: [], strength: 0.4 });
+    }
+    if (e >= INDIRECT_MIN_SIGNAL && rb.range <= INDIRECT_MAX_RANGE_NM) {
+      // Indirect echoes by way of own ship's funnel or mast: in the shadow sector, at the target's own range.
+      for (const s of w.radar.shadowSectors) {
+        const mid = (((s.from + ((((s.to - s.from) % 360) + 360) % 360) / 2) % 360) + 360) % 360;
+        if (Math.abs(((sig.relBearing - mid + 540) % 360) - 180) > 20 && seen(e * INDIRECT_STRENGTH)) raw.push({ relTrue: fromPolar(heading + mid, rb.range), kind: "false", truthIds: [], strength: 0.4 });
+      }
+    }
   }
   tgt.sort((a, b) => b.strength - a.strength);
   // Bearing discrimination: the configured figure is for X band; the wider S-band beam merges echoes further apart.
@@ -255,6 +277,12 @@ export function extractPlots(
       const p = rainClutterProbability(w, { e: w.own.pos.e + v.e, n: w.own.pos.n + v.n }, rx);
       if (p > 0 && rng() < p) raw.push({ relTrue: v, kind: "clutter", truthIds: [], strength: 0.4 });
     }
+  }
+
+  // Interference from another radar: without interference rejection some of its marks get through the plot
+  // extractor, anywhere on the picture and different on every scan.
+  if (w.env.interference && !w.radar.controls.interferenceRejection) {
+    for (let i = 0; i < cfg.interferencePlotsPerScan; i++) raw.push({ relTrue: fromPolar(360 * rng(), cfg.maxRangeNm * rng()), kind: "false", truthIds: [], strength: 0.4 });
   }
 
   // Measurement: gyro-referenced bearing plus noise, range plus noise. The sensor errors of the radar

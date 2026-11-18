@@ -658,6 +658,7 @@
       <div class="row"><label for="ordCourse">Autopilot course</label><input type="range" id="ordCourse" min="0" max="359" value="0"><span class="val" id="ordCourseV">000</span></div>
       <div class="btns" id="telegraph"></div>
       <div class="btns"><span class="small">Anchor</span><button id="anchorKey" title="Let go the anchor (only with less than 1 kn over the ground), or weigh it">LET GO ANCHOR</button><span class="small" id="anchorNow"></span></div>
+      <div class="btns"><span class="small">Emergency</span><button id="mobKey" title="Man overboard: marks own ship's position at this moment on the radar (it needs a position from the EPFS)">MOB</button><span class="small" id="mobNow"></span></div>
       <div class="btns"><span class="small">Engine order</span><button id="engDn" class="pm1">−</button><b id="ordSpeedV" style="min-width:60px;text-align:center">12</b><button id="engUp" class="pm1">+</button><span class="small">kn</span></div>
       <input type="range" id="ordSpeed" min="-10" max="25" step="0.5" value="12" hidden>
       <p id="shipNow" style="font:13px ui-monospace, Consolas, monospace; margin:4px 0"></p>
@@ -753,6 +754,17 @@
         <div class="btns"><button id="hlOff" title="While held: the heading line and every other graphic are taken off, leaving only the radar echoes and trails">Hold: graphics off</button><button id="offC">Off-centre: click a point</button><button id="offReset">Centre</button></div>
         <div class="btns"><button id="navDraw">Nav lines: draw</button><button id="navMark">Nav mark: place</button><button id="navClear">Clear lines and marks</button></div>
         <div class="btns"><input type="text" id="navName" placeholder="Map name" style="flex:1"><button id="navSave">Save map</button><select id="navLoad" style="width:auto"></select></div>
+        <div class="small" style="margin-top:6px">Route, search pattern and charted coastline</div>
+        <div class="btns"><button id="rtDraw">Route: add waypoints</button><button id="rtUndo">Undo waypoint</button><button id="rtClear">Clear route</button></div>
+        <div class="grid2"><div><label for="spKind">Search pattern</label><select id="spKind"><option value="square">Expanding square</option><option value="sector">Sector search</option></select></div>
+          <div><label for="spDatum">Datum</label><select id="spDatum"><option value="own">Own ship now</option><option value="mob">MOB mark</option></select></div>
+          <div><label for="spSize">Track spacing or radius (NM)</label><input type="number" id="spSize" min="0.1" max="10" step="0.1" value="0.5"></div>
+          <div><label for="spCourse">First course (°T)</label><input type="number" id="spCourse" min="0" max="359" step="1" value="0"></div></div>
+        <div class="btns"><button id="spMake">Put the search pattern on the radar</button></div>
+        <div class="check"><input type="checkbox" id="coastOutline"><label for="coastOutline">Charted coastline over the picture (to compare the echoes with the chart)</label></div>
+        <div class="btns"><button id="outlineSheet">Outline sheet of this area (to print)</button></div>
+        <p class="small" id="rtInfo"></p>
+        <p class="hint">Route: press "add waypoints", click the waypoints in order, press again when done. The route is fixed to the ground. The EBL / CURSOR panel then shows the next waypoint, its bearing and distance, and XTD, the distance off the leg being sailed (S to starboard of it, P to port). A search pattern is a route made for you from a datum: an expanding square (legs of 1, 1, 2, 2, 3, 3 ... times the track spacing, every turn 90° to starboard) or a sector search (three triangles through the datum, every turn 120° to starboard). The charted coastline is the coast as the simulator has it, drawn as a line: land that is low or hidden paints less on the radar than the chart shows. The outline sheet is the same coastline with a latitude and longitude grid, for plotting position lines by hand: it is not a chart.</p>
         <div class="row two"><label for="band">Radar band</label><select id="band"><option value="X">X band (3 cm)</option><option value="S">S band (10 cm)</option></select></div>
         <p class="small" id="bandInfo"></p>
         <p class="hint">Offset EBL: press "EBL origin", then click the point it should start from (it stays at that position). Press again to return it to own ship. Nav lines: press "draw", click the points of a line (a channel edge, a limit), press again to end the line; draw as many lines as needed. They are fixed to the ground, so use them on a ground-stabilised picture. Saved maps are kept on this computer. Off-centring works in relative motion. S band sees through rain and sea clutter better, but small craft and buoys are detected at shorter range and SARTs (and X-band racons) do not answer. Detection ranges follow IMO MSC.192(79) table 2; the band and pulse figures shown are typical values, not those of a particular set.</p>
@@ -800,6 +812,8 @@
         <div class="btns" id="autoRow"><label><input type="checkbox" id="autoSea"> Auto sea</label><label><input type="checkbox" id="autoRain"> Auto rain</label><label><input type="checkbox" id="autoTune"> Auto tune</label></div>
         <div class="row"><label for="brill">Brilliance</label><input type="range" id="brill" min="10" max="100" value="70"><span class="val" id="brillV">70</span></div>
         <div class="row two"><label for="pulse">Pulse length</label><select id="pulse"><option value="auto">Auto (by range scale)</option><option value="short">Short</option><option value="medium">Medium</option><option value="long">Long</option></select></div>
+        <div class="row two"><label for="prf">PRF (pulses a second)</label><select id="prf"><option value="">Auto (by pulse length)</option><option value="600">600</option><option value="1000">1000</option><option value="1500">1500</option><option value="3000">3000</option></select></div>
+        <p class="hint">The pulse repetition frequency normally follows the pulse length (short 3000, medium 1500, long 600 a second). Chosen by hand, a lower PRF puts fewer pulses on each target, so weak echoes are lost sooner, and it lengthens the range measured without ambiguity (150,000 km divided by the PRF), so second-trace echoes move or disappear. A PRF too high for the pulse length in use is greyed out: the transmitter could not keep it up. On most sets the PRF is not a control of its own.</p>
         <div class="check"><input type="checkbox" id="echoStretch"><label for="echoStretch">Echo stretch (larger target echoes)</label></div>
         <div class="check"><input type="checkbox" id="echoAvg"><label for="echoAvg">Echo averaging (suppresses random clutter)</label></div>
         <div class="check"><input type="checkbox" id="irOn"><label for="irOn">Interference rejection (IR)</label></div>
@@ -977,6 +991,7 @@
       </section>
       <section id="secObs" hidden>
         <h2>Observations</h2>
+        <div class="row two" id="obsUseRow"><label for="obsUse">Use for the fix</label><select id="obsUse"><option value="both">Range and bearing</option><option value="range">Range only (a circle of position)</option><option value="bearing">Bearing only (a line of bearing)</option></select></div>
         <div class="btns" style="margin:0 0 6px"><button id="obsTake">Take observation</button><button id="obsDel">Delete last</button><button id="obsClear">Clear all</button><button id="obsNext">Start next fix</button></div>
         <div class="btns" style="margin:0 0 6px"><span class="small">Advance simulation by</span><select id="advMin" style="width:auto"><option value="1">1 min</option><option value="3">3 min</option><option value="6" selected>6 min</option><option value="12">12 min</option><option value="15">15 min</option></select><button id="advBtn">Advance</button></div>
         <p class="hint">Put the EBL and VRM on the echo, then press Take observation. The bearing and range are what you set.</p>

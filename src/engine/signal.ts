@@ -86,8 +86,8 @@ const SEA_FROM_DEFAULT_DEG = 270;
  * strength goes with their square roots: a short pulse cuts the clutter more than it cuts a target,
  * a long pulse raises it more.
  */
-export function clutterPulseFactor(rangeScaleNm: number, pulse?: RadarControls["pulse"]): number {
-  return pulseEnergyFactor(rangeScaleNm, pulse) * Math.sqrt(pulseFor(rangeScaleNm, pulse).microseconds / pulseFor(rangeScaleNm).microseconds);
+export function clutterPulseFactor(rangeScaleNm: number, pulse?: RadarControls["pulse"], prfHz?: number | null): number {
+  return pulseEnergyFactor(rangeScaleNm, pulse, prfHz) * Math.sqrt(pulseFor(rangeScaleNm, pulse).microseconds / pulseFor(rangeScaleNm).microseconds);
 }
 
 /** Rain intensity (0 to 1) at a world position. */
@@ -199,7 +199,7 @@ export function effectiveSignal(w: World, s: SignalInput, c: RadarControls = w.r
   if (w.radar.band === "S") e *= sBandFactor(s.kind); // small targets and buoys return less on 10 cm
   e *= shadowFactor(w.radar, s.relBearing);
   e *= seawayFactor(w, s.relBearing);
-  e *= pulseEnergyFactor(c.rangeNm, c.pulse);
+  e *= pulseEnergyFactor(c.rangeNm, c.pulse, c.prfHz);
   // Performance is the share of the echo power left (transmitter and receiver together); see echoStrength.
   e *= Math.sqrt(w.radar.performance ?? 1);
   if (c.interferenceRejection) e *= Math.pow(10, -IR_LOSS_DB / 20);
@@ -269,7 +269,7 @@ export function seaClutterLevel(w: World, rangeNm: number, relBearing: number, c
   const seaFrom = wind && wind.speedKn > 0 ? wind.from : SEA_FROM_DEFAULT_DEG;
   const windward = Math.cos((angleDiffDeg(w.own.heading + relBearing, seaFrom) * Math.PI) / 180);
   const band = w.radar.band === "S" ? Math.sqrt(BAND_DATA.X.wavelengthCm / BAND_DATA.S.wavelengthCm) : 1;
-  return seaClutter(rangeNm, w.env.seaState, windward) * clutterPulseFactor(c.rangeNm, c.pulse) * band * sens * stcAttenuation(rangeNm, c.stc) * shadowFactor(w.radar, normalizeDeg(relBearing));
+  return seaClutter(rangeNm, w.env.seaState, windward) * clutterPulseFactor(c.rangeNm, c.pulse, c.prfHz) * band * sens * stcAttenuation(rangeNm, c.stc) * shadowFactor(w.radar, normalizeDeg(relBearing));
 }
 
 export function seaClutterProbability(w: World, rangeNm: number, relBearing: number, c: RadarControls = w.radar.controls): number {
@@ -295,7 +295,7 @@ export function rainClutterLevel(w: World, pos: Vec2, c: RadarControls = w.radar
   const r = Math.max(0.25, length(sub(pos, w.own.pos)));
   const sens = sensitivity(c, w.radar.tuningOptimum);
   const band = w.radar.band === "S" ? BAND_DATA.X.wavelengthCm / BAND_DATA.S.wavelengthCm : 1;
-  return Math.sqrt(inten) * 3 * (RAIN_CLUTTER_REF_NM / r) * band * clutterPulseFactor(c.rangeNm, c.pulse) * sens * stcAttenuation(r, c.stc) * rainPathFactor(w, pos) * (withFtc ? ftcRainFactor(c.ftc) : 1);
+  return Math.sqrt(inten) * 3 * (RAIN_CLUTTER_REF_NM / r) * band * clutterPulseFactor(c.rangeNm, c.pulse, c.prfHz) * sens * stcAttenuation(r, c.stc) * rainPathFactor(w, pos) * (withFtc ? ftcRainFactor(c.ftc) : 1);
 }
 
 /** Probability that rain paints a speckle at this position on one scan (0 outside rain). */

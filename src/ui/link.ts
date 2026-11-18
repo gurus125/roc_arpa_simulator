@@ -26,7 +26,7 @@ export interface StationStatus {
   joint: boolean;
   own: { e: number; n: number; cog: number; sog: number };
   /** Real positions relative to own ship (NM east, north) for the instructor's small picture. */
-  tg: { e: number; n: number; name: string }[];
+  tg: { e: number; n: number; name: string; id?: number }[];
   at: number;
 }
 
@@ -45,11 +45,18 @@ export type Command =
   | { to: string; cmd: "pause" | "run" }
   | { to: string; cmd: "message"; text: string }
   | { to: string; cmd: "radio"; station: string; from: string; text: string }
-  | { to: string; cmd: "weather"; seaState: number; rain: boolean; ducting: boolean; interference: boolean }
+  | { to: string; cmd: "weather"; seaState: number; rain: boolean; ducting: boolean; interference: boolean; rainPct?: number; windFrom?: number; windKn?: number; curSet?: number; curDrift?: number }
+  /** A vessel of a catalogue type put on the display's picture, at a true bearing and range from its own ship. */
+  | { to: string; cmd: "addTarget"; name: string; typeId: string; bearing: number; rangeNm: number; course: number; speed: number }
+  | { to: string; cmd: "removeTarget"; id: number }
+  /** Random traffic round the display's own ship: the same seed gives every display the same ships. */
+  | { to: string; cmd: "traffic"; seed: number; count: number; minNm: number; maxNm: number; threats: number; replace: boolean }
   /** Load this scenario (JSON text), join the linked exercise and start, on every display at the same moment. */
   | { to: string; cmd: "startLinked"; scenarioJson: string }
   | { to: string; cmd: "fault"; gyroDeg: number; logKn: number }
   | { to: string; cmd: "target"; id: number; course?: number; speed?: number }
+  /** Start a practical examination: these exercises, one after the other. `examId` marks the sitting. */
+  | { to: string; cmd: "startExam"; examId: string; name: string; parts: string[] }
   /** Start this exercise (an ARPA, radar or plotting exercise id, or "roc-" and an ROC exercise). */
   | { to: string; cmd: "startExercise"; id: string }
   /** Set these fault controls (FAULT_IDS) to these values. */

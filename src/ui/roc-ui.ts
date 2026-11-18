@@ -105,7 +105,7 @@ export function initRocUi(api: RocUiApi): RocUi {
     body.innerHTML = s.observations
       .map(
         (o, i) =>
-          `<tr><td>${i + 1}</td><td>${o.group}</td><td>${mmss(o.timeSec)}</td><td>${brg(o.bearing)}</td><td>${f2(o.range)}</td><td>${
+          `<tr><td>${i + 1}</td><td>${o.group}</td><td>${mmss(o.timeSec)}</td><td>${o.use === "range" ? "-" : brg(o.bearing)}</td><td>${o.use === "bearing" ? "-" : f2(o.range)}</td><td>${
             o.objectId === null ? '<span class="no">no echo</span>' : names.get(o.objectId) ?? "?"
           }</td></tr>`,
       )
@@ -179,7 +179,8 @@ export function initRocUi(api: RocUiApi): RocUi {
       setResult('<p class="no">Switch on the EBL and the VRM and set them on the echo first. Click the echo on the radar to do it quickly.</p>');
       return;
     }
-    const r = s.observe(app.world, app.ebl.bearing, app.vrm.range);
+    const fixing = s.ex.id === "fix" || s.ex.id === "setdrift";
+    const r = s.observe(app.world, app.ebl.bearing, app.vrm.range, fixing ? ($<HTMLSelectElement>("obsUse").value as "both" | "range" | "bearing") : "both");
     refreshTable(app);
     if (!r.ok) setResult(`<p class="no">${r.message}</p>`);
     else if (s.ex.id === "fix" || s.ex.id === "setdrift") refreshFixResult(app);
@@ -361,6 +362,7 @@ export function initRocUi(api: RocUiApi): RocUi {
     $("secAnsSD").hidden = !s || s.ex.id !== "setdrift";
     $("secClear").hidden = !s || s.ex.id !== "clearing";
     $("obsNext").hidden = !s || !(s.ex.id === "fix" || s.ex.id === "setdrift");
+    $("obsUseRow").hidden = !s || !(s.ex.id === "fix" || s.ex.id === "setdrift");
     $("viewTri").hidden = !s || s.ex.id !== "plot";
     if (s) {
       sel.value = s.ex.id;

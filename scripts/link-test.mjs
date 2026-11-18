@@ -90,6 +90,27 @@ await instr.click('#topTabs button[data-st="recs"]');
 const recs = () => text(instr, "#inRecs");
 check("the finished exercise's record reaches the station", await until(async () => /ARPA 1:/.test(await recs())), await recs());
 await instr.click('#topTabs button[data-st="class"]');
+// Through the server, while the exercise runs: the station adds a target on every display, alters one, and sends random traffic.
+{
+  const names = async () => Promise.all(students.map((p) => p.evaluate(() => window.__simTest.targets().map((t) => t.name).join(","))));
+  await instr.fill("#rtNewName", "Sudden threat");
+  await instr.click("#rtAdd");
+  check("the station adds a target on every display through the server", await until(async () => (await names()).every((n) => n.includes("Sudden threat"))), (await names()).join(" | "));
+  await until(async () => (await instr.$$eval("#rtTg option", (o) => o.length)) > 0);
+  const id = Number(await instr.$eval("#rtTg option", (o) => o.value));
+  await instr.selectOption("#rtTg", String(id));
+  await instr.fill("#rtC", "77");
+  await instr.click("#rtAlter");
+  const courses = async () => Promise.all(students.map((p) => p.evaluate((i) => window.__simTest.targets().find((t) => t.id === i)?.course ?? -1, id)));
+  check("the station alters a target's course on every display through the server", await until(async () => (await courses()).every((c) => c === 77)), (await courses()).join(","));
+  await instr.fill("#rgCount", "7");
+  await instr.fill("#rgSeed", "555");
+  await instr.check("#rgReplace");
+  await instr.click("#rgSend");
+  const tc = async () => Promise.all(students.map((p) => p.evaluate(() => window.__simTest.targetCount())));
+  // Seven new ships in place of the exercise's ships; the other displays' own ships stay as targets.
+  check("random traffic with one seed gives every display the same number of ships", await until(async () => (await tc()).every((n) => n === 7 + STUDENTS - 1)), (await tc()).join(","));
+}
 
 // The server stops (power cut, cable out) and comes back: the displays find it again by themselves.
 // Connections still open are cut at once (waiting for them to end could hang the test).

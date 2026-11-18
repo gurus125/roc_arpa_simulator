@@ -1,4 +1,4 @@
-import { ARPA_EXERCISES, ArpaExercise, ExerciseResult, PLOTTING_EXERCISES, RADAR_EXERCISES } from "../train/index";
+import { ARPA_EXERCISES, ArpaExercise, ExerciseResult, PLOTTING_EXERCISES, RADAR_EXERCISES, timeLimitMin } from "../train/index";
 
 /** Every exercise, listed by number. */
 const ALL = [...ARPA_EXERCISES, ...RADAR_EXERCISES, ...PLOTTING_EXERCISES].sort((a, b) => a.number - b.number);
@@ -139,7 +139,9 @@ export function initTrainUi(api: TrainUiApi): TrainUi {
   const tick = (app: AppState): void => {
     const s = app.arpaEx;
     if (!s) return;
-    $("exClock").textContent = `Exercise time ${mmss(app.world.time)}${s.finished ? " (finished)" : app.running ? "" : " (paused: press Run)"}`;
+    const limit = timeLimitMin(s.def, s.cfg);
+    const left = limit === null ? null : limit * 60 - app.world.time;
+    $("exClock").textContent = `Exercise time ${mmss(app.world.time)}${s.finished ? " (finished)" : app.running ? "" : " (paused: press Run)"}${left === null || s.finished ? "" : left >= 0 ? `   TIME LEFT ${mmss(left)}` : `   TIME UP ${mmss(-left)} ago`}`;
     for (const t of s.def.tasks) {
       const st = byId(`exSt_${t.id}`);
       if (!st) continue;

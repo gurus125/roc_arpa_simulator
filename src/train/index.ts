@@ -2,6 +2,7 @@ export * from "./session";
 export * from "./arpa-exercises";
 export * from "./radar-exercises";
 export * from "./port-exercises";
+export * from "./nav-exercises";
 export * from "./marking";
 export * from "./scenario-io";
 export * from "./record";

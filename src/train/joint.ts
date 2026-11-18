@@ -1,4 +1,4 @@
-import { Target, World } from "../engine/index";
+import { LINKED_SHIP_ID_BASE, Target, World } from "../engine/index";
 
 /**
  * Linked own-ship stations: every display taking part in the same scenario shows the other
@@ -17,7 +17,7 @@ export interface RemoteShip {
   at: number;
 }
 
-export const REMOTE_ID_BASE = 9000;
+export const REMOTE_ID_BASE = LINKED_SHIP_ID_BASE;
 /** A remote ship is dropped when nothing has been heard from it for this long, milliseconds. */
 export const REMOTE_TIMEOUT_MS = 10000;
 

@@ -2,6 +2,7 @@ import { angleDiffDeg, bearingOf, length, sub } from "../core/vec";
 import { courseToSteer } from "../core/current";
 import { SAR, Scenario, noiseSpeckle, radarTransmitting, switchRadarOff } from "../engine/index";
 import { PORT_EXERCISES } from "./port-exercises";
+import { NAV_RADAR_EXERCISES } from "./nav-exercises";
 import { ArpaExercise, SETUP_LIMITS, TaskCtx, targetById } from "./session";
 
 /**
@@ -198,5 +199,5 @@ const EX22: ArpaExercise = {
   ],
 };
 
-/** With the exercises in the four real areas (23 to 26). */
-export const RADAR_EXERCISES: ArpaExercise[] = [EX10, EX11, EX22, ...PORT_EXERCISES];
+/** With the exercises in the four real areas (23 to 26) and those on a route, a separation scheme, man overboard and safe speed (27 to 30). */
+export const RADAR_EXERCISES: ArpaExercise[] = [EX10, EX11, EX22, ...PORT_EXERCISES, ...NAV_RADAR_EXERCISES];

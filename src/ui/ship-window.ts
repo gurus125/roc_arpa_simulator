@@ -67,7 +67,7 @@ const LAYOUT = `
           <div class="kv"><span>COG</span><b id="swCog">---</b></div>
           <div class="kv"><span>REL WIND</span><b id="swWind">---</b></div>
           <div class="lab sub">ENGINE ORDER</div><div id="swEngOrder"></div>
-          <div class="lab sub">ANCHOR</div><div id="swAnchor"></div>
+          <div class="lab sub">ANCHOR AND MOB</div><div id="swAnchor"></div>
         </div></div>
       <div id="swShipNow"></div>
     </section>
@@ -272,6 +272,7 @@ export function initShipWindow(opts: ShipWindowOpts): ShipWindow {
     move(byId("telegraph"), at("swLever"));
     move(parentOf("engDn", ".btns"), at("swEngOrder"));
     move(parentOf("anchorKey", ".btns"), at("swAnchor"));
+    move(parentOf("mobKey", ".btns"), at("swAnchor"));
     move(byId("shipNow"), at("swShipNow"));
     move(parentOf("shipType", ".row"), at("swShipType"));
     move(byId("shipInfo"), at("swShipInfo"));

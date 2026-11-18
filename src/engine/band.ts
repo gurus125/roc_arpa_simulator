@@ -106,9 +106,23 @@ const PULSES: Record<PulseSetting["name"], PulseSetting> = {
  * receive while it is still transmitting (Radar and ARPA Manual, 3rd edition, 2.3.3.1): 0.1 NM for the
  * long pulse (1.2 microseconds is 180 m).
  */
-export function pulseFor(rangeScaleNm: number, manual?: "auto" | "short" | "medium" | "long"): PulseSetting {
-  if (manual && manual !== "auto") return PULSES[manual];
-  return rangeScaleNm <= 1.5 ? PULSES.short : rangeScaleNm <= 6 ? PULSES.medium : PULSES.long;
+export function pulseFor(rangeScaleNm: number, manual?: "auto" | "short" | "medium" | "long", prfHz?: number | null): PulseSetting {
+  const p = manual && manual !== "auto" ? PULSES[manual] : rangeScaleNm <= 1.5 ? PULSES.short : rangeScaleNm <= 6 ? PULSES.medium : PULSES.long;
+  return prfHz && prfHz !== p.prfHz && prfChoices(p.name).includes(prfHz) ? { ...p, prfHz } : p;
+}
+
+/**
+ * Pulse repetition frequencies that can be chosen by hand, per second. On most sets the PRF follows the pulse
+ * length and the range scale and is not a control of its own; it is one here so that its effects can be shown:
+ * a lower PRF puts fewer pulses on a target (a weaker echo) and lengthens the range that can be measured without
+ * ambiguity (second-trace echoes move or go). A PRF is offered with a pulse length only when the transmitter's
+ * duty cycle (pulse length x PRF) is no more than that of the long pulse at its own rate, 1.2 microseconds x
+ * 600 a second: the maker's own combinations all keep within it. The steps themselves are that set's rates.
+ */
+export const PRF_STEPS_HZ = [600, 1000, 1500, 3000];
+const MAX_DUTY = PULSES.long.microseconds * 1e-6 * PULSES.long.prfHz;
+export function prfChoices(pulse: PulseSetting["name"]): number[] {
+  return PRF_STEPS_HZ.filter((f) => PULSES[pulse].microseconds * 1e-6 * f <= MAX_DUTY * (1 + 1e-9));
 }
 
 /**
@@ -117,9 +131,9 @@ export function pulseFor(rangeScaleNm: number, manual?: "auto" | "short" | "medi
  * number of pulses that strike the target (beamwidth x PRF / (6 x rpm)); with the same power, beam and
  * rotation, it goes with pulse length x PRF (Radar and ARPA Manual, 3rd edition, 2.3.3.3).
  */
-export function pulseEnergyRatio(rangeScaleNm: number, manual?: "auto" | "short" | "medium" | "long"): number {
+export function pulseEnergyRatio(rangeScaleNm: number, manual?: "auto" | "short" | "medium" | "long", prfHz?: number | null): number {
   const energy = (p: PulseSetting): number => targetEnergyWs(1, p.microseconds, pulsesOnTarget(1, p.prfHz, 24));
-  return energy(pulseFor(rangeScaleNm, manual)) / energy(pulseFor(rangeScaleNm));
+  return energy(pulseFor(rangeScaleNm, manual, prfHz)) / energy(pulseFor(rangeScaleNm));
 }
 
 /** Mean transmitted power, watts: peak power x pulse length / pulse repetition interval. */
@@ -145,8 +159,8 @@ export function targetEnergyWs(peakW: number, pulseMicroseconds: number, pulses:
  * strength goes with the square root of the energy returned (see `echoStrength`), so this is the
  * square root of `pulseEnergyRatio`.
  */
-export function pulseEnergyFactor(rangeScaleNm: number, manual?: "auto" | "short" | "medium" | "long"): number {
-  return Math.sqrt(pulseEnergyRatio(rangeScaleNm, manual));
+export function pulseEnergyFactor(rangeScaleNm: number, manual?: "auto" | "short" | "medium" | "long", prfHz?: number | null): number {
+  return Math.sqrt(pulseEnergyRatio(rangeScaleNm, manual, prfHz));
 }
 
 /** Furthest range that can be measured without ambiguity at a pulse repetition frequency: c / (2 PRF), in NM. */

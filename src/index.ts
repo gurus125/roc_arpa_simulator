@@ -11,3 +11,5 @@ export * from "./core/track";
 export * from "./core/zones";
 export * from "./core/bcr";
 export * from "./core/route";
+export * from "./core/search";
+export * from "./core/tss";

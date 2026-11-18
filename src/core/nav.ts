@@ -154,3 +154,72 @@ export function formatLatLon(value: number, kind: "lat" | "lon", decimals = 1): 
   }
   return `${String(deg).padStart(kind === "lat" ? 2 : 3, "0")}°${min.toFixed(decimals).padStart(3 + decimals, "0")}'${hemi}`;
 }
+
+/**
+ * One radar position line from a charted object: a circle of the measured range round it ("range"), or the
+ * line of its measured true bearing from own ship ("bearing": `value` is the bearing OF the object FROM own ship).
+ */
+export interface PositionLine {
+  kind: "range" | "bearing";
+  object: Vec2;
+  value: number;
+}
+
+/** Distance of the point `p` from a position line, NM (signed). */
+export function positionLineResidual(l: PositionLine, p: Vec2): number {
+  const d = sub(p, l.object);
+  if (l.kind === "range") return length(d) - l.value;
+  const b = (l.value * Math.PI) / 180;
+  // The line through the object along the bearing; its normal is (cos b, -sin b).
+  return d.e * Math.cos(b) - d.n * Math.sin(b);
+}
+
+/** Direction in which a position line runs at the point `at`, degrees true (a line, so 000 and 180 are the same). */
+export function positionLineDirection(l: PositionLine, at: Vec2): number {
+  return l.kind === "bearing" ? l.value : bearingOf(sub(l.object, at)) + 90;
+}
+
+/**
+ * The fix from two or more position lines: the point for which the sum of the squares of its distances from
+ * the lines is least (two lines: where they cross). Found by Gauss-Newton steps from `guess`; two range circles
+ * cross twice, and the crossing nearer the guess (the navigator's dead reckoning) is the one found.
+ * Null when the lines give no fix: fewer than two, or lines that run the same way where they would meet.
+ */
+export function fixFromPositionLines(lines: PositionLine[], guess: Vec2): Vec2 | null {
+  if (lines.length < 2) return null;
+  let p = { ...guess };
+  for (let it = 0; it < 40; it++) {
+    let a = 0, b = 0, c = 0, ge = 0, gn = 0;
+    for (const l of lines) {
+      const d = sub(p, l.object);
+      let je: number, jn: number;
+      if (l.kind === "range") {
+        const r = length(d);
+        if (r < 1e-9) {
+          je = 1;
+          jn = 0;
+        } else {
+          je = d.e / r;
+          jn = d.n / r;
+        }
+      } else {
+        const br = (l.value * Math.PI) / 180;
+        je = Math.cos(br);
+        jn = -Math.sin(br);
+      }
+      const res = positionLineResidual(l, p);
+      a += je * je;
+      b += je * jn;
+      c += jn * jn;
+      ge += je * res;
+      gn += jn * res;
+    }
+    const det = a * c - b * b;
+    if (det < 1e-9) return null;
+    const de = -(c * ge - b * gn) / det;
+    const dn = -(a * gn - b * ge) / det;
+    p = { e: p.e + de, n: p.n + dn };
+    if (Math.hypot(de, dn) < 1e-10) break;
+  }
+  return Number.isFinite(p.e) && Number.isFinite(p.n) ? p : null;
+}

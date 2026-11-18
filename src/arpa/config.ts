@@ -107,6 +107,14 @@ export interface ArpaConfig {
   landEchoMinM: number;
   /** Random clutter samples per antenna revolution for the plot extractor. */
   clutterSamplesPerScan: number;
+  /** Multiple, side-lobe and indirect echoes of strong, close targets reach the tracker and can be acquired, as on a real ARPA. */
+  falseEchoes: boolean;
+  /**
+   * Marks of another radar's interference that get through the plot extractor on each antenna revolution when
+   * interference rejection is off. PLACEHOLDER: no source gives a figure; chosen so that tracked targets are
+   * disturbed now and then and a false target is acquired only rarely.
+   */
+  interferencePlotsPerScan: number;
 }
 
 export const ARPA_PLACEHOLDERS: ArpaConfig = {
@@ -150,6 +158,8 @@ export const ARPA_PLACEHOLDERS: ArpaConfig = {
   landCellNm: 0.2,
   landEchoMinM: 800,
   clutterSamplesPerScan: 600,
+  falseEchoes: true,
+  interferencePlotsPerScan: 120,
 };
 
 export interface ZoneSetting extends SectorZone {

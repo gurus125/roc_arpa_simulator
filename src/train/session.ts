@@ -2,6 +2,8 @@ import { CourseSpeed, Vec2, angleDiffDeg, bearingOf, courseSpeedOf, length, norm
 import { CpaResult, computeCpa } from "../core/cpa";
 import { rule19Check } from "../core/colreg";
 import { alongTrack, crossTrackError, distanceToSegment } from "../core/nav";
+import { advanceLeg } from "../core/route";
+import { tssConduct } from "../core/tss";
 import { Scenario, Target, World, currentVelocity, ownGroundVelocity, radarTransmitting } from "../engine/index";
 import { ArpaSystem } from "../arpa/index";
 
@@ -22,6 +24,11 @@ export interface ScoringConfig {
   substantialSpeedCut: number;
   /** Limits for the setting-up exercise (radar 22); left out: SETUP_LIMITS. */
   setup?: SetupLimits;
+  /**
+   * Time limits set by the instructor, minutes of exercise time, by exercise id. An exercise with a limit gets
+   * one more marked item, "Finished within the time allowed". Left out or null: the exercise's own limit, if it has one.
+   */
+  timeLimits?: Record<string, number | null>;
 }
 
 export interface SetupLimits {
@@ -98,6 +105,20 @@ export interface Observed {
   minLandNm: number;
   /** Where the anchor was first let go, if it was. */
   anchorPos: Vec2 | null;
+  /** Seconds own ship spent in a traffic separation scheme while under way: with the flow, crossing a lane, against the flow, in the separation zone. */
+  tss: { withFlow: number; crossing: number; against: number; zone: number };
+  /** Exercise time (s) at which the MOB key was pressed, or null. */
+  mobKeyAt: number | null;
+  /** The trainee put a route or a search pattern on the radar (most waypoints at any time). */
+  routePoints: number;
+  /** Own ship's speed over the ground every 10 seconds: [exercise time s, knots]. */
+  speedLog: [number, number][];
+  /**
+   * Coming back to a target: the closest range reached to it after it had first been more than RETURN_OPEN_NM
+   * away, NM, and own speed through the water at that moment. (A person who falls overboard starts at range 0.)
+   */
+  returnRange: Record<number, number>;
+  returnSpeed: Record<number, number>;
 }
 
 export interface TaskCtx {
@@ -147,6 +168,8 @@ export interface ScriptStep {
   run: (w: World, a: ArpaSystem) => void;
   /** Optional condition: the step runs at the first moment after `atSeconds` when this holds. Later steps wait for it. */
   when?: (w: World, a: ArpaSystem) => boolean;
+  /** Told to the trainee when the step runs (a report from the bridge team, for example). */
+  say?: string;
 }
 
 export interface ArpaExercise {
@@ -164,6 +187,10 @@ export interface ArpaExercise {
   debrief: string[];
   /** Planned track to keep (for parallel index exercises): from a to b. */
   track?: { a: Vec2; b: Vec2 };
+  /** Planned route of several legs, put on the radar at the start: the distance off it and its completion are observed as for `track`. */
+  route?: Vec2[];
+  /** Time allowed, minutes of exercise time. A PLACEHOLDER unless the instructor sets one (ScoringConfig.timeLimits). */
+  timeLimitMin?: number;
   /** Optional ARPA presets applied at the start. */
   setup?: (a: ArpaSystem, w: World) => void;
   /** "Radar", "Plotting" or (default) "ARPA": the group the exercise is listed under. */
@@ -261,8 +288,15 @@ export class ArpaExSession {
   finished: ExerciseResult | null = null;
   /** Instructor log of scripted events that have fired. */
   scriptLog: { time: number; note: string }[] = [];
+  /** What the script has told the trainee, in order; `noticesShown` is how many the display has shown. */
+  notices: string[] = [];
+  noticesShown = 0;
+  private routeLeg = 0;
+  private nextSpeedAt = 0;
+  private opened = new Set<number>();
   private nextScript = 0;
   private startCourse: number;
+  private lastTime: number;
   private startSpeed: number;
   private script: ScriptStep[];
 
@@ -278,7 +312,9 @@ export class ArpaExSession {
       tcpaLimit: a.settings.tcpaLimitMin, minRange: {}, manoeuvre: null, maxTurnDeg: 0, minSpeedRatio: 1,
       pi: [], navLines: 0, pmUsed: false, maxXte: 0, trackDone: false, closeSpeed: {},
       minLandNm: distanceToLandNm(w), anchorPos: null,
+      tss: { withFlow: 0, crossing: 0, against: 0, zone: 0 }, mobKeyAt: null, routePoints: 0, speedLog: [], returnRange: {}, returnSpeed: {},
     };
+    this.lastTime = w.time;
     def.setup?.(a, w);
   }
 
@@ -287,9 +323,13 @@ export class ArpaExSession {
   }
 
   /** Call after every simulation step. */
-  step(w: World, a: ArpaSystem, ui?: { pi: { on: boolean; bearing: number; range: number }[]; navLines: number; pmOn?: boolean }): void {
+  step(w: World, a: ArpaSystem, ui?: { pi: { on: boolean; bearing: number; range: number }[]; navLines: number; pmOn?: boolean; mobAt?: number | null; routePoints?: number }): void {
     if (this.finished) return;
+    const dt = Math.max(0, w.time - this.lastTime);
+    this.lastTime = w.time;
     if (ui) {
+      if (ui.mobAt !== undefined && ui.mobAt !== null && this.obs.mobKeyAt === null) this.obs.mobKeyAt = ui.mobAt;
+      this.obs.routePoints = Math.max(this.obs.routePoints, ui.routePoints ?? 0);
       this.obs.pi = ui.pi.map((p) => ({ ...p }));
       this.obs.navLines = Math.max(this.obs.navLines, ui.navLines);
       if (ui.pmOn && radarTransmitting(w)) this.obs.pmUsed = true;
@@ -301,12 +341,38 @@ export class ArpaExSession {
       if (along >= 0 && along <= len && !w.own.anchor) this.obs.maxXte = Math.max(this.obs.maxXte, Math.abs(crossTrackError(w.own.pos, tr.a, tr.b)));
       if (along > len) this.obs.trackDone = true;
     }
+    const rt = this.def.route;
+    if (rt && rt.length >= 2) {
+      // The leg being sailed moves on when own ship comes abeam of its end; the last leg is done when its end is passed.
+      this.routeLeg = advanceLeg(rt, w.own.pos, this.routeLeg, 0);
+      const from = rt[this.routeLeg]!, to = rt[this.routeLeg + 1]!;
+      const along = alongTrack(w.own.pos, from, to);
+      const len = length(sub(to, from));
+      if (along >= 0 && along <= len && !w.own.anchor) this.obs.maxXte = Math.max(this.obs.maxXte, Math.abs(crossTrackError(w.own.pos, from, to)));
+      if (this.routeLeg === rt.length - 2 && along > len) this.obs.trackDone = true;
+    }
+    const og = ownGroundVelocity(w);
+    const sog = length(og);
+    if (w.time >= this.nextSpeedAt) {
+      this.obs.speedLog.push([Math.round(w.time), Math.round(sog * 10) / 10]);
+      this.nextSpeedAt = w.time + 10;
+    }
+    if (sog > 1 && dt > 0) {
+      for (const t of w.tss) {
+        const c = tssConduct(w.own.pos, bearingOf(og), t);
+        if (c === "with-flow") this.obs.tss.withFlow += dt;
+        else if (c === "crossing") this.obs.tss.crossing += dt;
+        else if (c === "against-flow") this.obs.tss.against += dt;
+        else if (c === "in-zone") this.obs.tss.zone += dt;
+      }
+    }
     while (this.nextScript < this.script.length && this.script[this.nextScript]!.atSeconds <= w.time) {
       const s = this.script[this.nextScript]!;
       if (s.when && !s.when(w, a)) break;
       this.nextScript++;
       s.run(w, a);
       this.scriptLog.push({ time: w.time, note: s.note });
+      if (s.say) this.notices.push(s.say);
     }
     const o = this.obs;
     const st = a.settings;
@@ -335,6 +401,11 @@ export class ArpaExSession {
       if (r < (o.minRange[t.id] ?? Infinity)) {
         o.minRange[t.id] = r;
         o.closeSpeed[t.id] = w.own.speedThroughWater;
+      }
+      if (r > RETURN_OPEN_NM) this.opened.add(t.id);
+      if (this.opened.has(t.id) && r < (o.returnRange[t.id] ?? Infinity)) {
+        o.returnRange[t.id] = r;
+        o.returnSpeed[t.id] = w.own.speedThroughWater;
       }
     }
     const turn = angleDiffDeg(w.own.ordered.course, this.startCourse);
@@ -408,6 +479,12 @@ export class ArpaExSession {
       const max = this.cfg.points.safety;
       return { id: t.id, label: t.prompt, kind: t.kind, student: j.detail, correct: "", ok: j.ok, points: j.ok ? max : 0, max };
     });
+    const limit = timeLimitMin(this.def, this.cfg);
+    if (limit !== null) {
+      const ok = w.time <= limit * 60 + 1e-6;
+      const max = this.cfg.points.safety;
+      items.push({ id: TIME_LIMIT_ID, label: `Finished within the time allowed (${limit} min)`, kind: "outcome", student: `finished at ${(w.time / 60).toFixed(1)} min`, correct: "", ok, points: ok ? max : 0, max });
+    }
     const score = items.reduce((s, i) => s + i.points, 0);
     const max = items.reduce((s, i) => s + i.max, 0);
     const percent = max > 0 ? (100 * score) / max : 0;
@@ -438,9 +515,24 @@ export interface TaskCriterion {
   points: number;
 }
 
+/** A target counts as left behind once it has been more than this far away, NM (see Observed.returnRange). */
+export const RETURN_OPEN_NM = 0.25;
+
+/** Id of the marked item a time limit adds to an exercise. */
+export const TIME_LIMIT_ID = "time-limit";
+
+/** The time allowed for an exercise, minutes: the instructor's figure if one is set, else the exercise's own, else none. */
+export function timeLimitMin(def: Pick<ArpaExercise, "id" | "timeLimitMin">, cfg: ScoringConfig): number | null {
+  const set = cfg.timeLimits?.[def.id];
+  if (typeof set === "number" && set > 0) return set;
+  return def.timeLimitMin ?? null;
+}
+
 /** How each task of an exercise will be judged with these settings (STCW A-I/12, 8.1 and 8.3). */
 export function taskCriteria(def: ArpaExercise, cfg: ScoringConfig): TaskCriterion[] {
-  return def.tasks.map((t) => {
+  const limit = timeLimitMin(def, cfg);
+  const timed: TaskCriterion[] = limit === null ? [] : [{ id: TIME_LIMIT_ID, label: `Finished within the time allowed (${limit} min)`, kind: "outcome", criterion: `Judged at the end: Finish pressed not later than ${limit} minutes of exercise time`, limit: `${limit} min`, points: cfg.points.safety }];
+  return [...def.tasks.map((t): TaskCriterion => {
     const base = { id: t.id, label: t.prompt, kind: t.kind };
     if (t.kind === "number") {
       const lim = `±${t.tol(cfg)}${t.unit === "°" || t.unit === "'" ? "" : " "}${t.unit}`;
@@ -450,7 +542,7 @@ export function taskCriteria(def: ArpaExercise, cfg: ScoringConfig): TaskCriteri
     if (t.kind === "action") return { ...base, criterion: "Done at some time during the exercise", limit: "", points: cfg.points.action };
     const rule = t.rule?.(cfg) ?? t.judge.rule?.(cfg);
     return { ...base, criterion: rule ? `Judged at the end from what happened: ${rule}` : "Judged from what actually happened, at the end", limit: rule ?? "", points: cfg.points.safety };
-  });
+  }), ...timed];
 }
 
 // ---------------------------------------------------------------- reusable outcome judges

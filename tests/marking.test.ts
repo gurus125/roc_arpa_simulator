@@ -7,7 +7,7 @@ const escHtml = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&
 
 describe("marking sheets", () => {
   it("every exercise has a syllabus reference and a sheet listing all of its tasks", () => {
-    expect(SELF_TEST_EXERCISES.length).toBe(26);
+    expect(SELF_TEST_EXERCISES.length).toBe(31);
     for (const ex of SELF_TEST_EXERCISES) {
       expect(syllabusRefs(ex), ex.id).not.toBeNull();
       const html = markingSheetHtml(ex, PLACEHOLDER_SCORING);
@@ -15,9 +15,9 @@ describe("marking sheets", () => {
       expect(html).toContain("DRAFT for the institute to complete");
       expect(html).toContain("not type approved, not for navigation");
       for (const t of ex.tasks) expect(html, `${ex.id} ${t.id}`).toContain(escHtml(t.prompt));
-      // One row per task in the first table, plus the header, total and assessor rows.
+      // One row per task in the first table (and one more for a time limit), plus the header, total and assessor rows.
       const first = html.split("What the assessor judges")[0]!;
-      expect((first.match(/<tr><td>\d+<\/td>/g) ?? []).length).toBe(ex.tasks.length);
+      expect((first.match(/<tr><td>\d+<\/td>/g) ?? []).length).toBe(ex.tasks.length + (ex.timeLimitMin ? 1 : 0));
     }
   });
 
@@ -51,7 +51,7 @@ describe("marking sheets", () => {
 
   it("puts each exercise on its own page and escapes the text", () => {
     const all = markingSheetsHtml(SELF_TEST_EXERCISES, PLACEHOLDER_SCORING);
-    expect((all.match(/<section class="sheet">/g) ?? []).length).toBe(26);
+    expect((all.match(/<section class="sheet">/g) ?? []).length).toBe(31);
     expect(all).toContain("page-break-after:always");
     const odd: ArpaExercise = { ...byId("arpa-1"), title: "A <b> & \"C\"", tasks: [{ id: "q", kind: "choice", prompt: "<script>x</script>", choices: ["a", "b"], correct: () => 0 }] };
     const html = markingSheetHtml(odd, PLACEHOLDER_SCORING);

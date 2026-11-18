@@ -94,7 +94,7 @@ Status words: **Yes** = simulated and tested. **Partly** = simulated with the li
 | 5.29 | CPA/TCPA alarm for tracked and activated AIS targets, same limits; lost alarm, AIS lost alarm can be disabled | Yes | |
 | 5.30 | AIS and radar target association, choice of symbol | Partly | Association by distance and motion (placeholder limits); no alert when they diverge |
 | 5.31 | Trial manoeuvre | Yes | Includes own ship's dynamic characteristics (her turn and change of speed, from her handling model) since 14 Nov 2026; before that own ship turned at once |
-| 5.32 | Maps, navigation lines and routes | Partly | Navigation lines and nav marks placed by clicking, fixed to the ground, saved and loaded by name. No routes |
+| 5.32 | Maps, navigation lines and routes | Partly | Navigation lines and nav marks placed by clicking, fixed to the ground, saved and loaded by name. Since 18 Nov 2026 a route: waypoints placed by clicking (or a search pattern made from a datum), shown with the next waypoint and the cross-track distance; a route is not saved by name |
 | 5.33 | Chart display | No | Optional in the resolution |
 | 5.34 | Picture freeze alert; sensor failure alarms | Yes | Since 16 Nov 2026: a PICTURE FREEZE warning; failure of the gyro, log, position input, azimuth, video, sync and heading marker each alarmed by name, with a fall-back (gyro: unstabilised head-up; radar signals: no radar picture, AIS targets kept, as 9.5 asks). The simulator treats the four radar signals alike |
 | 5.35, 6-9 | Multiple radars, ergonomics, installation, interfaces, back-up | n/a | |

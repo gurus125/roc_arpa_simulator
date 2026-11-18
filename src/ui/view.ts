@@ -1,5 +1,6 @@
 import { G, K, bgOuter, echoColour, landEchoColour, pic, ppiGradient } from "./palette";
-import { fromPolar, normalizeDeg } from "../core/vec";
+import { Vec2, bearingOf, fromPolar, normalizeDeg, sub } from "../core/vec";
+import { tssStrip } from "../core/tss";
 import { rangeBearing } from "../core/nav";
 import { pulseFor, radarPower, warmUpLeftSec, ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead, radarSignalsLostText } from "../engine/index";
 import { AppState, ECHO_LIFETIME_S } from "./app";
@@ -334,6 +335,108 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
       ctx.strokeRect(s.x - 2, s.y - 2, 4, 4);
     });
     ctx.stroke();
+  }
+  // Traffic separation schemes of the scenario (a radar map): the lane limits, the separation zone and the flow.
+  for (const t of gfx ? w.tss : []) {
+    const poly = (pts: Vec2[], fill: string | null, dash: number[]): void => {
+      ctx.beginPath();
+      pts.forEach((q, i) => {
+        const s = px(worldToDisplayNm(w, ds, q));
+        if (i === 0) ctx.moveTo(s.x, s.y);
+        else ctx.lineTo(s.x, s.y);
+      });
+      ctx.closePath();
+      if (fill) {
+        ctx.fillStyle = fill;
+        ctx.fill();
+      }
+      ctx.setLineDash(dash);
+      ctx.stroke();
+    };
+    ctx.strokeStyle = G("#ff9cf0");
+    ctx.lineWidth = 1;
+    const outer = t.zoneHalfWidthNm + t.laneWidthNm;
+    poly(tssStrip(t, -outer, outer), null, [6, 5]);
+    poly(tssStrip(t, -t.zoneHalfWidthNm, t.zoneHalfWidthNm), "rgba(255,156,240,0.13)", []);
+    // Arrows down the middle of each lane, every 3 NM, pointing with the flow.
+    const ab = bearingOf(sub(t.b, t.a));
+    const axisLen = Math.hypot(t.b.e - t.a.e, t.b.n - t.a.n);
+    const at = (off: number, along: number): Vec2 => {
+      const s = tssStrip(t, off, off);
+      const f = axisLen > 0 ? along / axisLen : 0;
+      return { e: s[0]!.e + (s[1]!.e - s[0]!.e) * f, n: s[0]!.n + (s[1]!.n - s[0]!.n) * f };
+    };
+    for (let along = 1.5; along < axisLen; along += 3) for (const [off, brg] of [[t.zoneHalfWidthNm + t.laneWidthNm / 2, ab], [-(t.zoneHalfWidthNm + t.laneWidthNm / 2), ab + 180]] as const) {
+      const c = px(worldToDisplayNm(w, ds, at(off, along)));
+      const d = dirOf(brg - orient);
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(c.x - d.dx * 14, c.y - d.dy * 14);
+      ctx.lineTo(c.x + d.dx * 14, c.y + d.dy * 14);
+      ctx.lineTo(c.x + d.dx * 6 - d.dy * 5, c.y + d.dy * 6 + d.dx * 5);
+      ctx.moveTo(c.x + d.dx * 14, c.y + d.dy * 14);
+      ctx.lineTo(c.x + d.dx * 6 + d.dy * 5, c.y + d.dy * 6 - d.dx * 5);
+      ctx.stroke();
+    }
+  }
+  // The charted coastline over the picture (a radar map), for comparing the echoes with the chart.
+  if (gfx && app.coastOutline) {
+    ctx.strokeStyle = G("#7fe0c8");
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+    for (const c of w.coasts) {
+      ctx.beginPath();
+      c.points.forEach((q, i) => {
+        const s = px(worldToDisplayNm(w, ds, q));
+        if (i === 0) ctx.moveTo(s.x, s.y);
+        else ctx.lineTo(s.x, s.y);
+      });
+      if (c.closed) ctx.closePath();
+      ctx.stroke();
+    }
+  }
+  // Own ship's route: legs dashed, waypoints as numbered circles, the next waypoint bold (IEC 62288 Annex A: waypoint and route).
+  if (gfx && app.route.length > 0) {
+    ctx.strokeStyle = G("#ffa24d");
+    ctx.fillStyle = G("#ffa24d");
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([7, 4]);
+    ctx.beginPath();
+    app.route.forEach((q, i) => {
+      const s = px(worldToDisplayNm(w, ds, q));
+      if (i === 0) ctx.moveTo(s.x, s.y);
+      else ctx.lineTo(s.x, s.y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = "11px monospace";
+    ctx.textAlign = "left";
+    app.route.forEach((q, i) => {
+      const s = px(worldToDisplayNm(w, ds, q));
+      ctx.lineWidth = i === app.routeLeg + 1 ? 2.2 : 1.2;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillText(String(i + 1), s.x + 8, s.y - 6);
+    });
+  }
+  // Man overboard mark: fixed to the ground where the key was pressed.
+  if (app.mob) {
+    const s = px(worldToDisplayNm(w, ds, app.mob.pos));
+    ctx.strokeStyle = G("#ff5a5a");
+    ctx.fillStyle = G("#ff5a5a");
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 7, 0, Math.PI * 2);
+    ctx.moveTo(s.x - 10, s.y);
+    ctx.lineTo(s.x + 10, s.y);
+    ctx.moveTo(s.x, s.y - 10);
+    ctx.lineTo(s.x, s.y + 10);
+    ctx.stroke();
+    ctx.font = "bold 11px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("MOB", s.x + 11, s.y - 8);
   }
   // Instructor only: tracks programmed for the targets, and the track being programmed now.
   if (app.showRoutes || app.routeEdit) {

@@ -1,8 +1,8 @@
-import { CourseSpeed, Vec2, angleDiffDeg, bearingOf, courseSpeedOf, fromPolar, length, sub, velocityOf, minutesToHours } from "../core/vec";
+import { CourseSpeed, Vec2, add, angleDiffDeg, bearingOf, courseSpeedOf, fromPolar, length, sub, velocityOf, minutesToHours } from "../core/vec";
 import { computeCpa } from "../core/cpa";
 import { ASPECT_MIN_SPEED_KN, analysePlot, aspectOf, PlotAnalysis } from "../core/plot";
 import { Answer, AnswerCheck, PLACEHOLDER_TOLERANCES, Tolerances, checkAnswer } from "../core/assess";
-import { combineFixes, fixFromRangeBearing, angleOfCut, setDriftFromFixes } from "../core/nav";
+import { PositionLine, combineFixes, fixFromPositionLines, fixFromRangeBearing, angleOfCut, positionLineDirection, runOn, setDriftFromFixes } from "../core/nav";
 import { SetDrift } from "../core/current";
 import { classifyEncounter, ColregHint } from "../core/colreg";
 import { ChartedObject, RocObservation, RocSession, TruthSnapshot, TargetEncounter } from "./session";
@@ -226,17 +226,38 @@ export function computeFix(obs: RocObservation[], charted: ChartedObject[], grou
     const c = charted.find((x) => x.id === o.objectId)!;
     return { pos: fixFromRangeBearing(c.pos, o.bearing, o.range), time: o.timeSec };
   });
-  const pos = combineFixes(estimates, last.timeSec, cs);
+  let pos = combineFixes(estimates, last.timeSec, cs);
   let cut = 0;
-  for (let i = 0; i < good.length; i++) {
-    for (let j = i + 1; j < good.length; j++) {
-      if (good[i]!.objectId !== good[j]!.objectId) cut = Math.max(cut, angleOfCut(good[i]!.bearing, good[j]!.bearing));
+  if (good.some((o) => o.use === "range" || o.use === "bearing")) {
+    // A fix by position lines: ranges only, bearings only, or a mixture. An earlier line is carried forward
+    // with own ship's run (a running fix); the rough position from the readings picks between two crossings.
+    const lines: PositionLine[] = [];
+    for (const o of good) {
+      const c = charted.find((x) => x.id === o.objectId)!;
+      const object = add(c.pos, runOn({ e: 0, n: 0 }, cs, minutesToHours((last.timeSec - o.timeSec) / 60)));
+      if (o.use !== "bearing") lines.push({ kind: "range", object, value: o.range });
+      if (o.use !== "range") lines.push({ kind: "bearing", object, value: o.bearing });
+    }
+    const fix = fixFromPositionLines(lines, pos);
+    if (!fix) {
+      messages.push({ level: "error", text: "These position lines do not cross: they run the same way. Take a line that crosses them." });
+      return { group, valid: false, messages };
+    }
+    pos = fix;
+    for (let i = 0; i < lines.length; i++) for (let j = i + 1; j < lines.length; j++) cut = Math.max(cut, angleOfCut(positionLineDirection(lines[i]!, pos), positionLineDirection(lines[j]!, pos)));
+    const nr = lines.filter((l) => l.kind === "range").length, nb = lines.length - nr;
+    messages.push({ level: "info", text: `Fix from ${nr} range${nr === 1 ? "" : "s"} and ${nb} bearing${nb === 1 ? "" : "s"} as position lines.` });
+  } else {
+    for (let i = 0; i < good.length; i++) {
+      for (let j = i + 1; j < good.length; j++) {
+        if (good[i]!.objectId !== good[j]!.objectId) cut = Math.max(cut, angleOfCut(good[i]!.bearing, good[j]!.bearing));
+      }
     }
   }
   const errorNm = length(sub(pos, last.truth.ownPos));
   const ok = errorNm <= ROC_PLACEHOLDERS.fixErrorNm;
   if (cut < ROC_PLACEHOLDERS.minAngleOfCut) {
-    messages.push({ level: "warn", text: `Poor angle of cut (${cut.toFixed(0)}°). Choose objects whose bearings differ more.` });
+    messages.push({ level: "warn", text: `Poor angle of cut (${cut.toFixed(0)}°). Choose position lines that cross more nearly at right angles.` });
   }
   const names = [...distinct].map((id) => charted.find((c) => c.id === id)!.name);
   return { group, valid: true, messages, pos, time: last.timeSec, objects: names, errorNm, cutAngle: cut, ok };

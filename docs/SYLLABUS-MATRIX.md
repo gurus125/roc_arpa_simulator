@@ -204,11 +204,13 @@ samples: the institute decides whether to use them. The simulator does not apply
    DGS 5/2004).
 4. **False echoes, sea return and shadow sectors** are simulated but not marked (A-II/1; MC 1.07 1.6;
    Appendix 6 item 32).
-5. **Safe speed** (MC 1.07 7.2) is not marked.
+5. ~~**Safe speed** (MC 1.07 7.2) is not marked.~~ Marked since 18 Nov 2026 in exercise 30 (three questions on
+   rules 6 and 19, and the speed brought down after the visibility closes; the figures are placeholders).
 6. **Manual plotting**: aspect is not asked; no exercise has a target that alters; no true plot
    (MC 1.07 4.2; Appendix 6 tasks 1, 2 and 5).
 7. **PPC and PAD graphics** are built but not marked (DGS 5/2004).
-8. **Display functions not built**: routes on the radar; manual set and drift input; chart overlay
-   (MC 1.07 3.4, 3.5; Appendix 6 items 15, 29, 31).
+8. **Display functions not built**: manual set and drift input; chart overlay (MC 1.07 3.4, 3.5; Appendix 6
+   items 15, 29, 31). Routes on the radar: BUILT 18 Nov 2026 (exercise 27), with search patterns and a
+   charted coastline that can be drawn over the picture (a coastline, not a chart).
 9. **Outside the simulator**: the theory test, the oral, shipboard installation topics, the radar log
    book, communications and sound signals. These stay with the assessor.

@@ -1,4 +1,5 @@
 import { ArpaExercise, ScoringConfig, TaskCriterion, taskCriteria } from "./session";
+import type { SessionRecord } from "./record";
 
 /**
  * Printable marking sheets, one page per exercise, for the institute to complete. Each sheet lists
@@ -35,6 +36,11 @@ export const SYLLABUS_REFS: Record<string, SyllabusRefs> = {
   "radar-24": { stcw: "Radar: parallel indexing; ARPA: operational warnings", mc107: "3.3, 3-2, 3.4", dgs: "Demonstration: parallel indexing" },
   "radar-25": { stcw: "Radar: performance factors; collision regulations", mc107: "1.5, 6.3, 7.1, 7.4, 7-1", dgs: "Collision regulations" },
   "radar-26": { stcw: "ARPA: vectors; interpretation; Radar: collision regulations", mc107: "6.3, 6.4, 7.4", dgs: "Stabilisation modes; errors of interpretation" },
+  "radar-27": { stcw: "Radar: position; keeping a planned track", mc107: "3.3, 3.4", dgs: "Demonstration: plotting own ship's position" },
+  "radar-28": { stcw: "Radar: collision regulations", mc107: "7.1, 7.4", dgs: "Collision regulations" },
+  "radar-29": { stcw: "Radar: position; search and rescue", mc107: "3.2", dgs: "-" },
+  "radar-30": { stcw: "Radar: performance factors; collision regulations", mc107: "1.5, 7.2", dgs: "Collision regulations" },
+  "arpa-31": { stcw: "ARPA: acquisition; performance and processing delays", mc107: "5.5, 6.1, 6.3", dgs: "Operating ARPA; target information" },
 };
 const PLOTTING_REFS: SyllabusRefs = { stcw: "Radar: plotting; CPA and TCPA; collision regulations", mc107: "4.1-4.5, 7.4", dgs: "Manual plotting test" };
 
@@ -126,4 +132,82 @@ th{background:#eee;font-size:10px}.num{text-align:right}.kind{color:#555;font-si
 </style></head><body>
 ${exs.map((e) => sheet(e, cfg)).join("\n")}
 </body></html>`;
+}
+
+// ---------------------------------------------------------------- examinations
+
+/**
+ * A practical examination is a set of exercises worked one after the other on one display. The two sets below
+ * are a PROPOSAL for the institute to change (instructor station, EXERCISES, Examinations): no syllabus or
+ * circular read for this project lists the parts of the ROC or the ARPA practical examination.
+ */
+export const DEFAULT_EXAMS: Record<"roc" | "arpa", { name: string; parts: string[] }> = {
+  roc: { name: "ROC practical examination", parts: ["radar-22", "plot-02", "plot-04", "roc-fix", "radar-10"] },
+  arpa: { name: "ARPA practical examination", parts: ["arpa-1", "arpa-5", "arpa-6", "arpa-8", "arpa-31"] },
+};
+
+const escE = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+
+export interface ExamTotal {
+  /** Parts that were finished, of the parts the examination has. */
+  done: number;
+  of: number;
+  /** Points over the parts that are marked with points (the ROC exercises give a report instead). */
+  score: number;
+  max: number;
+  percent: number | null;
+  /** Null when no pass mark is set, or when a part is missing. */
+  passed: boolean | null;
+}
+
+/** The latest record of each part of one examination, in part order. */
+export function examParts(records: SessionRecord[], examId: string): SessionRecord[] {
+  const byPart = new Map<number, SessionRecord>();
+  for (const r of records) {
+    if (r.exam?.id !== examId) continue;
+    const cur = byPart.get(r.exam.part);
+    if (!cur || r.startedIso >= cur.startedIso) byPart.set(r.exam.part, r);
+  }
+  return [...byPart.values()].sort((a, b) => a.exam!.part - b.exam!.part);
+}
+
+/** Points over all the marked parts of an examination. A pass needs every part finished and the pass mark reached over all of them. */
+export function examTotal(parts: SessionRecord[], cfg: ScoringConfig): ExamTotal {
+  const of = parts[0]?.exam?.of ?? 0;
+  const marked = parts.filter((r) => r.result);
+  const score = marked.reduce((s, r) => s + r.result!.score, 0);
+  const max = marked.reduce((s, r) => s + r.result!.max, 0);
+  const percent = max > 0 ? (100 * score) / max : null;
+  const complete = parts.length === of && of > 0;
+  return { done: parts.length, of, score, max, percent, passed: cfg.passPercent === null || percent === null || !complete ? null : percent >= cfg.passPercent };
+}
+
+/** One printable page per examination found in the records: its parts, the points, and room for the assessor's decision. */
+export function examSheetsHtml(records: SessionRecord[], cfg: ScoringConfig): string {
+  const ids = [...new Set(records.filter((r) => r.exam).map((r) => r.exam!.id))];
+  const sheets = ids.map((id) => {
+    const parts = examParts(records, id);
+    const first = parts[0]!;
+    const t = examTotal(parts, cfg);
+    const rows = Array.from({ length: t.of }, (_, i) => {
+      const r = parts.find((p) => p.exam!.part === i + 1);
+      if (!r) return `<tr><td>${i + 1}</td><td colspan="4">not done</td></tr>`;
+      const res = r.result;
+      return `<tr><td>${i + 1}</td><td>${escE(r.title)}</td><td class="num">${(r.simSeconds / 60).toFixed(0)} min</td>` +
+        (res ? `<td class="num">${res.score} / ${res.max}</td><td class="num">${Math.round(res.percent)}%</td>` : `<td colspan="2">${r.summary.map(escE).join("<br>") || "report only"}</td>`) + `</tr>`;
+    }).join("");
+    return `<section class="sheet"><h1>${escE(first.exam!.name)}</h1>
+<p class="draft">DRAFT: the parts of this examination, the tolerances and the points are placeholders set at the instructor station, not an approved examination. Training simulator, not type approved, not for navigation.</p>
+<table class="who"><tr><td>Candidate(s)</td><td>${escE(first.students.join(", ") || "-")}</td><td>Batch</td><td>${escE(first.batch || "-")}</td><td>Date</td><td>${escE(first.startedIso.slice(0, 10))}</td></tr></table>
+<h2>Parts</h2><table><tr><th></th><th>Exercise</th><th>Time</th><th>Points</th><th>Per cent</th></tr>${rows}
+<tr><th></th><th>Total of the marked parts (${t.done} of ${t.of} parts done)</th><th></th><th class="num">${t.score} / ${t.max}</th><th class="num">${t.percent === null ? "-" : `${Math.round(t.percent)}%`}</th></tr></table>
+<p>Pass mark: ${cfg.passPercent === null ? "none set (the simulator shows no pass or fail)" : `${cfg.passPercent}%: ${t.passed === null ? "not all parts done" : t.passed ? "reached" : "not reached"}`}. The score is a guide only: the assessor's decision is the prime criterion (STCW Code A-I/12, paragraph 8).</p>
+<h2>Assessor</h2><table class="who"><tr><td>Decision</td><td><span class="box"></span> Competent &nbsp; <span class="box"></span> Not yet competent</td><td>Name</td><td></td><td>Signature</td><td></td></tr><tr><td>Remarks</td><td colspan="5" style="height:60px"></td></tr></table></section>`;
+  }).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Examination results</title>
+<style>@page{size:A4;margin:12mm}body{font:12px/1.35 system-ui,sans-serif;color:#111;margin:0}.sheet{page-break-after:always;break-after:page}.sheet:last-child{page-break-after:auto;break-after:auto}
+h1{font-size:16px;margin:0 0 4px}h2{font-size:13px;margin:10px 0 3px}.draft{border:1px solid #b3261e;color:#b3261e;padding:3px 6px;font-size:11px}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #888;padding:2px 5px;vertical-align:top;text-align:left}th{background:#eee}.num{text-align:right}
+.who td:nth-child(odd){background:#f4f4f4;width:12%}.box{display:inline-block;width:11px;height:11px;border:1px solid #333;vertical-align:middle}</style></head><body>
+${sheets || "<p>No examination has been taken yet.</p>"}</body></html>`;
 }

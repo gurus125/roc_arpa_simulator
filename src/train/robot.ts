@@ -6,6 +6,9 @@ import { ARPA_EXERCISES } from "./arpa-exercises";
 import { PLOTTING_EXERCISES } from "./plotting-exercises";
 import { GOA_ANCHOR, GOA_PI_NM } from "./port-exercises";
 import { RADAR_EXERCISES } from "./radar-exercises";
+import { MOB_AT_SEC, FOG_AT_SEC, ROUTE_27 } from "./nav-exercises";
+import { advanceLeg } from "../core/route";
+import { crossTrackError } from "../core/nav";
 import { ArpaExSession, ArpaExercise, ExerciseResult } from "./session";
 
 /**
@@ -46,7 +49,7 @@ interface Kit {
   acquire: (targetId: number) => void;
   trackOf: (targetId: number) => number | null;
   /** Parallel index lines and navigation lines "set on the screen". */
-  ui: { pi: { on: boolean; bearing: number; range: number }[]; navLines: number; pmOn?: boolean };
+  ui: { pi: { on: boolean; bearing: number; range: number }[]; navLines: number; pmOn?: boolean; mobAt?: number | null; routePoints?: number };
 }
 interface Plan {
   steps: { at: number; run: (k: Kit) => void }[];
@@ -138,6 +141,47 @@ const PLANS: Record<string, Plan> = {
     ],
     finishAt: RADAR_WARM_UP_SEC + 90,
   },
+  "radar-27": {
+    // Steer the course that makes good the leg, corrected for the distance off it; turn onto the next leg a little early.
+    steps: [],
+    every: (k) => {
+      // The wheel goes over before the waypoint: the leg to steer for changes 0.5 NM times tan(turn / 2) early.
+      const leg = advanceLeg(ROUTE_27, k.w.own.pos, 0, 0.5);
+      const track = bearingOf(sub(ROUTE_27[leg + 1]!, ROUTE_27[leg]!));
+      const xtd = crossTrackError(k.w.own.pos, ROUTE_27[leg]!, ROUTE_27[leg + 1]!);
+      const cts = courseToSteer(track, Math.max(1, k.w.own.speedThroughWater), k.w.env.current)?.heading ?? track;
+      k.w.own.ordered.course = normalizeDeg(cts - Math.max(-25, Math.min(25, xtd * 150)));
+    },
+    finishAt: 3600,
+    done: (k) => k.s.obs.trackDone,
+  },
+  "radar-28": {
+    // Give way to the crossing ferry by slowing down in good time, then go on; stay in the lane.
+    steps: [all, { at: 200, run: (k) => void (k.w.own.ordered.speed = 5) }, { at: 900, run: (k) => void (k.w.own.ordered.speed = 12) }],
+    finishAt: 1800,
+  },
+  "radar-29": {
+    // MOB key at the report; back to the person, slowing down; a search pattern laid from the mark.
+    steps: [{ at: MOB_AT_SEC + 5, run: (k) => {
+      k.ui.mobAt = k.w.time;
+      k.ui.routePoints = 11;
+    } }],
+    every: (k) => {
+      const t = k.w.targets.find((x) => x.id === 9);
+      if (!t) return;
+      const rel = sub(t.pos, k.w.own.pos);
+      k.w.own.ordered.course = bearingOf(rel);
+      k.w.own.ordered.speed = length(rel) < 0.06 ? 0 : 4;
+    },
+    finishAt: 3000,
+    done: (k) => (k.s.obs.returnRange[9] ?? Infinity) <= 0.05,
+  },
+  "radar-30": {
+    steps: [{ at: FOG_AT_SEC + 10, run: (k) => void (k.w.own.ordered.speed = 5) }],
+    finishAt: 4200,
+    done: (k) => k.w.own.pos.n > 7.5,
+  },
+  "arpa-31": { steps: [all], finishAt: 420 },
   "radar-11": {
     // Home on the survival craft (the first dot), slowing down in good time.
     steps: [],

@@ -3,13 +3,13 @@ import { StationUi, initStationUi } from "./station-ui";
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
 import { aisFilterLabel } from "../ais/index";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
-import { BAND_DATA, currentVelocity, pulseFor, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN } from "../engine/index";
+import { BAND_DATA, currentVelocity, pulseFor, prfChoices, addTypedTarget, addRandomTraffic, RANDOM_TRAFFIC_DEFAULT, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
 import { ARPA_EXERCISES, PLOTTING_EXERCISES, PLOT_RULES, RADAR_EXERCISES, ArpaExSession, ArpaExercise, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
 import { initTrainUi } from "./train-ui";
 import { initInstructorUi } from "./instructor-ui";
 import { FAULT_IDS, Link } from "./link";
-import { byId, esc } from "./dom";
+import { byId, esc, mmss } from "./dom";
 import { ConsoleUi, initConsoleUi, radarKeyLabel } from "./console-ui";
 import { AppState, advance, createApp, resetCourseUp, resetTrueMotion, setDisplayMode, setRange } from "./app";
 import { initRocUi } from "./roc-ui";
@@ -19,7 +19,9 @@ import { setDisplayPalette } from "./palette";
 import { soundWhistle } from "./whistle";
 import { FOG_SIGNAL_INTERVAL_S, SignalId, WHISTLE_SIGNALS, fogSignalFor, whistleFrequencyHz, whistleSignal } from "../core/signals";
 import { formatLatLon, latLonOf } from "../core/nav";
-import { MAX_ROUTE_WAYPOINTS } from "../core/route";
+import { MAX_ROUTE_WAYPOINTS, monitorRoute } from "../core/route";
+import { expandingSquare, sectorSearch } from "../core/search";
+import { outlineSheetHtml } from "./outline-sheet";
 import { PanelUi, initPanel } from "./panel";
 import { savePictures } from "./picture-store";
 import { MAX_PICTURES, PICTURE_INTERVAL_SEC, PICTURE_QUALITY, PICTURE_SIZE_PX } from "../train/index";
@@ -72,14 +74,36 @@ function startRecorder(id: string, title: string, kind: "arpa" | "roc"): void {
   app.nextPictureAt = 0;
   app.recorder = new Recorder({ exerciseId: id, title, kind, students: [...session.students], batch: batchName() }, app.world, new Date().toISOString());
 }
+/** The practical examination being taken on this display: its parts (exercise ids) and the one being worked. */
+let exam: { id: string; name: string; parts: string[]; index: number; recorded: Set<string>; nextReady: boolean } | null = null;
+function startExamPart(): void {
+  if (!exam) return;
+  exam.nextReady = false;
+  setCheck("names", false); // no study aid in an examination
+  startExerciseById(exam.parts[exam.index]!);
+  banner(`${exam.name}: part ${exam.index + 1} of ${exam.parts.length}. Read the briefing, then press RUN. Press Finish when the part is done.`);
+}
 function saveRecord(a: AppState): void {
   if (!a.recorder) return;
   a.recorder.sample(a.world, a.roc ? null : a.arpa);
+  if (exam && !a.recorder.rec.exam && a.recorder.rec.exerciseId === exam.parts[exam.index]) a.recorder.rec.exam = { id: exam.id, name: exam.name, part: exam.index + 1, of: exam.parts.length };
   if (!store.addRecord(a.recorder.rec)) banner("The record could not be saved: the browser's storage is full or blocked. Download it from the result instead.");
   // A display sends the record to the instructor station too (it keeps its own copy).
   if (!STATION) link.sendRecord(a.recorder.rec);
   void savePictures(a.recorder.rec.id, a.pictures, store.data.records.map((r) => r.id));
   instrUi.refresh();
+  // An examination moves on once the part being worked has been recorded (a record is saved again when the debrief is saved).
+  if (exam && a.recorder.rec.exam?.id === exam.id && a.recorder.rec.exam.part === exam.index + 1 && !exam.recorded.has(a.recorder.rec.id)) {
+    exam.recorded.add(a.recorder.rec.id);
+    if (exam.index + 1 < exam.parts.length) {
+      exam.index++;
+      exam.nextReady = true;
+      banner(`${exam.name}: part ${exam.index} of ${exam.parts.length} finished. Click this message to start part ${exam.index + 1}.`);
+    } else {
+      banner(`${exam.name}: all ${exam.parts.length} parts finished. The results are with the assessor.`);
+      exam = null;
+    }
+  }
 }
 
 const rocUi = initRocUi({
@@ -302,6 +326,16 @@ function applyControls(): void {
   w.env.refraction = sel("refr") as NonNullable<typeof w.env.refraction>;
   w.env.interference = chk("interf");
   c.pulse = sel("pulse") as NonNullable<typeof c.pulse>;
+  {
+    // The PRF by hand: only the rates the pulse length in use allows.
+    const allowed = prfChoices(pulseFor(c.rangeNm, c.pulse).name);
+    const ps = byId<HTMLSelectElement>("prf");
+    if (ps) {
+      for (const o of ps.options) o.disabled = o.value !== "" && !allowed.includes(Number(o.value));
+      if (ps.value !== "" && !allowed.includes(Number(ps.value))) ps.value = "";
+      c.prfHz = ps.value === "" ? null : Number(ps.value);
+    }
+  }
   c.echoStretch = chk("echoStretch");
   c.echoAverage = chk("echoAvg");
   c.interferenceRejection = chk("irOn");
@@ -356,7 +390,7 @@ function applyControls(): void {
   for (const b of document.querySelectorAll<HTMLElement>("#bandKeys button")) b.classList.toggle("on", b.dataset["b"] === w.radar.band);
   {
     const bd = BAND_DATA[w.radar.band];
-    const pl = pulseFor(c.rangeNm, c.pulse);
+    const pl = pulseFor(c.rangeNm, c.pulse, c.prfHz);
     setText("bandInfo", `${bd.name}: ${bd.frequencyGHz} GHz, ${bd.wavelengthCm} cm, beam ${bd.beamwidthDeg}°. ${pl.name} pulse ${pl.microseconds} µs, PRF ${pl.prfHz}/s: range discrimination ${Math.round(pl.rangeDiscriminationNm * 1852)} m, minimum range ${Math.round(pl.minRangeNm * 1852)} m.`);
   }
   app.ebl = { on: chk("eblOn"), bearing: num("eblBrg") };
@@ -366,6 +400,7 @@ function applyControls(): void {
   app.showShadow = chk("shadow");
   app.showNames = chk("names");
   app.sternLine = chk("sternLine");
+  app.coastOutline = chk("coastOutline");
   app.antennaMark = chk("antMark");
   setText("gainV", String(c.gain));
   setText("tuningV", String(c.tuning));
@@ -433,6 +468,7 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
   const keepRoutes = app.showRoutes && session.role === "instructor";
   app = createApp(sc);
   app.showRoutes = keepRoutes;
+  if (opts.arpa?.route) app.route = opts.arpa.route.map((p) => ({ ...p }));
   const a = app;
   // Exercises that state own ship's rates use the exercise ship; anything else goes back to a ship model.
   if (opts.arpa?.ownRates) setSelect("shipType", "simple");
@@ -461,6 +497,7 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
   setSelect("refr", sc.env.refraction ?? "standard");
   setCheck("interf", sc.env.interference ?? false);
   setSelect("pulse", "auto");
+  setSelect("prf", "");
   for (const id of ["echoStretch", "echoAvg", "irOn", "pmOn"]) setCheck(id, false);
   setCheck("eblOn", false);
   setCheck("vrmOn", false);
@@ -534,6 +571,7 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
       setCheck("echoAvg", !!c.echoAverage);
       setCheck("irOn", !!c.interferenceRejection);
       setSelect("pulse", c.pulse ?? "auto");
+      setSelect("prf", c.prfHz ? String(c.prfHz) : "");
       setCheck("pmOn", false);
       applyControls();
       app.radarStandby = true;
@@ -606,7 +644,7 @@ function setup(): void {
   // Two stored sets of user settings (IEC 62388 13.5.1), each recalled after a confirmation.
   const USER_SETTING_IDS = [
     "band", "range", "orient", "motion", "stab", "trails", "trailMin", "arpaVec", "arpaVecT", "arpaGraphics", "pastMode", "pastPts", "pastInt",
-    "gain", "stc", "ftc", "tuning", "brill", "autoSea", "autoRain", "autoTune", "pulse", "echoStretch", "echoAvg", "irOn",
+    "gain", "stc", "ftc", "tuning", "brill", "autoSea", "autoRain", "autoTune", "pulse", "prf", "echoStretch", "echoAvg", "irOn",
     "arpaCpaLim", "arpaTcpaLim", "arpaVecSup", "arpaLostWarn", "aisOn", "aisLost", "aisFilter", "aisFiltCpa", "aisFiltTcpa", "aisFiltSog", "aisFiltCls", "aisAutoAct",
   ];
   const showUserSettings = (): void => {
@@ -693,7 +731,14 @@ function setup(): void {
     // The instructor station takes no orders; it only hears the radio.
     if (STATION && c.cmd !== "radio") return;
     if (c.cmd === "startExercise") {
+      exam = null;
       startExerciseById(c.id);
+      return;
+    }
+    if (c.cmd === "startExam") {
+      if (c.parts.length === 0) return;
+      exam = { id: c.examId, name: c.name, parts: [...c.parts], index: 0, recorded: new Set(), nextReady: false };
+      startExamPart();
       return;
     }
     if (c.cmd === "faults") {
@@ -730,17 +775,47 @@ function setup(): void {
       setCheck("rain", c.rain);
       setCheck("duct", c.ducting);
       setCheck("interf", c.interference);
+      if (c.rainPct !== undefined) setSlider("rainInt", c.rainPct);
+      for (const [id, v] of [["windFrom", c.windFrom], ["windSpd", c.windKn], ["curSet", c.curSet], ["curDrift", c.curDrift]] as const) {
+        const el = byId<HTMLInputElement>(id);
+        if (el && v !== undefined && Number.isFinite(v)) el.value = String(v);
+      }
       applyControls();
       placeRainSquall();
+    }
+    if (c.cmd === "addTarget") {
+      const t = addTypedTarget(app.world, c);
+      app.recorder?.note(app.world, `INSTRUCTOR (remote): ${t.name} added at ${pad3(c.bearing)}° ${c.rangeNm.toFixed(1)} NM, course ${pad3(t.course)}° ${t.speed} kn.`, true);
+      return;
+    }
+    if (c.cmd === "removeTarget") {
+      const t = app.world.targets.find((x) => x.id === c.id);
+      if (t) {
+        app.world.targets = app.world.targets.filter((x) => x !== t);
+        app.recorder?.note(app.world, `INSTRUCTOR (remote): ${t.name} removed.`, true);
+      }
+      return;
+    }
+    if (c.cmd === "traffic") {
+      const n = addRandomTraffic(app.world, { ...RANDOM_TRAFFIC_DEFAULT, count: c.count, minNm: c.minNm, maxNm: c.maxNm, threats: c.threats }, c.seed, c.replace);
+      app.recorder?.note(app.world, `INSTRUCTOR (remote): random traffic, ${n} ships (seed ${c.seed}, ${c.threats} on close-quarters courses)${c.replace ? ", in place of the ships there" : ""}.`, true);
+      return;
     }
     if (c.cmd === "fault") app.world.sensors.target = { gyroErrorDeg: c.gyroDeg, logErrorKn: c.logKn };
     if (c.cmd === "target") {
       const t = app.world.targets.find((x) => x.id === c.id);
-      if (t) orderTarget(t, { ...(c.course !== undefined ? { course: c.course } : {}), ...(c.speed !== undefined ? { speed: c.speed } : {}) });
+      if (t) {
+        orderTarget(t, { ...(c.course !== undefined ? { course: c.course } : {}), ...(c.speed !== undefined ? { speed: c.speed } : {}) });
+        app.recorder?.note(app.world, `INSTRUCTOR (remote): ${t.name} ordered to ${c.course !== undefined ? `${pad3(c.course)}°` : "same course"} ${c.speed !== undefined ? `${c.speed} kn` : "same speed"}.`, true);
+      }
+      return;
     }
     if (c.cmd !== "message") app.recorder?.note(app.world, `INSTRUCTOR (remote): ${c.cmd}.`, true);
   };
-  $("banner").addEventListener("click", () => banner(""));
+  $("banner").addEventListener("click", () => {
+    if (exam?.nextReady) startExamPart();
+    else banner("");
+  });
   // Communications: typed radio messages to every station; the instructor can speak as any vessel.
   const sendComm = (): void => {
     const text = ($("commText") as HTMLInputElement).value.trim();
@@ -1029,6 +1104,48 @@ function setup(): void {
     }
     showMeasureState();
   });
+  $("rtDraw").addEventListener("click", () => {
+    pickMode = pickMode === "route" ? null : "route";
+    showMeasureState();
+  });
+  $("rtUndo").addEventListener("click", () => {
+    app.route.pop();
+    app.routeLeg = Math.min(app.routeLeg, Math.max(0, app.route.length - 2));
+  });
+  $("rtClear").addEventListener("click", () => {
+    app.route = [];
+    app.routeLeg = 0;
+    if (pickMode === "route") pickMode = null;
+    showMeasureState();
+  });
+  $("spMake").addEventListener("click", () => {
+    const datum = sel("spDatum") === "mob" && app.mob ? app.mob.pos : app.world.own.pos;
+    const size = Math.min(10, Math.max(0.1, num("spSize") || 0.5));
+    const course = normalizeDeg(num("spCourse") || 0);
+    app.route = sel("spKind") === "sector" ? sectorSearch(datum, course, size) : expandingSquare(datum, course, size, 10);
+    app.routeLeg = 0;
+    if (pickMode === "route") pickMode = null;
+    app.recorder?.note(app.world, `Search pattern put on the radar: ${sel("spKind") === "sector" ? "sector search, radius" : "expanding square, spacing"} ${size} NM, first course ${Math.round(course)}°.`, false);
+    showMeasureState();
+  });
+  $("mobKey").addEventListener("click", () => {
+    if (app.world.sensors.gnssFailed) {
+      banner("MOB: no position from the EPFS, so no mark can be placed. Note the time, heading and speed.");
+      return;
+    }
+    app.mob = { pos: { ...app.world.own.pos }, time: app.world.time };
+    setSelect("spDatum", "mob");
+    app.recorder?.note(app.world, "MOB key pressed.", false);
+  });
+  $("outlineSheet").addEventListener("click", () => {
+    const win = window.open("", "_blank");
+    if (!win) {
+      banner("The browser did not open the outline sheet. Allow pop-up windows for this page and press the key again.");
+      return;
+    }
+    win.document.write(outlineSheetHtml(app.world, app.scenario.name));
+    win.document.close();
+  });
   $("navMark").addEventListener("click", () => {
     pickMode = pickMode === "navMark" ? null : "navMark";
     showMeasureState();
@@ -1061,7 +1178,7 @@ function setup(): void {
   });
 
   const ids = [
-    "shipType", "helm", "windFrom", "windSpd", "autoSea", "autoRain", "autoTune", "gain", "tuning", "stc", "ftc", "brill", "sea", "duct", "refr", "interf", "pulse", "echoStretch", "echoAvg", "irOn", "pmOn", "curSet", "curDrift", "tideRate", "tideSet", "tideHrs", "ordCourse", "ordSpeed",
+    "shipType", "helm", "windFrom", "windSpd", "autoSea", "autoRain", "autoTune", "gain", "tuning", "stc", "ftc", "brill", "sea", "duct", "refr", "interf", "pulse", "prf", "echoStretch", "echoAvg", "irOn", "pmOn", "curSet", "curDrift", "tideRate", "tideSet", "tideHrs", "ordCourse", "ordSpeed",
     "eblOn", "eblBrg", "vrmOn", "vrmRng", "trails", "trailMin", "shadow", "names", "rainInt",
   ];
   for (const id of ids) {
@@ -1125,6 +1242,10 @@ function setup(): void {
       app.navLines[app.navLines.length - 1]?.push(wp);
       return;
     }
+    if (pickMode === "route") {
+      if (app.route.length < MAX_ROUTE_WAYPOINTS) app.route.push(wp);
+      return;
+    }
     if (pickMode === "navMark") {
       app.navMarks.push(wp);
       return;
@@ -1172,7 +1293,7 @@ function setup(): void {
   setTab("radar");
 }
 
-let pickMode: "eblOrigin" | "offCentre" | "navLine" | "navMark" | null = null;
+let pickMode: "eblOrigin" | "offCentre" | "navLine" | "navMark" | "route" | null = null;
 let eblFree = false;
 let vrmFree = false;
 let ebl2Free = false;
@@ -1186,6 +1307,7 @@ function showMeasureState(): void {
   setText("mvState", `EBL: ${st(app.ebl.on || chkId("eblOn"), eblFree)}   VRM: ${st(app.vrm.on || chkId("vrmOn"), vrmFree)}${pickMode === "eblOrigin" ? "   CLICK THE NEW EBL ORIGIN" : pickMode === "offCentre" ? "   CLICK WHERE OWN SHIP SHOULD BE" : pickMode === "navLine" ? "   CLICK THE POINTS OF THE NAV LINE" : pickMode === "navMark" ? "   CLICK WHERE EACH NAV MARK GOES" : ""}`);
   setText("navMark", pickMode === "navMark" ? "Nav mark: done" : "Nav mark: place");
   setText("navDraw", pickMode === "navLine" ? "Nav lines: end this line" : "Nav lines: draw");
+  setText("rtDraw", pickMode === "route" ? "Route: done" : "Route: add waypoints");
   setText("eblOrg", app.eblOrigin ? "EBL origin: fixed point (press for own ship)" : "EBL origin: own ship");
 }
 function chkId(id: string): boolean {
@@ -1216,6 +1338,12 @@ function updateReadouts(): void {
     const swy = app.world.own.seaway;
     const side = (x: number, pos: string, neg: string): string => `${Math.abs(x).toFixed(0)}° ${Math.abs(x) < 0.5 ? "" : x > 0 ? pos : neg}`.trim();
     setText("anchorKey", app.world.own.anchor ? "WEIGH ANCHOR" : "LET GO ANCHOR");
+    $("mobKey").classList.toggle("on", !!app.mob);
+    setText("mobNow", app.mob ? `marked at ${mmss(app.mob.time)}` : "");
+    {
+      const m = app.route.length >= 2 ? monitorRoute(app.route, app.world.own.pos, app.routeLeg, 0, 0) : null;
+      setText("rtInfo", m ? `Route of ${app.route.length} waypoints. Next: waypoint ${m.leg + 2}, ${pad3(m.bearingToWp)}° ${m.distanceToWp.toFixed(2)} NM. XTD ${Math.abs(m.xtd).toFixed(2)} NM${Math.abs(m.xtd) < 0.005 ? "" : m.xtd > 0 ? " S" : " P"}. To go ${m.distanceToGo.toFixed(1)} NM.` : app.route.length === 1 ? "Route: one waypoint so far." : "");
+    }
     $("anchorKey").classList.toggle("on", !!app.world.own.anchor);
     setText("shipNow", mo ? `HDG ${pad3(measuredHeading(app.world))}   RUDDER ${sd(mo.rudder, "°")}   ROT ${sd(mo.r * 60, "°/min")}   STW ${mo.u.toFixed(1)} kn${swy ? `   ROLL ${side(swy.rollDeg, "S", "P")}   PITCH ${side(swy.pitchDeg, "bow down", "bow up")}` : ""}` : "");
   }
@@ -1283,7 +1411,7 @@ function heartbeat(): void {
       const g = ownCogSog(w);
       return { e: +w.own.pos.e.toFixed(4), n: +w.own.pos.n.toFixed(4), cog: +g.course.toFixed(1), sog: +g.speed.toFixed(2) };
     })(),
-    tg: w.targets.map((t) => ({ e: +(t.pos.e - w.own.pos.e).toFixed(2), n: +(t.pos.n - w.own.pos.n).toFixed(2), name: t.name })),
+    tg: w.targets.map((t) => ({ e: +(t.pos.e - w.own.pos.e).toFixed(2), n: +(t.pos.n - w.own.pos.n).toFixed(2), name: t.name, id: t.id })),
     at: Date.now(),
   });
   if (chk("jointOn")) {
@@ -1338,6 +1466,11 @@ function step(now: number): void {
   last = now;
   lastStepAt = now;
   advance(app, dt);
+  {
+    // What the exercise's script tells the trainee (a report from the look-out, for example).
+    const s = app.arpaEx;
+    if (s && s.noticesShown < s.notices.length) banner(s.notices[s.noticesShown++]!);
+  }
   drawPpi(ctx, cssSize, app);
   takePicture();
   rocUi.frame(app);
@@ -1387,6 +1520,18 @@ window.addEventListener("beforeunload", () => store.save());
 // Hook for the screen test (scripts/screen-test.mjs): where the first target's echo is on the picture, CSS pixels.
 (window as unknown as { __simTest: unknown }).__simTest = {
   targetCount: (): number => app.world.targets.length,
+  /** Start an exercise by its id, as the instructor station would. */
+  startExercise: (id: string): void => startExerciseById(id),
+  /** The targets now: id, name, course and speed ordered. */
+  targets: (): { id: number; name: string; course: number; speed: number }[] => app.world.targets.map((t) => ({ id: t.id, name: t.name, course: Math.round(t.motion?.orderedCourse ?? t.course), speed: t.motion?.orderedSpeed ?? t.speed })),
+  /** Own ship's route on the radar (number of waypoints), the MOB mark, and the lanes drawn. */
+  routePoints: (): number => app.route.length,
+  mobMarked: (): boolean => !!app.mob,
+  tssCount: (): number => app.world.tss.length,
+  /** The examination being taken: the part being worked (from 1) and how many there are. */
+  exam: (): { part: number; of: number; nextReady: boolean } | null => (exam ? { part: exam.index + 1, of: exam.parts.length, nextReady: exam.nextReady } : null),
+  weather: (): { sea: number; wind: number; drift: number } => ({ sea: app.world.env.seaState, wind: app.world.env.wind?.speedKn ?? 0, drift: app.world.env.current?.drift ?? 0 }),
+  prf: (): number => pulseFor(app.world.radar.controls.rangeNm, app.world.radar.controls.pulse, app.world.radar.controls.prfHz).prfHz,
   refraction: (): string => app.world.env.refraction ?? "standard",
   vectorSuppress: (): boolean => app.arpa.settings.vectorSuppress,
   aisFilter: (): number | null => app.ais.settings.sleepFilter.rangeNm,

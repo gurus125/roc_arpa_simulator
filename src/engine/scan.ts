@@ -321,7 +321,7 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
     // painted at its range minus that distance, on the right bearing. Changing the pulse length
     // (and with it the PRF) moves or removes it; a real echo stays where it is.
     {
-      const ru = unambiguousRangeNm(pulseFor(c.rangeNm, c.pulse).prfHz);
+      const ru = unambiguousRangeNm(pulseFor(c.rangeNm, c.pulse, c.prfHz).prfHz);
       if (w.env.ducting && range > ru && range - ru <= c.rangeNm) {
         const tb2 = bearingOfVec(v);
         const rel2 = relativeBearing(tb2, heading);
@@ -388,7 +388,7 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
     // Multiple echoes: a strong, close, large target returns repeated echoes at 2x and 3x range. A longer
     // pulse makes them more likely (3rd edition 3.9.3), so the pulse's energy is applied after the cap.
     if (t.rcs >= 0.8 && range < 1.5 && !hidden()) {
-      const pef = pulseEnergyFactor(c.rangeNm, c.pulse);
+      const pef = pulseEnergyFactor(c.rangeNm, c.pulse, c.prfHz);
       for (const k of [2, 3]) {
         const rk = range * k;
         const base = Math.min(effectiveSignal(w, { rcs: t.rcs, height: t.height, rangeNm: range, relBearing: rel, pos: t.pos }) / pef, 5) * pef;

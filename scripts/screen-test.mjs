@@ -372,7 +372,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await stTab("ex");
     await st.click("#stRun");
     await st.waitForFunction(() => /PASSED|FAILED/.test(document.querySelector("#stMsg").textContent), null, { timeout: 180000 });
-    check(`${tag} self-test of the exercises passes (instructor station)`, /ALL 26 EXERCISES PASSED/.test(await stText("#stMsg")), await stText("#stMsg"));
+    check(`${tag} self-test of the exercises passes (instructor station)`, /ALL 31 EXERCISES PASSED/.test(await stText("#stMsg")), await stText("#stMsg"));
 
     // 100 ships at once on programmed tracks: the scenario loads and the picture keeps moving.
     await key("scen");
@@ -744,7 +744,101 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await st.click("#inBatchDel");
     // Marking sheets: one choice per exercise, and "all" (instructor station, EXERCISES).
     const sheets = await st.$$eval("#msEx option", (os) => os.length);
-    check(`${tag} marking sheets: all exercises listed`, sheets === 27, String(sheets));
+    check(`${tag} marking sheets: all exercises listed`, sheets === 32, String(sheets));
+    // ---- Added 18 Nov 2026: PRF, routes, lanes, man overboard, live control from the station, examinations.
+    {
+      const T = (fn, ...a) => p.evaluate(([f, args]) => window.__simTest[f](...args), [fn, a]);
+      const waitFor = (fn, ms = 8000) => p.waitForFunction(fn, null, { timeout: ms }).then(() => true, () => false);
+      // PRF chosen by hand: allowed with the medium pulse, greyed out and dropped with the long pulse.
+      // The controls are in a part of the menu that is closed: set them as a choice in the menu would.
+      const setVal = (id, v) => p.evaluate(([i, x]) => {
+        const e = document.getElementById(i);
+        e.value = x;
+        e.dispatchEvent(new Event("input", { bubbles: true }));
+        e.dispatchEvent(new Event("change", { bubbles: true }));
+      }, [id, v]);
+      await setVal("pulse", "medium");
+      await setVal("prf", "600");
+      await p.waitForTimeout(400);
+      const prfSet = await T("prf");
+      await setVal("pulse", "long");
+      await p.waitForTimeout(400);
+      const off1000 = await p.$eval('#prf option[value="1000"]', (o) => o.disabled);
+      await setVal("pulse", "auto");
+      await setVal("prf", "");
+      check(`${tag} PRF chosen by hand: 600 with the medium pulse; 1000 not offered with the long pulse`, prfSet === 600 && off1000 && /PRF/.test(await text("#cPicSt")), `${prfSet} ${off1000} ${await text("#cPicSt")}`);
+      // Exercise 27: the route on the radar and its readout in the EBL / CURSOR panel.
+      await T("startExercise", "radar-27");
+      await p.waitForTimeout(600);
+      check(`${tag} exercise 27: the route is on the radar with the next waypoint and XTD in the panel`, (await T("routePoints")) === 4 && /WPT 2/.test(await text("#cCur")) && /XTD/.test(await text("#cCur")), await text("#cCur"));
+      // Exercise 28: the lanes of the separation scheme.
+      await T("startExercise", "radar-28");
+      await p.waitForTimeout(600);
+      check(`${tag} exercise 28: the traffic separation scheme is in the scenario`, (await T("tssCount")) === 1 && (await T("targetCount")) === 8);
+      // Exercise 29: the MOB key and a search pattern from the mark.
+      await T("startExercise", "radar-29");
+      await p.waitForTimeout(600);
+      await p.evaluate(() => document.getElementById("mobKey").click());
+      await p.evaluate(() => document.getElementById("spMake").click());
+      await p.waitForTimeout(400);
+      check(`${tag} exercise 29: MOB mark and an expanding square of ten legs`, (await T("mobMarked")) && (await T("routePoints")) === 11, `${await T("mobMarked")} ${await T("routePoints")}`);
+      // Exercise 31: the time left is shown.
+      await T("startExercise", "arpa-31");
+      await p.waitForTimeout(700);
+      await key("ex");
+      check(`${tag} exercise 31: the time left is shown`, /TIME LEFT 0?[78]:\d\d/.test(await text("#exClock")), await text("#exClock"));
+      await closeMenu();
+      // The station alters, adds and removes a target on the display while the exercise runs.
+      await stTab("class");
+      const okList = await st.waitForFunction(() => document.querySelectorAll("#rtTg option").length >= 6, null, { timeout: 12000 }).then(() => true, () => false);
+      await st.selectOption("#rtTg", "2");
+      await st.fill("#rtC", "123");
+      await st.fill("#rtS", "9");
+      await st.click("#rtAlter");
+      const altered = await waitFor(() => window.__simTest.targets().some((t) => t.id === 2 && t.course === 123 && t.speed === 9));
+      check(`${tag} station alters a target on the display (course and speed)`, okList && altered, JSON.stringify((await T("targets")).find((t) => t.id === 2)));
+      await st.fill("#rtNewName", "Sudden threat");
+      await st.click("#rtAdd");
+      const added = await waitFor(() => window.__simTest.targets().some((t) => t.name === "Sudden threat"));
+      check(`${tag} station adds a target on the display`, added && (await T("targetCount")) === 7, String(await T("targetCount")));
+      await st.selectOption("#rtTg", "3");
+      await st.click("#rtDel");
+      const removed = await waitFor(() => !window.__simTest.targets().some((t) => t.id === 3));
+      check(`${tag} station removes a target on the display`, removed);
+      // Random traffic, the same on every display for the same seed; weather with wind and current to one display.
+      await st.fill("#rgCount", "9");
+      await st.fill("#rgThreats", "2");
+      await st.fill("#rgSeed", "4242");
+      await st.check("#rgReplace");
+      await st.click("#rgSend");
+      const traffic = await waitFor(() => window.__simTest.targetCount() === 9);
+      check(`${tag} station sends random traffic in place of the ships there`, traffic, String(await T("targetCount")));
+      await st.fill("#inWxSea", "5");
+      await st.fill("#inWxWindF", "270");
+      await st.fill("#inWxWindS", "25");
+      await st.fill("#inWxCurS", "90");
+      await st.fill("#inWxCurD", "1.5");
+      await st.click("#inWxSend");
+      const wx = await waitFor(() => { const w = window.__simTest.weather(); return w.sea === 5 && w.wind === 25 && Math.abs(w.drift - 1.5) < 0.01; });
+      check(`${tag} station sends sea state, wind and current`, wx, JSON.stringify(await T("weather")));
+      // An examination: the parts one after the other.
+      await stTab("ex");
+      const exmList = await st.$$eval("#exmArpa option", (os) => os.filter((o) => o.selected).length);
+      await st.click("#exmStartArpa");
+      const exStarted = await waitFor(() => window.__simTest.exam()?.part === 1);
+      check(`${tag} ARPA examination started from the station: part 1 of 5`, exmList === 5 && exStarted && (await T("exam")).of === 5 && /part 1 of 5/.test(await text("#banner")), `${exmList} ${JSON.stringify(await T("exam"))} ${await text("#banner")}`);
+      await p.waitForTimeout(500);
+      await key("ex");
+      await p.click("#exFinish");
+      const nextReady = await waitFor(() => window.__simTest.exam()?.nextReady === true);
+      await closeMenu();
+      await p.click("#banner");
+      const part2 = await waitFor(() => window.__simTest.exam()?.part === 2 && window.__simTest.exam()?.nextReady === false);
+      check(`${tag} examination: the next part is offered when a part is finished`, nextReady && part2, JSON.stringify(await T("exam")));
+      await stTab("recs");
+      await st.waitForTimeout(1500);
+      check(`${tag} examination results can be printed from the station`, await st.isVisible("#exmPrint").catch(() => false) || (await st.$("#exmPrint")) !== null);
+    }
     await st.close();
     p.off("dialog", acceptAll);
   }

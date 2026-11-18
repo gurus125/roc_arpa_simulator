@@ -12,7 +12,8 @@ import { ARPA_PLACEHOLDERS, ArpaConfig, ArpaSystem, Track, antennaTiltErrorDeg, 
  *  - scenario 5 also: CPA within 5% of the target's range but not less than 0.1 NM under 6 NM, and
  *    within 0.3 NM over 6 NM; TCPA within 1 minute.
  */
-const NO_ERRORS: ArpaConfig = { ...ARPA_PLACEHOLDERS, bearingNoiseDeg: 0, rangeNoiseNm: 0, rangeNoiseShortNm: 0, scintillationNm: 0 };
+// The standard's tracking scenarios are run with simulated point targets, which have no multiple, side-lobe or indirect echoes.
+const NO_ERRORS: ArpaConfig = { ...ARPA_PLACEHOLDERS, falseEchoes: false, bearingNoiseDeg: 0, rangeNoiseNm: 0, rangeNoiseShortNm: 0, scintillationNm: 0 };
 type Tgt = Scenario["targets"][number];
 const tgt = (id: number, bearing: number, range: number, course: number, speed: number, extra: Partial<Tgt> = {}): Tgt =>
   ({ id, name: `T${id}`, kind: speed === 0 ? "buoy" : "ship", pos: fromPolar(bearing, range), course, speed, rcs: 50, height: 20, events: [], ...extra });

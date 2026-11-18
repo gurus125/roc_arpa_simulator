@@ -197,6 +197,11 @@ export function validateScenario(x: unknown): string[] {
   need(hz === undefined || (Array.isArray(hz) && hz.every((h) => isObj(h) && typeof h["name"] === "string" && vecOk(h["center"]) && isNum(h["radius"]) && h["radius"] > 0)), "Each hazard needs a name, a centre and a radius above 0.");
   const rt = x["route"];
   need(rt === undefined || (Array.isArray(rt) && rt.every(vecOk)), "Route points must have numbers e and n.");
+  const ts = x["tss"];
+  need(
+    ts === undefined || (Array.isArray(ts) && ts.every((t) => isObj(t) && typeof t["name"] === "string" && vecOk(t["a"]) && vecOk(t["b"]) && isNum(t["zoneHalfWidthNm"]) && t["zoneHalfWidthNm"] >= 0 && isNum(t["laneWidthNm"]) && t["laneWidthNm"] > 0)),
+    "Each traffic separation scheme needs a name, the two ends a and b of its axis, zoneHalfWidthNm (0 or more) and laneWidthNm (above 0).",
+  );
   const dp = x["depths"];
   need(
     dp === undefined || (Array.isArray(dp) && dp.every((d) => isObj(d) && typeof d["name"] === "string" && isNum(d["depthM"]) && d["depthM"] >= 0 && Array.isArray(d["points"]) && d["points"].length >= 3 && d["points"].every(vecOk))),

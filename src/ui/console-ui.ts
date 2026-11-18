@@ -2,6 +2,7 @@ import { nextToAcknowledge } from "../arpa/index";
 import { AisReport, aisFilterOn } from "../ais/index";
 import { alertRows } from "./alerts-view";
 import { formatLatLon, latLonOf } from "../core/nav";
+import { monitorRoute } from "../core/route";
 import { courseSpeedOf, normalizeDeg, sub, velocityOf } from "../core/vec";
 import { displayNmToWorld, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, pulseFor, radarPower, relativeWind, ringInterval, warmUpLeftSec } from "../engine/index";
 import { AppState, aisLocked } from "./app";
@@ -528,7 +529,12 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
     const curPos = cur && !noFix ? latLonOf(w.origin, { e: w.own.pos.e + cur.range * Math.sin((cur.trueBearing * Math.PI) / 180), n: w.own.pos.n + cur.range * Math.cos((cur.trueBearing * Math.PI) / 180) }) : null;
     put("cCur",
       `<div class="cline">` + pair("BRG", cur ? `${p3(cur.trueBearing)}${unit("°T")}` : dash, "big") + pair("REL", cur ? `${p3(cur.relBearing)}${unit("°")}` : dash) + pair("RNG", cur ? `${cur.range.toFixed(2)}${unit("NM")}` : dash, "big") + `</div>` +
-      `<div class="cpos"><span class="cl">CURS</span><b>${curPos ? formatLatLon(curPos.lat, "lat", 3) : "--°--.---'"}</b><b>${curPos ? formatLatLon(curPos.lon, "lon", 3) : "---°--.---'"}</b></div>`);
+      `<div class="cpos"><span class="cl">CURS</span><b>${curPos ? formatLatLon(curPos.lat, "lat", 3) : "--°--.---'"}</b><b>${curPos ? formatLatLon(curPos.lon, "lon", 3) : "---°--.---'"}</b></div>` +
+      // The route being sailed: the next waypoint, and the distance off the leg (cross-track distance).
+      (() => {
+        const m = app.route.length >= 2 ? monitorRoute(app.route, w.own.pos, app.routeLeg, 0, 0) : null;
+        return m ? `<div class="cpos" id="cRoute"><span class="cl">WPT ${m.leg + 2}</span><b>${p3(m.bearingToWp)}° ${m.distanceToWp.toFixed(2)}</b><b>XTD ${Math.abs(m.xtd).toFixed(2)}${Math.abs(m.xtd) < 0.005 ? "" : m.xtd > 0 ? " S" : " P"}</b></div>` : "";
+      })());
 
     // Gain and clutter bars: how far each bar is filled.
     for (const id of BAR_IDS) {
@@ -591,8 +597,8 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
       }).join(""));
     }
     // Pulse length in use, and the heading failure, under the picture settings; the ARPA's state in the ARPA panel.
-    const pl = pulseFor(c.rangeNm, c.pulse);
-    put("cPicSt", `<span class="pair"><span class="cl">PULSE</span> <b>${pl.name === "short" ? "SP" : pl.name === "medium" ? "MP" : "LP"} ${pl.microseconds} µs</b></span>` +
+    const pl = pulseFor(c.rangeNm, c.pulse, c.prfHz);
+    put("cPicSt", `<span class="pair"><span class="cl">PULSE</span> <b>${pl.name === "short" ? "SP" : pl.name === "medium" ? "MP" : "LP"} ${pl.microseconds} µs</b></span> <span class="pair"><span class="cl">PRF</span> <b>${pl.prfHz}</b></span>` +
       (app.headingLost ? ` <b class="wn">HDG FAIL: UNSTAB, REL BRG ONLY</b>` : ""));
     put("cArpaSt", arpaStatusLines(app).map((l) => `<b class="${l.cls}">${l.text.replace(/</g, "&lt;")}</b>`).join(""));
     const vsel = $<HTMLSelectElement>("vecTimeSel");

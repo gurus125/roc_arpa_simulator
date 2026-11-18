@@ -34,6 +34,8 @@ export interface StoreData {
   /** Students allowed at one display, and the hours each pair should get. Placeholders from the plan's open question. */
   maxStudentsPerDisplay: number;
   targetHoursPerPair: number | null;
+  /** The parts (exercise ids) of the two practical examinations, as the instructor has set them; left out: DEFAULT_EXAMS. */
+  exams?: { roc: string[]; arpa: string[] };
   /** Own ship particulars and voyage data typed in by the user (as on an AIS). Starting values are placeholders, not a real ship. */
   ownShip: {
     name: string; callSign: string; imo: string; mmsi: string; draughtM: number | null; hazardous: string; destination: string; eta: string;

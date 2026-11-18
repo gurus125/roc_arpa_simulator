@@ -3,6 +3,7 @@ import { ArpaSystem } from "../arpa/index";
 import { ArpaExSession, PictureFrame, Recorder } from "../train/index";
 import { AisSystem } from "../ais/index";
 import { Vec2 } from "../core/vec";
+import { advanceLeg } from "../core/route";
 import {
   DisplayState, Hit, Scenario, TrailStore, World, createWorld, newDisplayState, scanWedge,
   stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading, radarTransmitting, settleDisplayModes, resetTrueMotionAhead, radarSignalsLostText,
@@ -56,6 +57,13 @@ export interface AppState {
   comms: { t: number; from: string; text: string }[];
   /** Radar map symbols placed by the user, fixed to the ground (NM). */
   navMarks: Vec2[];
+  /** Own ship's planned route on the radar: waypoints fixed to the ground (NM), and the leg being sailed (0 = waypoint 1 to 2). */
+  route: Vec2[];
+  routeLeg: number;
+  /** Man overboard mark: where own ship was when the MOB key was pressed, and the exercise time. */
+  mob: { pos: Vec2; time: number } | null;
+  /** The charted coastline of the scenario drawn over the radar picture (a radar map), for comparing the two. */
+  coastOutline: boolean;
   /** Instructor: the track being programmed for a target (points clicked on the picture so far), or null. */
   routeEdit: { targetId: number; points: Vec2[] } | null;
   /** Instructor: draw the programmed tracks of the targets on this display. Never set on a student's display. */
@@ -173,6 +181,10 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     pi: Array.from({ length: 4 }, () => ({ on: false, bearing: 0, range: 1, ahead: null, astern: null })),
     navLines: [],
     navMarks: [],
+    route: [],
+    routeLeg: 0,
+    mob: null,
+    coastOutline: false,
     routeEdit: null,
     showRoutes: false,
     snapshots: [],
@@ -238,7 +250,8 @@ export function advance(app: AppState, wallDt: number, rng: () => number = Math.
         app.snapshots.push({ time: w.time, world: structuredClone(w) });
         if (app.snapshots.length > 40) app.snapshots.shift();
       }
-      app.arpaEx?.step(w, app.arpa, { pi: app.pi, navLines: app.navLines.filter((l) => l.length >= 2).length, pmOn: app.pmOn });
+      if (app.route.length >= 2) app.routeLeg = advanceLeg(app.route, w.own.pos, Math.min(app.routeLeg, app.route.length - 2), 0);
+      app.arpaEx?.step(w, app.arpa, { pi: app.pi, navLines: app.navLines.filter((l) => l.length >= 2).length, pmOn: app.pmOn, mobAt: app.mob?.time ?? null, routePoints: app.route.length });
       app.recorder?.sample(w, app.roc ? null : app.arpa);
       // Trails are made from the radar picture: none while it is not being painted.
       if (!w.sensors.pictureFrozen && !radarSignalsLostText(w.sensors)) app.trails.sample(w, app.display);

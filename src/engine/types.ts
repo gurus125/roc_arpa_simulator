@@ -1,6 +1,7 @@
 import { ShipMotion } from "../core/shipmodel";
 import { Vec2 } from "../core/vec";
 import { SetDrift } from "../core/current";
+import type { TssScheme } from "../core/tss";
 import type { TerrainGrid } from "./terrain";
 
 export type TargetKind = "ship" | "small-craft" | "buoy" | "beacon";
@@ -216,6 +217,8 @@ export interface RadarControls {
   brilliance: number;
   /** Pulse length: "auto" follows the range scale; the others are chosen by hand. Default auto. */
   pulse?: "auto" | "short" | "medium" | "long";
+  /** Pulse repetition frequency chosen by hand, per second; null or left out: the pulse length's own rate. See `prfChoices`. */
+  prfHz?: number | null;
   /** Echo stretch: target echoes are painted larger. */
   echoStretch?: boolean;
   /** Echo averaging (scan-to-scan correlation): random clutter and noise are suppressed. */
@@ -328,6 +331,8 @@ export interface World {
   env: Environment;
   radar: RadarSet;
   hazards: Hazard[];
+  /** Traffic separation schemes of the scenario (drawn on the picture as a radar map). */
+  tss: TssScheme[];
   sensors: Sensors;
   /** Planned track (waypoints), NM. Empty when the scenario has none. */
   route: Vec2[];
@@ -351,6 +356,8 @@ export interface Scenario {
   coasts: Coast[];
   hazards?: Hazard[];
   route?: Vec2[];
+  /** Traffic separation schemes: see core/tss.ts. */
+  tss?: TssScheme[];
   depths?: DepthArea[];
   structures?: Structure[];
   /**

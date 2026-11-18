@@ -72,14 +72,29 @@ trainee must use S band, a shorter pulse, or wait until it is closer or clear of
 ARPA Manual, 3rd edition, 3.6.2 and 3.7). The figures for the loss in rain are placeholders: see
 `BOOK-CHECK-RADAR-ARPA-MANUAL.md`.
 
-To set the weather on every display together, use the station's CLASSROOM, "Set this weather on all
-displays" (sea state, rain squall, abnormal propagation and interference).
+To set the weather on the displays, use the station's CLASSROOM, "Set this weather": sea state, rain
+squall and its intensity, abnormal propagation, interference and, when filled in, the wind and the
+current. "Send the weather to" chooses all displays or one of them. It acts at once, during an
+exercise too.
 
 ## 4. Targets
 
 All of this is on the station, OWN RADAR, MENU, INSTR, "Inject events (this display)": it acts on the
 station's own radar (for example to prepare a linked exercise). Every injection is written to the
-exercise record. Altering a target on a trainee's display from the station is not offered yet.
+exercise record.
+
+**On a trainee's display, while the exercise runs** (station, CLASSROOM, "Targets on a display, while
+the exercise runs"): choose the display (or all displays) and one of its targets, type a new course
+and/or speed and press "Alter this target now"; "Remove this target" takes it away; "Add this
+target now" puts a new vessel of any catalogue type at a true bearing and range from that own
+ship, for a sudden threat. The trainees are not told; each act is written to the display's record.
+The target list comes from the display's last report (every two seconds).
+
+**Random traffic** (below it): the number of ships, how many of them are on close-quarters courses
+(they pass within 0.5 NM of that own ship in 15 to 35 minutes if nobody acts), the ring they start
+in, and a seed. The same seed gives the same ships, so an exercise can be repeated and every display
+given the same traffic round its own ship; "New seed" draws another. It can replace the ships there
+(buoys and beacons stay) or be added to them, on the chosen display or on the station's own radar.
 
 Alter a target: choose it in "Target", type a new course and/or speed, press "Alter target now".
 A ship of a catalogue type comes round and changes speed gradually; a plain target changes at once.
@@ -167,7 +182,8 @@ classroom server as above.
 
 This has been proved with five separate browsers going through the server on one machine
 (`npm run test:link`): monitoring, a linked exercise, pause and run, messages, an exercise started from
-the station, a finished exercise's record reaching the station, and finding the
+the station, a finished exercise's record reaching the station, a target added and altered and random
+traffic sent from the station, and finding the
 server again after it has been stopped and started. It has not been tried on separate PCs over a
 classroom network: do that before a class. If the server stops, each display shows "server out of
 reach (trying again)" and links up again by itself when the server is back.
@@ -226,6 +242,41 @@ zero.
 The ships, current and stream are invented, the buoy in exercise 24 is laid for the exercise, and
 the reference points' positions come from the coastline data (about 250 m accuracy), not a chart.
 Every limit is a placeholder.
+
+## 9b. Exercises 27 to 31 (added 18 Nov 2026)
+
+| No. | Exercise | What happens | What is marked |
+|-----|----------|--------------|----------------|
+| 27 | Monitoring a planned route on the radar | A route of three legs (040°, 090°, 030°) past two buoys, with a current of 1.5 kn setting across it | Course to steer, two questions, never more than 0.25 NM off the route, the last waypoint passed |
+| 28 | Traffic separation scheme with dense traffic | Own ship northbound in her lane; a ferry crossing from starboard on a collision course, a slower ship ahead, a faster one astern, southbound traffic, a fishing boat in the separation zone | Ferry and slow ship tracked, the ferry's CPA, three questions on rule 10, in the lane with the flow (at most 30 s in the zone or against the flow), every vessel passed at 0.5 NM or more |
+| 29 | Man overboard | Two minutes after the start the look-out reports a man overboard (a message on the display); the person gives no radar echo | MOB key within 30 s, three questions, the reciprocal course, back to within 0.1 NM of the person at 5 kn or less, a search pattern laid on the radar |
+| 30 | Safe speed in restricted visibility | 16 kn towards a rain area with three fishing boats in it; three minutes after the start the visibility closes (a message) | Three questions on rules 6 and 19, speed over the ground down to 8 kn within 8 minutes, every vessel passed at 0.5 NM or more |
+| 31 | Timed test: acquire, assess and report | Six ships; 8 minutes of exercise time | All six tracked, the one with the smallest CPA, CPA and TCPA of ship A, bearing and range of ship F, finished within the time |
+
+Every figure in the last column is a placeholder (`NAV_LIMITS` in `src/train/nav-exercises.ts`): none
+comes from a rule or a syllabus. In exercise 30 the "safe speed" of 8 kn is only a figure to mark
+against; on board it is the master's judgement. The questions are on rules 6, 10, 15 and 19 of the
+collision regulations and on the search patterns of the IAMSAR Manual, volume III: check them.
+
+## 9c. Time limits and examinations
+
+**Time limit** (station, EXERCISES, Scoring settings, "Time limit for the exercise"): choose an
+exercise, type the minutes allowed, press "Set this time limit". The exercise then has one more
+marked item, "Finished within the time allowed", worth a safety outcome's points, and the trainee
+sees the time left. Blank takes the limit away (exercise 31 then keeps its own 8 minutes). The
+limit is exercise time and does not run while the exercise is paused. It is not offered for the
+six ROC exercises.
+
+**Examinations** (station, EXERCISES, Examinations): the ROC practical examination and the ARPA
+practical examination are each a list of exercises worked one after the other. Choose the parts
+(hold Ctrl or Cmd and click), "Save the parts", choose the display and press "Start the ROC
+examination" or "Start the ARPA examination". The display starts part 1; when the trainee presses
+Finish it offers the next part. Each part is recorded and marked as usual and tagged as part of
+that sitting. "Examination results" prints one page for each examination taken: the parts with
+their points, the total, the pass mark if one is set, and room for the assessor's decision. The
+six ROC exercises give a report, not points: their lines are printed and they are left out of the
+total. The parts proposed (ROC: 22, 13, 15, ROC position fixing, 10; ARPA: 1, 5, 6, 8, 31) are only
+a proposal: no syllabus read for this project lists the parts of either examination.
 
 ## 10. Checking the exercises: the self-test
 
@@ -326,15 +377,24 @@ mode (which screen it opens on) has not been tried either.
 - Linked displays and the instructor station have been proved through the server with separate
   browsers on one computer, not yet on separate PCs. A copy hosted on a web site has no classroom
   server (section 7).
-- From the station a trainee's display cannot yet be taken back in time, and its targets cannot be
-  altered: those work on the station's own radar.
+- From the station a trainee's display cannot yet be taken back in time, and a programmed track
+  cannot be given to one of its targets: those work on the station's own radar. Its targets can be
+  altered, added and removed (section 4).
+- There is no chart: the route, the traffic separation scheme and the charted coastline are lines
+  on the radar. A separation scheme can only be straight (an axis, the width of the zone and of the
+  lanes), set in a scenario file ("tss"); the scenario editor does not draw one.
+- Random traffic is placed round own ship without regard to land: on a coast, look at it before
+  using it.
 - A hardware control panel is supported by keys and by knob-box inputs (SETTINGS, Control panel),
   but no real panel has been plugged in: only simulated inputs have been tried.
 - Symbols follow IMO SN.1/Circ.243/Rev.2 and IEC 62288 Annex A; alerts follow IMO MSC.302(87) and
   IEC 62288 Table 2. Not done: a 24-hour alert history.
 - The ARPA tracks 40 targets and the display holds 40 activated AIS targets and 240 AIS targets in
   all: the figures of IMO MSC.192(79) Table 1 for ships of 10,000 gt and more (until 16 Nov 2026 it
-  was 20, 20 and 120, the smallest class). It cannot acquire a false echo; a real ARPA can.
+  was 20, 20 and 120, the smallest class). Since 18 Nov 2026 it can acquire the multiple, side-lobe
+  and indirect echoes of a strong ship close by, and interference from another radar gives it false
+  plots (120 a scan, a placeholder) unless interference rejection is on. Mirror images in a quay or
+  bridge and the echo of a power line still cannot be acquired.
 - Automatic acquisition leaves out an echo 800 m or more across or deep, as land. The 800 m is a
   placeholder, the figure of one set described in Pub. 1310: sets differ.
 - The four radar signal faults all have the same effect (no picture, tracks lost, AIS kept; without

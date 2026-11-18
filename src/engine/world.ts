@@ -246,6 +246,7 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
     sensors: { gyroErrorDeg: 0, logErrorKn: 0, rampPerMin: { gyroDeg: 1, logKn: 1 } },
     hazards: (sc.hazards ?? []).map((h) => ({ ...h, center: { ...h.center } })),
     route: (sc.route ?? []).map((p) => ({ ...p })),
+    tss: (sc.tss ?? []).map((t) => ({ ...t, a: { ...t.a }, b: { ...t.b } })),
     depths: (sc.depths ?? []).map((d) => ({ ...d, points: d.points.map((p) => ({ ...p })) })),
     structures: (sc.structures ?? []).map((s) => ({ ...s, a: { ...s.a }, b: { ...s.b } })),
   };

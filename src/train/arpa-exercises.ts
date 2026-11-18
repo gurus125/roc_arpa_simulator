@@ -2,6 +2,7 @@ import { bearingOf, fromPolar, normalizeDeg, sub, velocityOf, courseSpeedOf } fr
 import { trialManoeuvre } from "../core/trial";
 import { bowCrossing } from "../core/bcr";
 import { COASTAL, Scenario, World, ownCogSog, ownGroundVelocity } from "../engine/index";
+import { NAV_ARPA_EXERCISES } from "./nav-exercises";
 import {
   ArpaExercise, ArpaTask, TaskCtx, judgeAction, judgeSafePassing, targetById, truthCpa, truthThroughWater,
 } from "./session";
@@ -387,7 +388,8 @@ const EX9: ArpaExercise = {
   ],
 };
 
-export const ARPA_EXERCISES: ArpaExercise[] = [EX1, EX2, EX3, EX4, EX5, EX6, EX7, EX8, EX9];
+/** With the timed acquisition test (31). */
+export const ARPA_EXERCISES: ArpaExercise[] = [EX1, EX2, EX3, EX4, EX5, EX6, EX7, EX8, EX9, ...NAV_ARPA_EXERCISES];
 export const arpaExerciseById = (id: string): ArpaExercise | undefined => ARPA_EXERCISES.find((e) => e.id === id);
 
 /** Relative bearing of a target from own bow, degrees (helper for reports). */

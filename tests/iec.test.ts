@@ -14,7 +14,9 @@ function seeded(seed: number): () => number {
   let s = seed;
   return () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296);
 }
-const EXACT: ArpaConfig = { ...ARPA_PLACEHOLDERS, bearingNoiseDeg: 0, rangeNoiseNm: 0, rangeNoiseShortNm: 0, scintillationNm: 0 };
+// The standard's tracking scenarios are run with simulated point targets, which have no multiple, side-lobe or indirect echoes.
+const POINT_TARGETS: ArpaConfig = { ...ARPA_PLACEHOLDERS, falseEchoes: false };
+const EXACT: ArpaConfig = { ...POINT_TARGETS, bearingNoiseDeg: 0, rangeNoiseNm: 0, rangeNoiseShortNm: 0, scintillationNm: 0 };
 const ship = (id: number, bearing: number, range: number, course: number, speed: number) =>
   ({ id, name: `T${id}`, kind: "ship" as const, pos: fromPolar(bearing, range), course, speed, rcs: 50, height: 20, events: [] });
 function world(own: { heading: number; speed: number }, targets: Scenario["targets"]): World {
@@ -169,7 +171,7 @@ export function runTtScenario1(runs: number): { one: number[][][]; three: number
   const three = TT1.map(() => [[], [], [], [], [], []] as number[][]);
   for (let r = 0; r < runs; r++) {
     const w = world({ heading: 0, speed: 20 }, TT1.map((t) => ship(t.id, t.bearing, t.range, t.course, t.speed)));
-    const a = new ArpaSystem(w);
+    const a = new ArpaSystem(w, POINT_TARGETS);
     const rng = seeded(7919 * (r + 1));
     a.step(w, rng);
     const order = [...TT1].sort((x, y) => x.acquireAt - y.acquireAt);

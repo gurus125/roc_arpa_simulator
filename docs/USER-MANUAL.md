@@ -133,6 +133,26 @@ own ship. While that key is held (or key H), the
 heading line and every other line and symbol are taken off, leaving only the echoes and trails,
 so that a weak echo under a line can be seen.
 
+Also under **PI / MAP**:
+
+- **Route.** Press "Route: add waypoints", click the waypoints in order (at most 20), press again
+  when done. The route is fixed to the ground: legs dashed, waypoints as numbered circles, the next
+  one bold. The EBL / CURSOR panel then shows the next waypoint with its bearing and distance, and
+  **XTD**, the distance off the leg being sailed: S when the ship is to starboard of it, P to port.
+  The leg moves on when the ship comes abeam of its waypoint. A route is only as good as the
+  ship's position and the ground stabilisation: check it against a fixed echo.
+- **Search pattern.** A route made for you from a datum (own ship now, or the MOB mark): an
+  expanding square (legs of 1, 1, 2, 2, 3, 3 ... times the track spacing, every turn 90° to
+  starboard) or a sector search (three triangles through the datum, every turn 120° to starboard,
+  nine times the radius long). Give the spacing or radius and the first course.
+- **Charted coastline over the picture.** Draws the coast as the simulator has it as a thin line
+  over the echoes, to compare the radar with the chart: low land far off and land in radar shadow
+  paint less than the chart shows. "Outline sheet of this area" opens the same coastline with a
+  latitude and longitude grid and a scale, to print and plot position lines on by hand. Neither is
+  a chart: there are no depths, lights or buoys.
+- In a scenario with a **traffic separation scheme** the scheme is drawn on the picture: the
+  separation zone shaded, the outer limits of the lanes dashed, and arrows for the flow.
+
 ## 5. GAIN / CLUTTER panel (middle left)
 
 Each control is a bar: click or drag along it. The figure beside it is the setting, 0 to 100.
@@ -156,6 +176,13 @@ performance monitor, and the pulse length again. Interference rejection keeps on
 pulses both return, so it costs very weak echoes a little: switch it on when interference is seen,
 not otherwise. A long pulse puts more energy on a target (pulse length x pulses a second) and a
 short pulse less.
+
+**PRF** (pulse repetition frequency, pulses a second), beside the pulse length: normally it follows
+the pulse length (short 3000, medium 1500, long 600) and the panel shows it after the pulse. It can
+be chosen by hand to see what it does: a lower PRF puts fewer pulses on each target, so weak echoes
+are lost sooner, and it lengthens the range that can be measured without ambiguity (150,000 km
+divided by the PRF: 81 NM at 1000 a second), so second-trace echoes move or disappear. A PRF too
+high for the pulse length in use is greyed out. On most real sets the PRF is not a control of its own.
 
 ## 6. ARPA: tracking targets
 
@@ -262,7 +289,7 @@ Press **SHIP CONTROL** at the top of the radar screen. A second window opens wit
   heading and rate of turn, the rudder indicator (where the rudder is, and the order), and the rudder
   keys for hand steering.
 - **ENGINE TELEGRAPH**: the telegraph from FULL AST to SEA FULL, the engine order in knots with − and +,
-  STW, SOG, COG and the relative wind, and LET GO ANCHOR.
+  STW, SOG, COG and the relative wind, LET GO ANCHOR and MOB.
 - **OWN SHIP DATA**: name, call sign, MMSI, IMO number, type and size; and the choice of ship.
 - **EXERCISE**: the ARPA and radar exercises and the ROC exercises (the keys at the top of the box
   change between them). Choose the exercise, read the briefing and how you will be assessed, answer,
@@ -297,6 +324,10 @@ Press **SHIP** (or use the ship control window).
   keys shows where it is. Put it back to 0 to stop the turn.
 - **Telegraph keys**: engine orders from full astern to sea full. The ship gains and loses speed
   slowly.
+- **MOB** (man overboard), beside the anchor key (in the menu's own ship keys, and in the ship
+  control window under ANCHOR AND MOB): marks the ship's position at that moment on the
+  radar with a red mark fixed to the ground, and becomes the datum offered for a search pattern.
+  It needs a position from the EPFS. A person in the water gives no radar echo.
 - **LET GO ANCHOR**: anchors the ship where she is. It works only when she is making less than
   1 kn over the ground: take the way off first, with the engine astern if need be. At anchor the
   engine is stopped, the AIS sends "At anchor" and the key reads **WEIGH ANCHOR**. The anchor can
@@ -374,8 +405,10 @@ sea clutter, rain clutter and brilliance. The keys do nothing while you type in 
 - **ROC EX**: radar observer exercises (plotting, position fixing, set and drift, clearing range,
   blind pilotage, traffic).
 - **ARPA EX** (or the EXERCISE tab): ARPA exercises 1-9, radar exercises 10-11, manual plotting
-  exercises 12-21, switching on and setting up 22, and radar exercises 23-26 on the real coasts
-  (Mumbai, Goa, Kochi, Gulf of Kutch).
+  exercises 12-21, switching on and setting up 22, radar exercises 23-26 on the real coasts
+  (Mumbai, Goa, Kochi, Gulf of Kutch), 27 monitoring a planned route, 28 a traffic separation
+  scheme, 29 man overboard and search patterns, 30 safe speed in restricted visibility, and 31 a
+  timed ARPA acquisition test.
 
 The instructor's pages are not on your display: the instructor has a station of his or her own, from
 which he or she can pause your display, start an exercise on it, change the weather, give your
@@ -396,6 +429,22 @@ For the manual plotting exercises the ARPA and the AIS display are off (the ship
 so the AIS key is locked off until you press Finish): take ranges and bearings with EBL 1 and
 VRM 1 at regular times, plot them on a plotting sheet, and manoeuvre at 12 minutes.
 
+**Time limit.** Some exercises have a time allowed (exercise 31 has its own; the instructor can set
+one for any exercise). The time left is shown beside the exercise time, and "Finished within the
+time allowed" is one of the marked items. The limit is exercise time: it stands still while the
+exercise is paused.
+
+**Examination.** The instructor can start a practical examination on your display: several
+exercises one after the other. When you press Finish on a part, a message offers the next part:
+click it to start. Target names are switched off. Every part is recorded and marked as usual.
+
+**Fixing by ranges or by bearings (ROC position fixing and set and drift).** "Use for the fix"
+chooses what an observation gives: range and bearing, the range only (a circle of position), or
+the bearing only. Put the EBL and the VRM on the object as before, so that the simulator knows
+which object it is; only the reading you chose is used. Two or three ranges of well-separated
+objects usually give the best radar fix. Position lines taken at different times are run on with
+the ship's course and speed (a running fix). The result gives the angle of cut.
+
 The ROC plotting exercise asks for the full report of the plot: relative course and speed, true
 course and speed, CPA, TCPA and the target's **aspect**. Aspect is the angle between the target's
 course and the line from the target to your ship, as seen from the target: **Red** when your ship
@@ -410,7 +459,12 @@ it, 40° to the left of its course: Red 40°.
   ship's response to the sea is an estimate.
 - The radar picture is simplified compared with a real set. Beamwidths and pulse lengths are those
   of one maker's set, taken as typical.
-- False echoes can be seen but the ARPA cannot acquire them; on a real ARPA they can be acquired.
+- Multiple, side-lobe and indirect echoes of a strong ship close by can be acquired by the ARPA as
+  on a real one (since 18 Nov 2026), and interference from another radar disturbs tracking unless
+  interference rejection is on. Mirror images in a quay or bridge and the echo of a power line are
+  seen on the picture but still cannot be acquired.
+- There are no charts, depths, lights or buoys: the route, the separation scheme and the charted
+  coastline are lines drawn on the radar, as a radar map is.
 - Positions are not on a real chart. Four scenarios use a real coastline (OpenStreetMap data, about
   250 m accuracy) and real land heights (Copernicus DEM, 90 m) with no depths, lights or buoys; the
   others use invented coasts. How strongly land returns is set by one figure that an instructor

@@ -32,7 +32,7 @@ export interface StationOpts {
 const TABS: { key: string; label: string; sections: string[] }[] = [
   { key: "class", label: "CLASSROOM", sections: ["Monitor other displays", "Send to the displays"] },
   { key: "recs", label: "RECORDS", sections: ["Records, replay and reports"] },
-  { key: "ex", label: "EXERCISES", sections: ["Scoring settings (placeholders)", "Marking sheets", "Self-test of the exercises"] },
+  { key: "ex", label: "EXERCISES", sections: ["Examinations", "Scoring settings (placeholders)", "Marking sheets", "Self-test of the exercises"] },
   { key: "batch", label: "BATCHES", sections: ["Batches, students and assignments", "Instructor access"] },
   { key: "scen", label: "SCENARIOS", sections: ["Scenario editor"] },
   { key: "radar", label: "OWN RADAR", sections: [] },

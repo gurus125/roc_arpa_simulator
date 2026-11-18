@@ -24,6 +24,8 @@ export interface RocObservation {
   /** True bearing and range, as the student read them. */
   bearing: number;
   range: number;
+  /** Which of the two is used as a position line for a fix: both (left out), the range only, or the bearing only. */
+  use?: "both" | "range" | "bearing";
   /** Echo matched to this target (or charted object). Null if no echo was near the measured point. */
   objectId: number | null;
   ownHeading: number;
@@ -251,7 +253,7 @@ export class RocSession {
   }
 
   /** Student reads the EBL bearing and VRM range off the display and logs an observation. */
-  observe(world: World, bearing: number, range: number): { ok: true; obs: RocObservation } | { ok: false; message: string } {
+  observe(world: World, bearing: number, range: number, use: "both" | "range" | "bearing" = "both"): { ok: true; obs: RocObservation } | { ok: false; message: string } {
     if (range < 0.05) return { ok: false, message: "Set the VRM on the echo first." };
     const onlyCharted = this.ex.id === "fix" || this.ex.id === "setdrift" || this.ex.id === "clearing" || this.ex.id === "pilotage";
     const t = identify(world, bearing, range, onlyCharted);
@@ -263,6 +265,7 @@ export class RocSession {
       timeSec: world.time,
       bearing,
       range,
+      ...(use !== "both" ? { use } : {}),
       objectId: t ? t.id : null,
       ownHeading: own.heading,
       ownSpeedWater: own.speedThroughWater,

@@ -1,9 +1,9 @@
 import { bearingOf, fromPolar, length, normalizeDeg } from "../core/vec";
-import { IMO_TABLE2, Scenario, TARGET_TYPES, Target, TargetKind, clearTargetRoute, initTargetMotion, orderTarget, rcsForDetectionRange, routeAhead, setTargetRoute, targetFromType, targetTypeById } from "../engine/index";
+import { IMO_TABLE2, RANDOM_TRAFFIC_DEFAULT, addRandomTraffic, nextTargetId, Scenario, TARGET_TYPES, Target, TargetKind, clearTargetRoute, initTargetMotion, orderTarget, rcsForDetectionRange, routeAhead, setTargetRoute, targetFromType, targetTypeById } from "../engine/index";
 import { MAX_ROUTE_WAYPOINTS } from "../core/route";
 import { EXERCISES } from "../roc/index";
 import {
-  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, markingSheetsHtml, PLACEHOLDER_SCORING, SETUP_LIMITS, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
+  ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, markingSheetsHtml, examSheetsHtml, DEFAULT_EXAMS, PLACEHOLDER_SCORING, SETUP_LIMITS, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
 } from "../train/index";
 import { AppState, rewind } from "./app";
 import { deletePictures, loadPictures } from "./picture-store";
@@ -209,7 +209,27 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <p class="hint">Each display's card above has keys for that display alone: Pause, Run, Start exercise (the one chosen above), Send faults (the ones set here) and Clear faults. A fault changes the display's instruments as the FAULTS key does on a display of its own; the trainees are not told.</p>
       <div class="grid2" style="margin-top:6px"><div><label for="inWxSea">Sea state (0-9)</label><input type="number" id="inWxSea" min="0" max="9" value="3"></div>
         <div class="small"><label><input type="checkbox" id="inWxRain"> Rain squall</label><br><label><input type="checkbox" id="inWxDuct"> Abnormal propagation</label><br><label><input type="checkbox" id="inWxInt"> Radar interference</label></div></div>
-      <div class="btns"><button id="inWxSend">Set this weather on all displays</button></div>
+      <div class="grid2"><div><label for="inWxRainPct">Rain intensity (% of heavy)</label><input type="number" id="inWxRainPct" min="5" max="100" step="5" value="50"></div>
+        <div><label for="inWxWindF">Wind from (°) and speed (kn)</label><span style="display:flex;gap:4px"><input type="number" id="inWxWindF" min="0" max="359" placeholder="from"><input type="number" id="inWxWindS" min="0" max="70" placeholder="kn"></span></div>
+        <div><label for="inWxCurS">Current set (°) and drift (kn)</label><span style="display:flex;gap:4px"><input type="number" id="inWxCurS" min="0" max="359" placeholder="set"><input type="number" id="inWxCurD" min="0" max="6" step="0.1" placeholder="kn"></span></div>
+        <div><label for="inWxTo">Send the weather to</label><select id="inWxTo"><option value="all">All displays</option></select></div></div>
+      <div class="btns"><button id="inWxSend">Set this weather</button></div>
+      <p class="hint">Wind and current are sent only when filled in; left blank, each display keeps its own.</p>
+      <h2 style="margin-top:12px">Targets on a display, while the exercise runs</h2>
+      <div class="grid2"><div><label for="rtSt">Display</label><select id="rtSt"><option value="all">All displays</option></select></div><div><label for="rtTg">Target</label><select id="rtTg"></select></div>
+        <div><label for="rtC">New course (°), blank: no change</label><input type="number" id="rtC" min="0" max="359"></div><div><label for="rtS">New speed (kn), blank: no change</label><input type="number" id="rtS" min="0" max="60" step="0.5"></div></div>
+      <div class="btns"><button id="rtAlter">Alter this target now</button><button id="rtDel">Remove this target</button></div>
+      <div class="grid2"><div><label for="rtNewName">New target: name</label><input type="text" id="rtNewName" value="Intruder"></div><div><label for="rtNewKind">Type</label><select id="rtNewKind">${TARGET_TYPES.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select></div>
+        <div><label for="rtNewBrg">True bearing from that own ship (°)</label><input type="number" id="rtNewBrg" min="0" max="359" value="30"></div><div><label for="rtNewRng">Range (NM)</label><input type="number" id="rtNewRng" min="0.1" max="48" step="0.1" value="4"></div>
+        <div><label for="rtNewC">Course (°)</label><input type="number" id="rtNewC" min="0" max="359" value="210"></div><div><label for="rtNewS">Speed (kn)</label><input type="number" id="rtNewS" min="0" max="60" step="0.5" value="12"></div></div>
+      <div class="btns"><button id="rtAdd">Add this target now</button></div>
+      <h2 style="margin-top:12px">Random traffic</h2>
+      <div class="grid2"><div><label for="rgCount">Ships</label><input type="number" id="rgCount" min="1" max="60" value="12"></div><div><label for="rgThreats">Of them, on close-quarters courses</label><input type="number" id="rgThreats" min="0" max="20" value="3"></div>
+        <div><label for="rgMin">From (NM) to (NM) off own ship</label><span style="display:flex;gap:4px"><input type="number" id="rgMin" min="0.5" max="48" step="0.5" value="3"><input type="number" id="rgMax" min="1" max="48" step="0.5" value="12"></span></div>
+        <div><label for="rgSeed">Seed (the same seed gives the same ships)</label><input type="number" id="rgSeed" min="1" max="999999" value="1"></div></div>
+      <div class="check"><input type="checkbox" id="rgReplace"><label for="rgReplace">In place of the ships there now (buoys and beacons stay)</label></div>
+      <div class="btns"><button id="rgSend">Random traffic on the display chosen above</button><button id="rgOwn">On the station's own radar</button><button id="rgNew">New seed</button></div>
+      <p class="hint">The targets of the display chosen are listed from its last report. An alteration, a new target or random traffic acts at once on that display and is written to its record; the trainees are not told. A ship of a catalogue type comes round and changes speed gradually. Ships on close-quarters courses pass within 0.5 NM of that own ship in 15 to 35 minutes if nobody acts.</p>
       <div class="btns"><button id="inLinked">Start a LINKED exercise on all displays with the scenario loaded here</button></div>
       <div class="btns"><input type="text" id="inMsgText" placeholder="Message to all displays" style="flex:1"><button id="inMsgSend">Send</button></div>
       <p class="hint">A linked exercise loads the same scenario on every display at the same moment, puts each own ship at a different start 5 NM from the scenario start, and shows every own ship to the others as a target. It runs at 1x. Other browser tabs on this computer appear here at once. For other computers, start "npm run serve" on one PC and open the address it prints on every display.</p></section>
@@ -239,7 +259,19 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     </section>
     <section><h2>Scoring settings (placeholders)</h2><div class="grid2" id="inScore"></div>
       <div class="btns"><button id="inScoreSave">Save scoring</button><button id="inScoreReset">Reset to placeholders</button></div>
+      <div class="grid2" style="margin-top:8px"><div><label for="inTlEx">Time limit for the exercise</label><select id="inTlEx">${REMOTE_EXERCISES.filter((e) => !e.id.startsWith("roc-")).map((e) => `<option value="${e.id}">${esc(e.label)}</option>`).join("")}</select></div>
+        <div><label for="inTlMin">Minutes allowed (blank: none, or the exercise's own)</label><input type="number" id="inTlMin" min="1" step="1"></div></div>
+      <div class="btns"><button id="inTlSet">Set this time limit</button><span class="small" id="inTlNow"></span></div>
+      <p class="hint">An exercise with a time limit gets one more marked item, "Finished within the time allowed", and the trainee sees the time left. The limit is exercise time, so it does not run while the exercise is paused.</p>
       <p class="hint">None of these values comes from an approved marking scheme. Leave the pass mark blank to report scores without pass or fail.</p></section>
+    <section><h2>Examinations</h2>
+      <div class="grid2"><div><label for="exmRoc">ROC practical examination: its parts</label><select id="exmRoc" multiple size="8">${REMOTE_EXERCISES.map((e) => `<option value="${e.id}">${esc(e.label)}</option>`).join("")}</select></div>
+        <div><label for="exmArpa">ARPA practical examination: its parts</label><select id="exmArpa" multiple size="8">${REMOTE_EXERCISES.map((e) => `<option value="${e.id}">${esc(e.label)}</option>`).join("")}</select></div></div>
+      <div class="btns"><button id="exmSave">Save the parts</button><button id="exmReset">Back to the proposed parts</button></div>
+      <div class="row two"><label for="exmTo">Display</label><select id="exmTo"><option value="all">All displays</option></select></div>
+      <div class="btns"><button id="exmStartRoc">Start the ROC examination</button><button id="exmStartArpa">Start the ARPA examination</button><button id="exmPrint">Examination results (print or save as PDF)</button></div>
+      <p class="small" id="exmNow"></p>
+      <p class="hint">An examination is a set of exercises worked one after the other on a display, in the order of the list. Hold Ctrl (or Cmd) and click to choose the parts. The parts proposed here are not from any syllabus: choose the institute's own. When a part is finished the display offers the next one; every part is recorded as usual and marked as part of the examination. "Examination results" prints one page for each examination taken, with the points of every part, their total and room for the assessor's decision. The ROC exercises give a report instead of points. Target names (a study aid) are switched off on the display.</p></section>
     <section><h2>Marking sheets</h2>
       <div class="row two"><label for="msEx">Exercise</label><select id="msEx"></select></div>
       <div class="btns"><button id="msPrint">Print marking sheet (or save as PDF)</button></div>
@@ -429,7 +461,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     const type = targetTypeById(inputValue("inNewKind")) ?? TARGET_TYPES[0]!;
     const rel = fromPolar(Number(inputValue("inNewBrg")) || 0, Math.max(0.1, Number(inputValue("inNewRng")) || 1));
     const t: Target = {
-      id: Math.max(0, ...w.targets.map((x) => x.id)) + 1, name: inputValue("inNewName") || "Intruder",
+      id: nextTargetId(w), name: inputValue("inNewName") || "Intruder",
       pos: { e: w.own.pos.e + rel.e, n: w.own.pos.n + rel.n }, course: normalizeDeg(Number(inputValue("inNewC")) || 0), speed: Math.max(0, Number(inputValue("inNewS")) || 0),
       ...targetFromType(type), events: [], nextEvent: 0,
     };
@@ -453,7 +485,59 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
   $("inAllRun").addEventListener("click", () => api.link.sendCommand({ to: "all", cmd: "run" }));
   $("inWxSend").addEventListener("click", () => {
     const chk = (id: string): boolean => ($(id) as HTMLInputElement).checked;
-    api.link.sendCommand({ to: "all", cmd: "weather", seaState: Math.min(9, Math.max(0, Number(inputValue("inWxSea")) || 0)), rain: chk("inWxRain"), ducting: chk("inWxDuct"), interference: chk("inWxInt") });
+    const opt = (id: string): number | undefined => (inputValue(id) === "" ? undefined : Number(inputValue(id)));
+    const w = { windFrom: opt("inWxWindF"), windKn: opt("inWxWindS"), curSet: opt("inWxCurS"), curDrift: opt("inWxCurD") };
+    api.link.sendCommand({
+      to: inputValue("inWxTo") || "all", cmd: "weather", seaState: Math.min(9, Math.max(0, Number(inputValue("inWxSea")) || 0)), rain: chk("inWxRain"), ducting: chk("inWxDuct"), interference: chk("inWxInt"),
+      rainPct: Math.min(100, Math.max(5, Number(inputValue("inWxRainPct")) || 50)),
+      ...Object.fromEntries(Object.entries(w).filter(([, v]) => v !== undefined && Number.isFinite(v))),
+    });
+    msg(`Weather sent to ${inputValue("inWxTo") === "all" ? "all displays" : `display ${inputValue("inWxTo")}`}.`);
+  });
+  // Targets on a trainee's display, while the exercise runs.
+  const rtTo = (): string => inputValue("rtSt") || "all";
+  const optNum = (id: string): number | undefined => (inputValue(id) === "" || !Number.isFinite(Number(inputValue(id))) ? undefined : Number(inputValue(id)));
+  $("rtAlter").addEventListener("click", () => {
+    const id = Number(inputValue("rtTg"));
+    const course = optNum("rtC"), speed = optNum("rtS");
+    if (!id || (course === undefined && speed === undefined)) {
+      msg("Choose a target and give a new course or speed.");
+      return;
+    }
+    api.link.sendCommand({ to: rtTo(), cmd: "target", id, ...(course !== undefined ? { course: normalizeDeg(course) } : {}), ...(speed !== undefined ? { speed: Math.max(0, speed) } : {}) });
+    msg(`Alteration sent to ${rtTo() === "all" ? "all displays" : `display ${rtTo()}`}.`);
+  });
+  $("rtDel").addEventListener("click", () => {
+    const id = Number(inputValue("rtTg"));
+    if (!id) return;
+    api.link.sendCommand({ to: rtTo(), cmd: "removeTarget", id });
+    msg("Target removed.");
+  });
+  $("rtAdd").addEventListener("click", () => {
+    api.link.sendCommand({
+      to: rtTo(), cmd: "addTarget", name: inputValue("rtNewName") || "Intruder", typeId: inputValue("rtNewKind"), bearing: normalizeDeg(Number(inputValue("rtNewBrg")) || 0),
+      rangeNm: Math.max(0.1, Number(inputValue("rtNewRng")) || 1), course: normalizeDeg(Number(inputValue("rtNewC")) || 0), speed: Math.max(0, Number(inputValue("rtNewS")) || 0),
+    });
+    msg(`Target sent to ${rtTo() === "all" ? "all displays" : `display ${rtTo()}`}.`);
+  });
+  const trafficOpts = (): { seed: number; count: number; minNm: number; maxNm: number; threats: number; replace: boolean } => {
+    const count = Math.min(60, Math.max(1, Math.floor(Number(inputValue("rgCount")) || 12)));
+    const minNm = Math.max(0.5, Number(inputValue("rgMin")) || 3);
+    return { seed: Math.max(1, Math.floor(Number(inputValue("rgSeed")) || 1)), count, minNm, maxNm: Math.max(minNm + 0.5, Number(inputValue("rgMax")) || 12), threats: Math.min(count, Math.max(0, Math.floor(Number(inputValue("rgThreats")) || 0))), replace: $<HTMLInputElement>("rgReplace").checked };
+  };
+  $("rgSend").addEventListener("click", () => {
+    api.link.sendCommand({ to: rtTo(), cmd: "traffic", ...trafficOpts() });
+    msg(`Random traffic sent to ${rtTo() === "all" ? "all displays" : `display ${rtTo()}`}.`);
+  });
+  $("rgOwn").addEventListener("click", () => {
+    const app = api.getApp();
+    const o = trafficOpts();
+    const n = addRandomTraffic(app.world, { ...RANDOM_TRAFFIC_DEFAULT, count: o.count, minNm: o.minNm, maxNm: o.maxNm, threats: o.threats }, o.seed, o.replace);
+    note(app, `random traffic, ${n} ships (seed ${o.seed}, ${o.threats} on close-quarters courses).`);
+    msg(`${n} ships put on the station's own radar. The same seed sent to a display gives it the same ships round its own ship.`);
+  });
+  $("rgNew").addEventListener("click", () => {
+    $<HTMLInputElement>("rgSeed").value = String(1 + Math.floor(Math.random() * 999998));
   });
   $("inLinked").addEventListener("click", () => {
     const app = api.getApp();
@@ -503,6 +587,30 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       box.innerHTML = [...stations.values()].map((s) => `<div style="display:grid;grid-template-columns:110px 1fr;gap:8px;margin:8px 0;border-top:1px solid var(--line);padding-top:8px">
         <canvas id="stC_${s.station}" width="110" height="110" style="width:110px;height:110px;background:#08100e"></canvas>
         <div><div class="small" id="stT_${s.station}"></div><div class="btns"><button data-st="${s.station}" data-cmd="pause">Pause</button><button data-st="${s.station}" data-cmd="run">Run</button><button data-st="${s.station}" data-cmd="ex">Start exercise</button><button data-st="${s.station}" data-cmd="faults">Send faults</button><button data-st="${s.station}" data-cmd="clear">Clear faults</button></div></div></div>`).join("") || '<p class="small">No other display is reporting.</p>';
+    }
+    if (box.dataset["sel"] !== sig) {
+      // The displays that can be chosen for weather and for targets.
+      box.dataset["sel"] = sig;
+      for (const id of ["rtSt", "inWxTo", "exmTo"]) {
+        const el = $<HTMLSelectElement>(id);
+        const cur = el.value;
+        el.innerHTML = '<option value="all">All displays</option>' + [...stations.values()].map((s) => `<option value="${s.station}">${esc(s.students.join(" / ") || s.station)}</option>`).join("");
+        el.value = [...el.options].some((o) => o.value === cur) ? cur : "all";
+      }
+    }
+    {
+      // The targets of the display chosen (of the first display, for "all"), from its last report.
+      const chosen = inputValue("rtSt");
+      const src = chosen === "all" || chosen === "" ? [...stations.values()][0] : stations.get(chosen);
+      const list = (src?.tg ?? []).filter((t) => t.id !== undefined);
+      const tsig = `${chosen}|${list.map((t) => `${t.id}:${t.name}`).join(",")}`;
+      const tsel = $<HTMLSelectElement>("rtTg");
+      if (tsel.dataset["sig"] !== tsig && document.activeElement !== tsel) {
+        tsel.dataset["sig"] = tsig;
+        const cur = tsel.value;
+        tsel.innerHTML = list.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("");
+        if ([...tsel.options].some((o) => o.value === cur)) tsel.value = cur;
+      }
     }
     for (const s of stations.values()) {
       const tEl = document.getElementById(`stT_${s.station}`);
@@ -637,6 +745,40 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
   $("inRecPrint").addEventListener("click", () => {
     if (viewing) printDoc(reportHtml(viewing), "exercise-report.html", "report");
   });
+  // Examinations: the parts of each, started on a display, and the combined result.
+  const examPartsOf = (which: "roc" | "arpa"): string[] => st.data.exams?.[which] ?? DEFAULT_EXAMS[which].parts;
+  const fillExams = (): void => {
+    for (const [id, which] of [["exmRoc", "roc"], ["exmArpa", "arpa"]] as const) {
+      const chosen = examPartsOf(which);
+      for (const o of $<HTMLSelectElement>(id).options) o.selected = chosen.includes(o.value);
+    }
+    $("exmNow").textContent = `ROC: ${examPartsOf("roc").length} parts. ARPA: ${examPartsOf("arpa").length} parts.${st.data.exams ? "" : " (the proposed parts)"}`;
+  };
+  fillExams();
+  $("exmSave").addEventListener("click", () => {
+    const pick = (id: string): string[] => [...$<HTMLSelectElement>(id).selectedOptions].map((o) => o.value);
+    st.data.exams = { roc: pick("exmRoc"), arpa: pick("exmArpa") };
+    msg(st.save() ? "Examination parts saved." : "Could not save.");
+    fillExams();
+  });
+  $("exmReset").addEventListener("click", () => {
+    delete st.data.exams;
+    st.save();
+    fillExams();
+  });
+  for (const [id, which] of [["exmStartRoc", "roc"], ["exmStartArpa", "arpa"]] as const) {
+    $(id).addEventListener("click", () => {
+      const parts = examPartsOf(which);
+      if (parts.length === 0) {
+        msg("Choose the parts of the examination first.");
+        return;
+      }
+      const to = inputValue("exmTo") || "all";
+      api.link.sendCommand({ to, cmd: "startExam", examId: `${which}-${Date.now().toString(36)}`, name: DEFAULT_EXAMS[which].name, parts });
+      msg(`${DEFAULT_EXAMS[which].name} started on ${to === "all" ? "all displays" : `display ${to}`}: ${parts.length} parts.`);
+    });
+  }
+  $("exmPrint").addEventListener("click", () => printDoc(examSheetsHtml(st.data.records, st.data.scoring), "examination-results.html", "examination results"));
   // Marking sheets: every exercise, listed by number.
   const sheetExercises = [...SELF_TEST_EXERCISES].sort((a, b) => a.number - b.number);
   $("msEx").innerHTML = `<option value="">All exercises (${sheetExercises.length} pages)</option>` + sheetExercises.map((e) => `<option value="${esc(e.id)}">${e.number}. ${esc(e.title)}</option>`).join("");
@@ -697,6 +839,23 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     msg(st.save() ? "Scoring saved. It applies to exercises started from now on." : "Could not save.");
     fillScore();
   });
+  const showTl = (): void => {
+    const id = inputValue("inTlEx");
+    const v = st.data.scoring.timeLimits?.[id];
+    $<HTMLInputElement>("inTlMin").value = typeof v === "number" ? String(v) : "";
+    const all = Object.entries(st.data.scoring.timeLimits ?? {}).filter(([, m]) => typeof m === "number");
+    $("inTlNow").textContent = all.length ? `Limits set: ${all.map(([k, m]) => `${k} ${m} min`).join(", ")}.` : "No time limits set by the instructor.";
+  };
+  $("inTlEx").addEventListener("change", showTl);
+  $("inTlSet").addEventListener("click", () => {
+    const raw = inputValue("inTlMin");
+    const v = raw === "" ? null : Number(raw);
+    if (v !== null && !(Number.isFinite(v) && v > 0)) return;
+    st.data.scoring.timeLimits = { ...(st.data.scoring.timeLimits ?? {}), [inputValue("inTlEx")]: v };
+    msg(st.save() ? "Time limit saved. It applies to exercises started from now on." : "Could not save.");
+    showTl();
+  });
+  showTl();
   $("inScoreReset").addEventListener("click", () => {
     st.data.scoring = JSON.parse(JSON.stringify(PLACEHOLDER_SCORING)) as ScoringConfig;
     st.save();
