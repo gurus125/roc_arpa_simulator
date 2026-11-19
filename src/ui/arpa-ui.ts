@@ -77,8 +77,12 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
   };
   for (const [k, id] of Object.entries(modeBtn)) $(id).addEventListener("click", () => setMode(k as ClickMode));
 
-  /** Copy the panel into the ARPA settings. */
-  const apply = (): void => {
+  /**
+   * Copy the panel into the ARPA settings. The gyro and log errors are taken from their two inputs only when
+   * `faults` is set (one of those inputs was changed, or a scenario was loaded): an exercise's script or the
+   * instructor station may have set other errors since, and a change of any other control must not undo them.
+   */
+  const apply = (faults = false): void => {
     const app = api.getApp();
     const s = app.arpa.settings;
     s.autoAcquire = inp("arpaAuto").checked;
@@ -127,9 +131,9 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
       s[z.list][z.i] = zs;
     }
     const w = app.world;
-    w.sensors.target = { gyroErrorDeg: num("gyroErr", 0), logErrorKn: num("logErr", 0) };
-    $("gyroErrV").textContent = w.sensors.target.gyroErrorDeg.toFixed(1);
-    $("logErrV").textContent = w.sensors.target.logErrorKn.toFixed(1);
+    if (faults) w.sensors.target = { gyroErrorDeg: num("gyroErr", 0), logErrorKn: num("logErr", 0) };
+    $("gyroErrV").textContent = (w.sensors.target?.gyroErrorDeg ?? 0).toFixed(1);
+    $("logErrV").textContent = (w.sensors.target?.logErrorKn ?? 0).toFixed(1);
     $("truthTable").hidden = !inp("arpaTruth").checked;
   };
 
@@ -169,7 +173,7 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     }
     $<HTMLSelectElement>("arpaStab").value = s.stabilisation;
     alarmSig = "";
-    apply();
+    apply(true);
   };
 
   const ids = [
@@ -177,8 +181,9 @@ export function initArpaUi(api: ArpaUiApi): ArpaUi {
     "gyroErr", "logErr", "arpaTruth", ...ZONES.flatMap((z) => ["on", "in", "out", "from", "to"].map((f) => `z_${z.key}_${f}`)),
   ];
   for (const id of ids) {
-    $(id).addEventListener("input", apply);
-    $(id).addEventListener("change", apply);
+    const faults = id === "gyroErr" || id === "logErr";
+    $(id).addEventListener("input", () => apply(faults));
+    $(id).addEventListener("change", () => apply(faults));
   }
   // GNSS failure and a dragging anchor are states of the world (an exercise may set them): the boxes
   // change them only when clicked, and follow them otherwise (in tick).

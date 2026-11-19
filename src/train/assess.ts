@@ -1,7 +1,7 @@
 import { World } from "../engine/index";
 import { ArpaSystem } from "../arpa/index";
 import { DEFAULT_OBSERVATION_ITEMS, SyllabusRefs } from "./marking";
-import { RecordEvent, SessionRecord, bookmarks, controlsShare } from "./record";
+import { RecordEvent, SessionRecord, bookmarks, controlsShare, traineeRecords } from "./record";
 import { ArpaExSession, ArpaExercise, ScoringConfig, TaskCriterion, distanceToLandNm, taskCriteria, timeLimitMin, truthCpa } from "./session";
 
 /**
@@ -172,7 +172,7 @@ export function traineeTableHtml(rec: SessionRecord): string {
 
 /** Every trainee named in the records, in alphabetical order. */
 export function traineeNames(records: SessionRecord[]): string[] {
-  return [...new Set(records.flatMap((r) => r.students))].sort((a, b) => a.localeCompare(b));
+  return [...new Set(traineeRecords(records).flatMap((r) => r.students))].sort((a, b) => a.localeCompare(b));
 }
 
 const DECISION: Record<string, string> = { competent: "Competent", "not-yet": "Not yet competent", "": "-" };
@@ -183,13 +183,13 @@ const DECISION: Record<string, string> = { competent: "Competent", "not-yet": "N
  */
 export function traineeKeys(records: SessionRecord[]): { name: string; batch: string }[] {
   const seen = new Map<string, { name: string; batch: string }>();
-  for (const r of records) for (const name of r.students) seen.set(`${r.batch}\u0001${name}`, { name, batch: r.batch });
+  for (const r of traineeRecords(records)) for (const name of r.students) seen.set(`${r.batch}\u0001${name}`, { name, batch: r.batch });
   return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name) || a.batch.localeCompare(b.batch));
 }
 
 /** One trainee's file: every recorded exercise he or she took part in, oldest first, as a page to print. */
 export function traineeFileHtml(records: SessionRecord[], name: string, progress = ""): string {
-  const mine = records.filter((r) => r.students.includes(name)).sort((a, b) => a.startedIso.localeCompare(b.startedIso));
+  const mine = traineeRecords(records).filter((r) => r.students.includes(name)).sort((a, b) => a.startedIso.localeCompare(b.startedIso));
   const rows = mine.map((r) => {
     const t = traineeResults(r).find((x) => x.name === name)!;
     const alone = r.students.length === 1;
@@ -416,7 +416,7 @@ export interface ClassRow {
 
 /** Every recorded attempt at one exercise, the best score first, for a debrief of the whole class. */
 export function classComparison(records: SessionRecord[], exerciseId: string): ClassRow[] {
-  return records.filter((r) => r.exerciseId === exerciseId).map((r) => {
+  return traineeRecords(records).filter((r) => r.exerciseId === exerciseId).map((r) => {
     const marks = bookmarks(r);
     return {
       recId: r.id, who: r.students.join(" / ") || "no names", date: r.startedIso.slice(0, 10), percent: r.result ? Math.round(r.result.percent) : null, minutes: Math.round(r.simSeconds / 60),

@@ -1146,6 +1146,110 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   check(`${tag} no script errors`, errs.length === 0, errs.join("; "));
   await p.close();
 }
+
+// Exercise 8 brings in a gyro error by its script: changing an ARPA control afterwards must not undo it (it did, until
+// rs-b46: every ARPA control copied the instructor's fault boxes, still at 0, into the gyro).
+{
+  const p = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const errs = [];
+  p.on("pageerror", (e) => errs.push(e.message));
+  await p.goto(html);
+  await p.getByText("Free practice without names").click();
+  await p.evaluate(() => window.__simTest.startExercise("arpa-8"));
+  await p.evaluate(() => {
+    document.getElementById("banner").click();
+    document.getElementById("run").click();
+    const s = document.getElementById("speed");
+    s.value = "10";
+    s.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await p.waitForFunction(() => window.__simTest.time() > 600, null, { timeout: 150000, polling: 500 });
+  const gyro = () => p.$eval("#faultNow", (e) => Number(/gyro (-?[\d.]+)/.exec(e.textContent)?.[1] ?? NaN));
+  const g0 = await gyro();
+  await p.evaluate(() => {
+    const e = document.getElementById("arpaCpaLim");
+    e.value = "1.5";
+    e.dispatchEvent(new Event("input", { bubbles: true }));
+    e.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  const t0 = await p.evaluate(() => window.__simTest.time());
+  await p.waitForFunction((t) => window.__simTest.time() > t + 120, t0, { timeout: 60000, polling: 500 });
+  const g1 = await gyro();
+  check("[ex 8] the scripted gyro error stays when an ARPA control is changed", Math.abs(g0 - 4) < 0.05 && Math.abs(g1 - 4) < 0.05, `${g0} then ${g1}`);
+  check("[ex 8] no script errors", errs.length === 0, errs.join("; "));
+  await p.close();
+}
+
+// The robot student on the #demo display: it works an exercise with the display's own controls.
+{
+  const p = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const errs = [];
+  p.on("pageerror", (e) => errs.push(e.message));
+  await p.goto(html + "#demo");
+  await p.waitForTimeout(400);
+  const tag = "[#demo]";
+  const bar = await p.evaluate(() => ({
+    login: !document.getElementById("login").hidden,
+    ex: document.querySelectorAll("#rbEx option").length,
+    levels: document.querySelectorAll("#rbLevel option").length,
+    text: document.getElementById("robotBar")?.innerText ?? "",
+    who: document.getElementById("who").textContent,
+  }));
+  check(`${tag} no login box; the robot bar lists the 31 exercises (and all of them in turn) and five levels`, !bar.login && bar.ex === 32 && bar.levels === 5, JSON.stringify({ ...bar, text: "" }));
+  check(`${tag} the bar says it is a training simulator, not for navigation`, /not for navigation/.test(bar.text) && /robot student/i.test(bar.who), bar.text.slice(0, 200));
+  await p.selectOption("#rbEx", "arpa-1");
+  await p.selectOption("#rbLevel", "5");
+  await p.selectOption("#rbSpeed", "20");
+  await p.click("#rbStart");
+  await p.waitForTimeout(6000);
+  // A person's click on the display is held back while the robot has the controls.
+  const before = await p.evaluate(() => document.getElementById("cmCan").classList.contains("on"));
+  const box = await p.locator("#cmCan").boundingBox();
+  await p.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const after = await p.evaluate(() => document.getElementById("cmCan").classList.contains("on"));
+  const pointer = await p.evaluate(() => !document.getElementById("rbPointer").hidden);
+  check(`${tag} while the robot works, its pointer shows and a person's clicks are held back`, !before && !after && pointer, `${before} ${after} ${pointer}`);
+  await p.waitForFunction(() => !document.getElementById("rbStart").disabled, null, { timeout: 180000, polling: 500 }).catch(() => undefined);
+  const res = await p.evaluate(() => {
+    const raw = localStorage.getItem("radar-sim-store-v1");
+    const recs = raw ? JSON.parse(raw).records ?? [] : [];
+    const r = recs[recs.length - 1];
+    return { log: [...document.querySelectorAll("#rbLog .result")].map((e) => e.textContent).join(" "), rec: r ? { robot: r.robot, students: r.students, percent: r.result?.percent, debrief: r.debrief?.self ?? "" } : null };
+  });
+  check(`${tag} level 5 works exercise 1 through the screen: every item credited`, /Result 50 of 50 \(100%\)/.test(res.log), res.log.slice(0, 200));
+  check(`${tag} its record is marked as the robot's, with its debrief`, res.rec?.robot?.level === 5 && res.rec.students[0] === "Robot student (level 5)" && res.rec.percent === 100 && /Robot student, level 5/.test(res.rec.debrief), JSON.stringify(res.rec));
+  // PAUSE holds the clock; TAKE OVER hands the exercise to the person, whose clicks then work.
+  await p.selectOption("#rbEx", "arpa-7");
+  await p.selectOption("#rbLevel", "3");
+  await p.click("#rbStart");
+  await p.waitForTimeout(5000);
+  await p.click("#rbPause");
+  await p.waitForTimeout(500);
+  const t0 = await p.evaluate(() => window.__simTest.time());
+  await p.waitForTimeout(1500);
+  const t1 = await p.evaluate(() => window.__simTest.time());
+  check(`${tag} PAUSE holds the clock`, t1 === t0, `${t0} ${t1}`);
+  await p.click("#rbTake");
+  await p.waitForFunction(() => !document.getElementById("rbStart").disabled, null, { timeout: 20000 }).catch(() => undefined);
+  // A real click on the Run key works again (the clock was held by PAUSE, so it was stopped).
+  const runBefore = await p.evaluate(() => document.getElementById("run").textContent);
+  await p.locator("#run").click({ timeout: 5000 }).catch(() => undefined);
+  const runAfter = await p.evaluate(() => document.getElementById("run").textContent);
+  const mine = runBefore !== runAfter;
+  await p.evaluate(() => {
+    if (!document.body.classList.contains("menu-open")) document.getElementById("menuKey").click();
+  });
+  await p.evaluate(() => document.querySelector('#cMenu button[data-key="ex"]')?.click());
+  await p.evaluate(() => document.getElementById("exFinish").click());
+  await p.waitForTimeout(500);
+  const taken = await p.evaluate(() => {
+    const recs = JSON.parse(localStorage.getItem("radar-sim-store-v1") ?? "{}").records ?? [];
+    return recs.find((r) => r.exerciseId === "arpa-7")?.robot ?? null;
+  });
+  check(`${tag} TAKE OVER: the person's clicks work again, and the record says when the robot handed over`, mine && taken?.level === 3 && typeof taken.takenOverAt === "number", `${mine} ${JSON.stringify(taken)}`);
+  check(`${tag} no script errors`, errs.length === 0, errs.join("; "));
+  await p.close();
+}
 await browser.close();
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nAll screen checks passed");
 process.exit(fails.length ? 1 : 0);

@@ -17,3 +17,4 @@ export * from "./classroom";
 export * from "./lookout";
 export * from "./accounts";
 export * from "./history";
+export * from "./robot-student";

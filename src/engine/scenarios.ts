@@ -123,7 +123,7 @@ const VESSEL_TYPES = TARGET_TYPES.filter((t) => !t.fixed);
 export const SHIP_TYPES_TRAFFIC: Scenario = {
   id: "ship-types",
   name: `Ship types (${VESSEL_TYPES.length} vessels)`,
-  description: `One vessel of each of the ${VESSEL_TYPES.length} catalogue types, each at its usual speed, with a current and a fresh wind. Large ships show further off and turn slowly; small craft show late. Use the 12 NM range scale. The ARPA tracks 20 at most.`,
+  description: `One vessel of each of the ${VESSEL_TYPES.length} catalogue types, each at its usual speed, with a current and a fresh wind. Large ships show further off and turn slowly; small craft show late. Use the 12 NM range scale. The ARPA tracks 40 at most.`,
   own: { heading: 0, speed: 14 },
   env: { seaState: 3, current: { set: 70, drift: 1.5 }, wind: { from: 250, speedKn: 20 } },
   coasts: [],

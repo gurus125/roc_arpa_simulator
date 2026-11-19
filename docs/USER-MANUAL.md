@@ -499,6 +499,12 @@ when the second charted object has been observed, so choose your objects before 
 briefing, every item the simulator marks with its limit and points, what the instructor will look
 for and the standard for each item. It is the same list as "How you will be assessed" on the screen.
 
+**The robot student.** Your instructor may show an exercise worked by a robot student on a display
+opened as `radar-simulator.html#demo`: a yellow pointer marked ROBOT works the controls, and the bar at
+the foot of the screen says what it is doing and why. At level 5 it does everything the briefing asks;
+at lower levels it makes mistakes on purpose, and each one is written in its log so that you can see
+what it cost in the result.
+
 ## 10. Limits of this simulator
 
 - The marking tolerances are placeholders until your academy sets its own.

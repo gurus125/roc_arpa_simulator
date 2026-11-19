@@ -14,6 +14,7 @@ import { ConsoleUi, initConsoleUi, radarKeyLabel } from "./console-ui";
 import { AppState, advance, createApp, resetCourseUp, resetTrueMotion, rewind, setDisplayMode, setRange } from "./app";
 import { initRocUi } from "./roc-ui";
 import { initArpaUi } from "./arpa-ui";
+import { initRobotUi } from "./robot-ui";
 import { drawPpi, radarGeometry, readoutAt } from "./view";
 import { setDisplayPalette } from "./palette";
 import { soundWhistle } from "./whistle";
@@ -53,6 +54,8 @@ function browserStorage(): Storage | null {
  * classroom server). Otherwise it is a student display, which has no instructor pages at all.
  */
 const STATION = /(^|[#?&])instructor\b/i.test(location.hash + location.search) || /\/instructor\/?$/i.test(location.pathname);
+/** radar-simulator.html#demo: the robot student works the ARPA EX exercises on this display (robot-ui.ts). */
+const DEMO = !STATION && /(^|[#?&])demo\b/i.test(location.hash + location.search);
 let stationUi: StationUi | null = null;
 const storage = browserStorage();
 const store = new Store(storage);
@@ -392,7 +395,7 @@ function showWho(): void {
   const names = session.students.length > 0 ? session.students.map(esc).join(" / ") : "free practice, no names";
   const hrs = session.students.length > 0 ? ` &nbsp; display time ${store.pairHours(session.students).toFixed(1)} h${store.data.targetHoursPerPair !== null ? ` of ${store.data.targetHoursPerPair} h` : ""}` : "";
   fillControls();
-  $("who").innerHTML = STATION ? (session.role === "instructor" ? "logged in" : "") : `${names}${batchName() ? ` (${esc(batchName())})` : ""}${hrs}${session.role === "instructor" ? ' &nbsp; <b style="color:var(--warn)">INSTRUCTOR</b>' : ""}`;
+  $("who").innerHTML = STATION ? (session.role === "instructor" ? "logged in" : "") : DEMO ? "robot student demonstration" : `${names}${batchName() ? ` (${esc(batchName())})` : ""}${hrs}${session.role === "instructor" ? ' &nbsp; <b style="color:var(--warn)">INSTRUCTOR</b>' : ""}`;
 }
 
 function fillScenarioList(): void {
@@ -1822,6 +1825,26 @@ setRole("student");
 if (STATION) {
   stationUi = initStationUi({ store, link, role: () => session.role, setRole });
   stationUi.showLogin();
+} else if (DEMO) {
+  // No names: the robot's records carry its own label and are never a trainee's.
+  initRobotUi({
+    getApp: () => app,
+    clientOf: (p) => {
+      const g = radarGeometry(cssSize, app.world.radar.controls.rangeNm);
+      const d = worldToDisplayNm(app.world, app.display, p);
+      const rect = canvas.getBoundingClientRect();
+      return { x: rect.left + ((g.cx + d.x * g.k) * rect.width) / cssSize, y: rect.top + ((g.cy - d.y * g.k) * rect.height) / cssSize };
+    },
+    markRecord: (robot, label) => {
+      if (!app.recorder) return;
+      app.recorder.rec.robot = robot;
+      app.recorder.rec.students = [label];
+    },
+    touched: () => {
+      lastInputAt = performance.now();
+    },
+  });
+  showWho();
 } else openLogin();
 setInterval(heartbeat, 1000);
 window.addEventListener("beforeunload", () => store.save());

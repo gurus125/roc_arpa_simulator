@@ -1,5 +1,5 @@
 import { traineeResults } from "./assess";
-import { SessionRecord, bookmarks } from "./record";
+import { SessionRecord, bookmarks, traineeRecords } from "./record";
 
 /**
  * Performance history: what one trainee has done over time, and what a batch has done of the exercises
@@ -33,7 +33,7 @@ export interface AttemptRow {
 
 /** Every recorded exercise of one trainee, oldest first. */
 export function traineeAttempts(records: SessionRecord[], name: string): AttemptRow[] {
-  return records.filter((r) => r.students.includes(name)).sort((a, b) => a.startedIso.localeCompare(b.startedIso)).map((r) => {
+  return traineeRecords(records).filter((r) => r.students.includes(name)).sort((a, b) => a.startedIso.localeCompare(b.startedIso)).map((r) => {
     const alone = r.students.length === 1;
     const t = traineeResults(r).find((x) => x.name === name);
     const own = t?.decision ? t.decision : "";

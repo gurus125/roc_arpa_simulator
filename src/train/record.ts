@@ -73,7 +73,16 @@ export interface SessionRecord {
   debriefDone?: { steps: boolean[]; goals: string; atIso: string };
   /** When the exercise was one part of a practical examination: which examination (one id for each sitting), its name, and which part of how many. */
   exam?: { id: string; name: string; part: number; of: number };
+  /**
+   * Worked by the robot student of the #demo display (train/robot-student.ts): its level and seed, and the exercise time at
+   * which a person took over the controls, if one did. Such a record is never a trainee's: it is left out of every trainee's
+   * file, progress and the class comparison.
+   */
+  robot?: { level: number; seed: number; takenOverAt?: number };
 }
+
+/** The records of real trainees: those worked by the robot student left out. */
+export const traineeRecords = <T extends Pick<SessionRecord, "robot">>(records: T[]): T[] => records.filter((r) => !r.robot);
 
 export const FRAME_INTERVAL_SEC = 10;
 

@@ -618,6 +618,46 @@
   @media (max-width: 1500px) { body[data-station=instructor] #topTabs button { padding:0 8px; font-size:12.5px; letter-spacing:.03em; } body[data-station=instructor] #brand { flex:0 0 auto; } body[data-station=instructor] #brand .logo { display:none; } body[data-station=instructor] header { gap:10px; } }
   @media (max-width: 1400px) { body[data-station=instructor] #brand b { font-size:15px; } body[data-station=instructor] #topTabs button { padding:0 6px; font-size:12px; letter-spacing:0; } }
   @media (max-width: 1300px) { body[data-station=instructor] #brand b { font-size:14px; } body[data-station=instructor] #hdrRight > * { padding:0 8px; } }
+  /* The robot student (#demo): its bar takes the place of the legend at the foot of the screen. */
+  body.demo { --ftrH:150px; }
+  @media (max-height:700px) { body.demo { --ftrH:128px; } }
+  body.demo footer#legend { display:block; padding:0; white-space:normal; overflow:hidden; }
+  #robotBar { height:100%; display:grid; grid-template-columns:minmax(300px, 25%) minmax(0, 1fr) minmax(320px, 36%); gap:0; font:12px/1.35 "Segoe UI", system-ui, sans-serif; color:var(--text); }
+  #robotBar > div { padding:7px 12px; min-width:0; overflow:hidden; display:flex; flex-direction:column; }
+  #robotBar > div + div { border-left:1px solid var(--line); }
+  #robotBar .rbTitle { display:flex; align-items:baseline; gap:10px; margin-bottom:5px; }
+  #robotBar .rbTitle b { color:var(--ackbg); letter-spacing:.12em; font-size:12.5px; }
+  #robotBar .rbTitle span { color:var(--muted); font-size:11px; white-space:nowrap; }
+  #robotBar .rbM .tu { margin-top:auto; color:var(--accent); font-size:11px; }
+  #robotBar .rbRow { display:flex; gap:6px; align-items:center; margin:4px 0; }
+  #robotBar select, #robotBar input, #robotBar button { height:25px; margin:0; padding:0 7px; font:600 11.5px "Segoe UI", system-ui, sans-serif; border-radius:4px; background:var(--btn); border:1px solid var(--line); color:var(--text); width:auto; }
+  #robotBar #rbEx { flex:1; min-width:0; }
+  #robotBar #rbLevel { flex:1; min-width:0; }
+  #robotBar .rbSeed { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--muted); white-space:nowrap; }
+  #robotBar #rbSeed { width:56px; }
+  #robotBar .rbKeys button { flex:1 1 0; min-width:0; padding:0 4px; letter-spacing:.04em; white-space:nowrap; font-size:11px; }
+  #robotBar .rbKeys .rbGo:not(:disabled) { background:var(--ackbg); color:var(--ackfg); border-color:var(--ackbg); }
+  #robotBar button:disabled { opacity:.45; }
+  #rbCap { font:600 16px/1.3 "Segoe UI", system-ui, sans-serif; color:var(--bright); min-height:42px; max-height:63px; overflow:hidden; }
+  #rbCap.mistake { color:var(--warn); }
+  #rbCap.think { color:var(--accent); }
+  #rbCap.result { color:var(--ok); }
+  #rbAbout { font-size:11.5px; color:var(--muted); margin-top:4px; }
+  #rbStat { font:12px Consolas, "DejaVu Sans Mono", ui-monospace, monospace; color:var(--clab); margin-top:5px; }
+  #rbLog { flex:1; min-height:0; overflow-y:auto; font:11.5px/1.35 "Segoe UI", system-ui, sans-serif; color:var(--muted); }
+  #rbLog .rbE { padding:1px 0; }
+  #rbLog .rbT { font-family:Consolas, ui-monospace, monospace; color:var(--clab); margin-right:6px; }
+  #rbLog .rbK { display:inline-block; min-width:62px; font-size:10px; font-weight:700; letter-spacing:.06em; margin-right:4px; }
+  #rbLog .do, #rbLog .answer { color:var(--text); }
+  #rbLog .think .rbK { color:var(--accent); }
+  #rbLog .mistake { color:var(--warn); }
+  #rbLog .result { color:var(--ok); font-weight:600; }
+  #rbPointer { position:fixed; left:0; top:0; z-index:9999; pointer-events:none; width:26px; height:26px; margin:-2px 0 0 -3px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
+  #rbPointer svg { width:26px; height:26px; display:block; }
+  #rbPointer span { position:absolute; left:22px; top:20px; font:700 9px "Segoe UI", system-ui, sans-serif; letter-spacing:.1em; color:#061329; background:#ffc928; border-radius:3px; padding:1px 4px; }
+  .rbRipple { position:fixed; z-index:9998; pointer-events:none; width:34px; height:34px; margin:-17px 0 0 -17px; border:2px solid #ffc928; border-radius:50%; animation:rbRip .55s ease-out forwards; }
+  @keyframes rbRip { from { transform:scale(.3); opacity:1; } to { transform:scale(1.4); opacity:0; } }
+  .rbHit { outline:2px solid #ffc928 !important; outline-offset:2px; }
 </style>
 </head>
 <body>
@@ -635,7 +675,7 @@
   <div id="lgNames"></div>
   <p class="small wn" id="lgMsg"></p>
   <div class="btns"><button id="lgStart" class="on">Start as student</button><button id="lgSkip">Free practice without names</button></div>
-  <p class="hint">Instructors: start either way, then open the Instructor tab and log in with the PIN.</p>
+  <p class="hint">Instructors: the instructor station is this same page opened with #instructor after its address (with the classroom server: its address followed by /instructor).</p>
 </div></div>
 <header>
   <div id="brand"><span class="logo" id="hdrLogo"></span><div><b>ROC / ARPA Radar Simulator</b><span class="sub">Training &amp; Study Mode <span id="who"></span></span></div></div>
@@ -950,7 +990,7 @@
           <div><label>&nbsp;</label><button id="trialFromOwn">Start from present course</button></div>
         </div>
         <table class="trk"><thead><tr><th>ID</th><th>Trial CPA</th><th>Trial TCPA</th><th>Now CPA</th><th></th></tr></thead><tbody id="trialRows"></tbody></table>
-        <p class="hint">The trial uses ARPA's estimates and assumes own ship turns instantly and targets hold course and speed. Nothing in the simulation changes.</p>
+        <p class="hint">The trial uses the ARPA's estimates. Own ship comes round and changes speed as she really would, not at once; the targets are taken to hold course and speed. Nothing in the simulation changes.</p>
       </section>
       <section>
         <h2>Guard zones and exclusion areas</h2>

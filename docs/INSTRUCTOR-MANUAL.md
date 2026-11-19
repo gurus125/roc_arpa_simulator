@@ -489,6 +489,42 @@ credited. This checks that every exercise runs, can be completed and is marked p
 not check that the answer key is good seamanship, and the ROC exercises are not included. Run it
 after any change of scoring settings.
 
+## 10a. The robot student (`radar-simulator.html#demo`)
+
+Open the simulator with `#demo` after its address (from the classroom server: its address followed by
+`/#demo`). The display opens with no login and a bar at the foot of the screen in place of the legend. Choose
+an exercise of the ARPA EX list (1 to 31, or all of them one after another), a level from 1 (Beginner) to 5
+(Excellent), a seed and how fast the clock runs while the robot waits (1x to 20x; its actions are always at
+normal speed), then press START.
+
+The robot works the exercise with this display's own controls: a yellow pointer marked ROBOT moves to each key,
+box, slider and target and presses it. It opens the exercise from the ARPA EX list, reads the briefing, presses
+RUN, acquires by clicking the echoes, sets limits, zones and past positions, uses the trial manoeuvre before it
+alters, gives way, steers by the parallel index line or the route, anchors, presses MOB and makes a Williamson
+turn, plots by hand with EBL and VRM in exercises 12 to 21, switches on and sets up the radar in exercise 22,
+types its answers, presses Finish, and writes and saves its debrief notes. The caption in the middle of the bar
+says what it is doing and why; the log on the right keeps every step, every value it read and every mistake.
+
+- Level 5 does everything the briefing asks, in good time, and every item is credited (checked for all 31 by
+  the unit tests and through the screen by `scripts/robot-demo-test.mjs`).
+- Levels 4 to 1 make mistakes on purpose, by chance: misread values, wrong choices, steps forgotten, avoiding
+  action too small, late or to port, alarms left unacknowledged, sloppy steering, the gain or tuning left wrong,
+  MOB pressed late. Each one is written in the log in amber, so the result can be laid beside what it did.
+  The same level and seed give the same mistakes (the clock on a screen differs a little from run to run, so a
+  value read off it can differ in the last figure).
+- PAUSE stops the clock; STOP ends the run; TAKE OVER stops the robot and leaves the exercise to you. While the
+  robot has the controls, clicks and keys on the display are held back; the bar always works.
+- Its records are saved like any other (replay, evidence, debrief) and sent to the station, under the name
+  "Robot student (level n)" and marked as the robot's (with the moment of a take-over). They are left out of every
+  trainee's file and progress, the batch progress and the class comparison.
+
+What it is for: showing a class what an exercise asks for, what full marks look like, and how the marking
+answers to good and poor work; checking an exercise after a change. What it is not: a model of how trainees
+learn or err. The robot answers each question with the value the exercise checks against, rounded as it would
+be read off the display (the manual plotting it works from its own EBL and VRM readings), so it proves nothing
+about the answer key itself. The chances of each mistake at each level are chosen for the demonstration, not
+measured from trainees, and are no part of any marking scheme.
+
 ## 11. Making scenarios
 
 Station, SCENARIOS, "Scenario editor": start from an existing scenario, set own ship's heading and speed,

@@ -1,4 +1,7 @@
-import { bearingOf, fromPolar, normalizeDeg, sub, velocityOf, courseSpeedOf } from "../core/vec";
+import { bearingOf, fromPolar, length, normalizeDeg, sub, velocityOf, courseSpeedOf } from "../core/vec";
+
+/** Relative speed (knots) below which a ship counts as having no relative motion when the closest one is asked for. */
+export const NO_RELATIVE_MOTION_KN = 0.5;
 import { trialManoeuvre } from "../core/trial";
 import { bowCrossing } from "../core/bcr";
 import { COASTAL, Scenario, World, ownCogSog, ownGroundVelocity } from "../engine/index";
@@ -34,6 +37,10 @@ function mostDangerous(c: TaskCtx, ids: number[]): number {
   let bestCpa = Infinity;
   ids.forEach((id, i) => {
     const r = truthCpa(c.w, id);
+    // A ship with (almost) no relative motion has no relative vector and no real closest approach: the CPA worked from
+    // the small difference of her speed and own ship's swings with every change of own speed, so she is left out.
+    const t = targetById(c.w, id);
+    if (t && length(sub(velocityOf({ course: t.course, speed: t.speed }), ownGroundVelocity(c.w))) < NO_RELATIVE_MOTION_KN) return;
     if (r && r.tcpaMinutes !== null && r.tcpaMinutes > 0 && r.cpa < bestCpa) {
       bestCpa = r.cpa;
       best = i;

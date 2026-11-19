@@ -8,7 +8,9 @@ Open `dist/radar-simulator.html` in a browser (double-click it). Nothing else is
 student display: free practice, the radar and ARPA, and the exercises (EXERCISE tab, ARPA EX and ROC EX
 in the menu, or the ship control window). The six ROC exercises are manual plotting, position fixing,
 set and drift, clearing range, blind pilotage and heavy-traffic collision avoidance; ARPA is switched
-off during them. The instructor station is the same file opened as `radar-simulator.html#instructor`.
+off during them. The instructor station is the same file opened as `radar-simulator.html#instructor`. Opened as
+`radar-simulator.html#demo` it is a display on which a robot student, of a level from 1 to 5, works any of the 31 exercises
+with the display's own controls while the class watches (see the instructor's manual, 10a).
 
 Hosted on a web site (Vercel: `vercel.json` builds it and serves it at `/`, and at `/instructor` for the
 station): the page works the same, but a hosted copy has no classroom server, so the station and the
@@ -56,6 +58,11 @@ Self-test (`src/train/robot.ts`): instructor station, EXERCISES, "Self-test of t
 Three robots (careful, wrong, idle) work all 26 ARPA, radar and plotting exercises and the marking is
 compared with what should happen. It checks that the exercises run and are marked properly, not that
 the answer key is good seamanship. ROC exercises are not included.
+Robot student (`src/train/robot-student.ts`, on the screen `src/ui/robot-ui.ts`): `radar-simulator.html#demo`. A robot of
+level 1 to 5 works any of the 31 exercises with the display's own controls (pointer, caption, log); levels below 5 make
+mistakes on purpose, each one logged; the chances are chosen for the demonstration (`ROBOT_LEVELS`). Its records are
+marked and left out of every trainee's file and progress. Tests: `tests/robot-student.test.ts` (all 31 at level 5, worked
+directly) and `node scripts/robot-demo-test.mjs` (all 31 through the screen, in a headless browser, after `npm run build`).
 SETTINGS key: DAY / NIGHT display palettes (`src/ui/palette.ts`; day is deep navy with amber echoes,
 night is black and dimmed) and Own ship data (name, call sign, IMO, MMSI, size, type; live position,
 COG, SOG, heading, ROT, UTC; draught, hazardous cargo, destination, ETA). Typed-in values start as
@@ -64,7 +71,8 @@ Radar picture (`src/engine/echo.ts`): echoes are painted as arcs as wide as the 
 as deep as the pulse plus the target, so range and bearing discrimination, sideways stretch with range,
 aspect, and land depth appear on the picture. Beam = length / 7, aspect curve and land depth are placeholders.
 Sound signals (`src/core/signals.ts`): COLREG rule 34 and 35 whistle signals, automatic fog signal.
-Learner's manual: `docs/USER-MANUAL.md`. Instructor's operation manual: `docs/INSTRUCTOR-MANUAL.md`.
+Learner's manual: `docs/USER-MANUAL.md`. Instructor's operation manual: `docs/INSTRUCTOR-MANUAL.md`. Both in one, with
+pictures, for trainees, instructors and whoever installs it: `docs/COMPLETE-MANUAL.pdf` (source and how to build it: `docs/manual-src`).
 Checked against the textbook "Radar and ARPA Manual" (Bole and Dineley, 1990, and the third edition by Bole, Wall and
 Norris, 2014, chapters 1 to 9 rule by rule with the book's worked examples as tests): `docs/BOOK-CHECK-RADAR-ARPA-MANUAL.md`.
 From that check: the target's aspect in the plot report (`aspectOf` in `src/core/plot.ts`), sub- and super-refraction

@@ -5,3 +5,5 @@ terrain-src/
 Thumbs.db
 # The classroom server keeps trainees' names and results here: never commit it.
 data/
+# Screen pictures for the complete manual: made again by docs/manual-src/shots.
+manual-img/
