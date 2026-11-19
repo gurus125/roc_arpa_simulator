@@ -3,3 +3,5 @@ terrain-src/
 *.log
 .DS_Store
 Thumbs.db
+# The classroom server keeps trainees' names and results here: never commit it.
+data/

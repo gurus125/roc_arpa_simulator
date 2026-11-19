@@ -20,6 +20,8 @@ import { Link } from "./link";
 export interface StationUi {
   /** Show the PIN screen (at the start, and after logging out). */
   showLogin: () => void;
+  /** Send the batches and settings to the displays now (they also go every few seconds). */
+  sendConfig: () => void;
 }
 
 export interface StationOpts {
@@ -113,7 +115,7 @@ export function initStationUi(o: StationOpts): StationUi {
   const sendConfig = (): void => {
     if (o.role() !== "instructor") return;
     const d = o.store.data;
-    o.link.sendConfig({ batches: d.batches, scoring: d.scoring, maxStudentsPerDisplay: d.maxStudentsPerDisplay, targetHoursPerPair: d.targetHoursPerPair, changeoverMin: d.changeoverMin ?? null });
+    o.link.sendConfig({ batches: d.batches, scoring: d.scoring, maxStudentsPerDisplay: d.maxStudentsPerDisplay, targetHoursPerPair: d.targetHoursPerPair, changeoverMin: d.changeoverMin ?? null, requireLogin: !!d.requireLogin });
   };
   const tryLogin = (): void => {
     if (o.store.checkPin(pin.value)) {
@@ -137,5 +139,6 @@ export function initStationUi(o: StationOpts): StationUi {
       page.hidden = true;
       pin.focus();
     },
+    sendConfig,
   };
 }

@@ -192,6 +192,8 @@ const EX29: ArpaExercise = {
 
 /** The moment the visibility closes, seconds. */
 export const FOG_AT_SEC = 180;
+/** The visibility from then on, NM (a figure for this exercise). */
+export const FOG_VISIBILITY_NM = 0.8;
 
 const judgeSafeSpeed: OutcomeJudge = Object.assign((c: TaskCtx) => {
   const by = FOG_AT_SEC + NAV_LIMITS.safeSpeedByMin * 60;
@@ -227,7 +229,8 @@ const EX30: ArpaExercise = {
     { id: "speed", kind: "outcome", prompt: `Speed down to ${NAV_LIMITS.safeSpeedKn} kn or less within ${NAV_LIMITS.safeSpeedByMin} min of the visibility closing`, judge: judgeSafeSpeed },
     { id: "safe", kind: "outcome", prompt: "Every vessel passed at 0.5 NM or more", judge: judgeSafePassing({ safeNm: 0.5 }) },
   ],
-  script: [{ atSeconds: FOG_AT_SEC, note: "The visibility closes (reported to the trainee).", say: "BRIDGE: visibility is closing in the rain, now less than 1 NM.", run: () => {} }],
+  // The visibility closes to 0.8 NM: the bridge reports it (see train/lookout.ts), and from then on vessels within it are reported as they come into sight.
+  script: [{ atSeconds: FOG_AT_SEC, note: "The visibility closes to 0.8 NM (reported to the trainee).", run: (w) => void (w.env.visibilityNm = FOG_VISIBILITY_NM) }],
   debrief: [
     "At 16 knots, how far does this ship travel before she is stopped? How does that compare with the range at which you first saw the nearest boat?",
     "Which radar settings helped most in the rain, and what did each cost you?",

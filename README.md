@@ -160,6 +160,18 @@ decision that goes against the record needs a written reason (`decisionConflicts
 debrief in five steps and a debrief pack are laid out from the record (`debriefPack`), with a comparison of the class
 on one exercise. Older records stay without their replay for the files and comparisons (`lightRecord`). The assessor
 still decides; every standard, limit and rule is a proposal or a placeholder. Tests: `tests/b43-assess.test.ts`.
+Ninth round (18 Nov 2026), completing four things that were built in part. (1) From the station a trainee's display
+can be taken back in time and reset, and one of its targets given a programmed track (`parseTrackText`). (2)
+Visibility (`src/engine/visibility.ts`): set by the instructor or the scenario; the simulator has no view from the
+windows, so the trainee is told it and a look-out reports the vessels in sight (`src/train/lookout.ts`; "in sight" is
+a placeholder: range not more than the visibility); Rule 19(d) is applied in the marking to a vessel not in sight.
+(3) Trainee accounts (`src/train/accounts.ts`): a PIN for each trainee, chosen at the first login and reset by the
+instructor, kept only as a SHA-256 digest; the trainee sees his or her own results. Classroom protection, not real
+security. (4) Performance history (`src/train/history.ts`): each trainee's attempts, a chart, each exercise's first,
+best and latest score, a batch against its exercises; and storage beyond the browser: the classroom server keeps the
+records and the class as files in `data/` for a station that gives its station key (`server/server.mjs`,
+`src/ui/server-store.ts`), and a backup file can be saved and restored. `data/` is in `.gitignore`: it holds trainees'
+names and results. Tests: `tests/b44-classroom.test.ts`, `tests/server.test.mjs`.
 Hardware control panel: keys for every radar function, changeable, and knob-box (game controller) inputs
 (`src/ui/panel-map.ts`, `src/ui/panel.ts`; SETTINGS > Control panel). No real panel has been tried.
 `npm run test:link` starts the classroom server and checks the instructor station and four student displays in separate
@@ -175,7 +187,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 809 tests
+    npm test            # 844 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 
@@ -202,7 +214,9 @@ See `PLAN.md` for the full build plan.
   have no instructor pages: no INSTR or FAULTS key and no PIN box.
 - `npm run serve` starts a small classroom server so the instructor station can reach other PCs.
   Open the address it prints on every display, and that address followed by `/instructor` on the
-  instructor's PC. Classroom network only: it has no security.
+  instructor's PC. It also keeps the station's records and class as JSON files in `data/` (or the folder
+  named in `RADAR_SIM_DATA`), for a station that gives the station key it prints at start. Classroom
+  network only: nothing is encrypted, and the key travels in clear.
 
 See `docs/PHASE5-8-INSTRUCTOR-CHECK.md`. Nothing here is certified or approved for navigation.
 

@@ -3,15 +3,15 @@ import { StationUi, initStationUi } from "./station-ui";
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
 import { aisFilterLabel } from "../ais/index";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
-import { BAND_DATA, currentVelocity, pulseFor, prfChoices, addTypedTarget, addRandomTraffic, RANDOM_TRAFFIC_DEFAULT, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN } from "../engine/index";
+import { BAND_DATA, currentVelocity, pulseFor, prfChoices, addTypedTarget, addRandomTraffic, RANDOM_TRAFFIC_DEFAULT, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setTargetRoute, clearTargetRoute, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, visibilityNm, MAX_VISIBILITY_NM, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
-import { ARPA_EXERCISES, PLOTTING_EXERCISES, PLOT_RULES, RADAR_EXERCISES, ArpaExSession, ArpaExercise, attentionFlags, progressReport, evidenceOf, criteriaSnapshot, rocCriteria, rocResult, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
+import { ARPA_EXERCISES, PLOTTING_EXERCISES, PLOT_RULES, RADAR_EXERCISES, ArpaExSession, ArpaExercise, Lookout, checkLogin, hasPin, traineeAttempts, progressHtml, AttemptRow, attentionFlags, progressReport, evidenceOf, criteriaSnapshot, rocCriteria, rocResult, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
 import { initTrainUi, resultHtml } from "./train-ui";
 import { initInstructorUi } from "./instructor-ui";
 import { FAULT_IDS, Link } from "./link";
 import { byId, esc, mmss } from "./dom";
 import { ConsoleUi, initConsoleUi, radarKeyLabel } from "./console-ui";
-import { AppState, advance, createApp, resetCourseUp, resetTrueMotion, setDisplayMode, setRange } from "./app";
+import { AppState, advance, createApp, resetCourseUp, resetTrueMotion, rewind, setDisplayMode, setRange } from "./app";
 import { initRocUi } from "./roc-ui";
 import { initArpaUi } from "./arpa-ui";
 import { drawPpi, radarGeometry, readoutAt } from "./view";
@@ -123,6 +123,11 @@ function timedChangeover(): void {
   ctlSlot = slot;
 }
 /** When each attention flag was last seen (exercise time): one is bookmarked in the record when it is raised. */
+byId<HTMLInputElement>("visNm")?.addEventListener("change", (ev) => {
+  const el = ev.target as HTMLInputElement;
+  setVisibility(el.value === "" ? null : Number(el.value));
+  app.recorder?.note(app.world, `Visibility set at the display: ${visibilityNm(app.world) === null ? "good" : `${visibilityNm(app.world)} NM`}.`, true);
+});
 const flagSeen = new Map<string, number>();
 let lastInputAt = performance.now();
 let pausedSince: number | null = null;
@@ -262,12 +267,21 @@ link.onRecord = (r) => {
   store.addRecord(had?.assessor && !r.assessor ? { ...r, assessor: had.assessor } : r);
   instrUi.recordsChanged();
 };
+/** PINs chosen at this display that the station has not yet shown it knows: kept through the station's next lists. */
+const newPins = new Map<string, { batchId: string; name: string; digest: string }>();
 link.onConfig = (c) => {
   if (STATION) return;
+  for (const [k, p] of newPins) {
+    const b = c.batches.find((x) => x.id === p.batchId);
+    // The station has a PIN for that trainee (this one, or one it had before): its list stands.
+    if (!b || !b.students.includes(p.name) || b.pins?.[p.name]) newPins.delete(k);
+    else (b.pins ??= {})[p.name] = p.digest;
+  }
   const d = store.data;
-  const now = JSON.stringify([d.batches, d.scoring, d.maxStudentsPerDisplay, d.targetHoursPerPair, d.changeoverMin ?? null]);
-  if (now === JSON.stringify([c.batches, c.scoring, c.maxStudentsPerDisplay, c.targetHoursPerPair, c.changeoverMin ?? null])) return;
+  const now = JSON.stringify([d.batches, d.scoring, d.maxStudentsPerDisplay, d.targetHoursPerPair, d.changeoverMin ?? null, !!d.requireLogin]);
+  if (now === JSON.stringify([c.batches, c.scoring, c.maxStudentsPerDisplay, c.targetHoursPerPair, c.changeoverMin ?? null, !!c.requireLogin])) return;
   d.changeoverMin = c.changeoverMin ?? null;
+  d.requireLogin = !!c.requireLogin;
   d.batches = c.batches;
   d.scoring = c.scoring;
   d.maxStudentsPerDisplay = c.maxStudentsPerDisplay;
@@ -278,6 +292,40 @@ link.onConfig = (c) => {
   if (!$("login").hidden && $<HTMLSelectElement>("lgBatch").value === "") openLogin();
   showWho();
 };
+// The station keeps a trainee's first PIN (its digest). A PIN that is set is changed only by the instructor's reset.
+link.onAccount = (a) => {
+  if (!STATION) return;
+  const b = store.data.batches.find((x) => x.id === a.batchId);
+  if (!b || !b.students.includes(a.name) || hasPin(b, a.name) || !/^[0-9a-f]{64}$/.test(a.digest)) return;
+  store.setStudentPin(a.batchId, a.name, a.digest);
+  instrUi.accountsChanged();
+  stationUi?.sendConfig();
+};
+// A trainee asks for his or her own results: answered only when trainees log in with a PIN, and only to the right PIN.
+link.onHistoryRequest = (q) => {
+  if (!STATION || !store.data.requireLogin) return;
+  const b = store.data.batches.find((x) => x.id === q.batchId);
+  if (!b || b.pins?.[q.name] !== q.digest) return;
+  link.sendHistory({ to: q.station, name: q.name, rows: traineeAttempts(instrUi.history().filter((r) => r.batch === b.name), q.name), passPercent: store.data.scoring.passPercent });
+};
+link.onHistory = (r) => {
+  if (!STATION && r.name === sel("myWho")) showMy(r.rows, r.passPercent);
+};
+byId("myGet")?.addEventListener("click", () => {
+  const name = sel("myWho");
+  showMy(null, store.data.scoring.passPercent);
+  const b = store.data.batches.find((x) => x.id === session.batchId);
+  const digest = b?.pins?.[name];
+  if (store.data.requireLogin && b && digest) {
+    link.sendHistoryRequest({ station: link.station, batchId: b.id, name, digest });
+    $("myMsg").textContent = "Shown: what this display has recorded. Asking the instructor station for the rest...";
+    // No answer: the station is not open, or not reachable.
+    const asked = name;
+    setTimeout(() => {
+      if (sel("myWho") === asked && /Asking the instructor station/.test($("myMsg").textContent ?? "")) $("myMsg").textContent = "Shown: what this display has recorded. The instructor station did not answer.";
+    }, 8000);
+  }
+});
 
 /** Load the scenario, join the linked exercise, take a start position of this display's own, and run. */
 function startLinked(scenarioJson: string): void {
@@ -313,7 +361,34 @@ function heard(from: string, text: string): void {
   $("commLog").scrollTop = $("commLog").scrollHeight;
 }
 
+/** The trainee's own results: what this display has recorded and, with accounts, what the instructor station holds. */
+let myRows: AttemptRow[] = [];
+function fillMy(): void {
+  const sec = byId("mySec"), who = byId<HTMLSelectElement>("myWho");
+  if (!sec || !who) return;
+  sec.hidden = STATION || session.students.length === 0;
+  const sig = session.students.join("|");
+  if (who.dataset["sig"] !== sig) {
+    who.dataset["sig"] = sig;
+    who.innerHTML = session.students.map((n) => `<option>${esc(n)}</option>`).join("");
+    $("myOut").innerHTML = "";
+    $("myMsg").textContent = "";
+  }
+}
+function showMy(fromStation: AttemptRow[] | null, passPercent: number | null): void {
+  const name = sel("myWho");
+  if (!name) return;
+  // With a batch chosen at the login, only what was recorded under that batch: another batch may have a trainee of the same name.
+  const batch = batchName();
+  const local = traineeAttempts(store.history().filter((r) => batch === "" || r.batch === batch), name);
+  // The station's list first; anything recorded here that it does not have is added.
+  const have = new Set((fromStation ?? []).map((r) => r.recId));
+  myRows = [...(fromStation ?? []), ...local.filter((r) => !have.has(r.recId))].sort((a, b) => a.date.localeCompare(b.date));
+  $("myOut").innerHTML = progressHtml(myRows, name, passPercent);
+  $("myMsg").textContent = fromStation ? `From the instructor station: ${fromStation.length} recorded exercise${fromStation.length === 1 ? "" : "s"}.` : "Shown: what this display has recorded.";
+}
 function showWho(): void {
+  fillMy();
   const names = session.students.length > 0 ? session.students.map(esc).join(" / ") : "free practice, no names";
   const hrs = session.students.length > 0 ? ` &nbsp; display time ${store.pairHours(session.students).toFixed(1)} h${store.data.targetHoursPerPair !== null ? ` of ${store.data.targetHoursPerPair} h` : ""}` : "";
   fillControls();
@@ -335,16 +410,36 @@ function openLogin(): void {
   const names = (): void => {
     const b = store.data.batches.find((x) => x.id === bs.value);
     const n = store.data.maxStudentsPerDisplay;
+    // With accounts: a name is chosen from the batch, never typed, and each trainee gives his or her own PIN.
+    const need = !!store.data.requireLogin;
     $("lgNames").innerHTML = Array.from({ length: n }, (_, i) => {
       const cur = session.students[i] ?? "";
       return `<label for="lgS${i}">Student ${i + 1}${i > 0 ? " (optional)" : ""}</label>` + (b && b.students.length > 0
         ? `<select id="lgS${i}"><option value=""></option>${b.students.map((s) => `<option ${s === cur ? "selected" : ""}>${esc(s)}</option>`).join("")}</select>`
-        : `<input type="text" id="lgS${i}" value="${esc(cur)}">`);
+        : need ? `<select id="lgS${i}" disabled><option value="">choose your batch first</option></select>` : `<input type="text" id="lgS${i}" value="${esc(cur)}">`) +
+        (need ? `<div id="lgPinRow${i}" hidden style="display:flex;gap:6px;margin-top:4px"><input type="password" id="lgP${i}" inputmode="numeric" maxlength="8" placeholder="PIN" autocomplete="off" style="flex:1"><input type="password" id="lgQ${i}" inputmode="numeric" maxlength="8" placeholder="PIN again" autocomplete="off" style="flex:1" hidden></div><div class="small" id="lgH${i}"></div>` : "");
     }).join("");
+    pinRows();
+  };
+  /** Show the PIN field of each name chosen, and "PIN again" for a trainee who has none yet. */
+  const pinRows = (): void => {
+    if (!store.data.requireLogin) return;
+    const b = store.data.batches.find((x) => x.id === bs.value);
+    for (let i = 0; i < store.data.maxStudentsPerDisplay; i++) {
+      const row = byId(`lgPinRow${i}`), again = byId(`lgQ${i}`), hint = byId(`lgH${i}`);
+      const name = byId<HTMLSelectElement>(`lgS${i}`)?.value ?? "";
+      if (!row || !again || !hint) continue;
+      row.hidden = name === "";
+      row.style.display = name === "" ? "none" : "flex";
+      const first = !!b && name !== "" && !hasPin(b, name);
+      again.hidden = !first;
+      hint.textContent = first ? "First login: choose a PIN of 4 to 8 digits and type it twice. Keep it to yourself." : "";
+    }
   };
   bs.onchange = names;
+  $("lgNames").onchange = pinRows;
   names();
-  $("lgMsg").textContent = storage ? "" : "This browser is not keeping data for this page, so records and batches will be lost when it is closed.";
+  $("lgMsg").textContent = storage ? (store.data.requireLogin ? "Log in with your own name and PIN." : "") : "This browser is not keeping data for this page, so records and batches will be lost when it is closed.";
   $("login").hidden = false;
 }
 
@@ -501,6 +596,15 @@ function placeRainSquall(): void {
   }
 }
 
+/** The look-out of this display: reports the visibility and the vessels in sight when a visibility is set. */
+let lookout = new Lookout();
+/** Set the visibility (null: good). The world holds it; the control in the menu only shows and changes it. */
+function setVisibility(v: number | null): void {
+  if (v === null || !(v > 0)) delete app.world.env.visibilityNm;
+  else app.world.env.visibilityNm = Math.min(MAX_VISIBILITY_NM, v);
+  const el = byId<HTMLInputElement>("visNm");
+  if (el) el.value = visibilityNm(app.world) === null ? "" : String(visibilityNm(app.world));
+}
 function setSlider(id: string, v: number): void {
   (byId(id) as HTMLInputElement).value = String(v);
 }
@@ -539,6 +643,8 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
   const ex = opts.roc;
   const keepRoutes = app.showRoutes && session.role === "instructor";
   app = createApp(sc);
+  lookout = new Lookout();
+  setVisibility(sc.env.visibilityNm ?? null);
   app.showRoutes = keepRoutes;
   if (opts.arpa?.route) app.route = opts.arpa.route.map((p) => ({ ...p }));
   const a = app;
@@ -791,10 +897,26 @@ function setup(): void {
   });
   // Students at this display.
   $("lgStart").addEventListener("click", () => {
-    const names = [...$("lgNames").querySelectorAll<HTMLInputElement | HTMLSelectElement>("input,select")].map((e) => e.value.trim()).filter(Boolean);
+    const slots = Array.from({ length: store.data.maxStudentsPerDisplay }, (_, i) => i).filter((i) => byId(`lgS${i}`));
+    const names = slots.map((i) => (byId<HTMLInputElement | HTMLSelectElement>(`lgS${i}`)?.value ?? "").trim()).filter(Boolean);
     if (names.length === 0) {
       $("lgMsg").textContent = "Enter at least one name, or choose free practice.";
       return;
+    }
+    if (store.data.requireLogin) {
+      // Each trainee logs in with his or her own PIN; one who has none yet chooses it now.
+      const b = store.data.batches.find((x) => x.id === sel("lgBatch"));
+      const entries = slots.map((i) => ({ name: (byId<HTMLSelectElement>(`lgS${i}`)?.value ?? "").trim(), pin: byId<HTMLInputElement>(`lgP${i}`)?.value ?? "", again: byId<HTMLInputElement>(`lgQ${i}`)?.value ?? "" })).filter((e) => e.name !== "");
+      const r = checkLogin(b, entries);
+      if (!r.ok) {
+        $("lgMsg").textContent = r.message;
+        return;
+      }
+      for (const p of r.newPins) {
+        store.setStudentPin(b!.id, p.name, p.digest);
+        newPins.set(`${b!.id}|${p.name}`, { batchId: b!.id, name: p.name, digest: p.digest });
+        link.sendAccount({ batchId: b!.id, name: p.name, digest: p.digest });
+      }
     }
     session.students = [...new Set(names)];
     session.batchId = sel("lgBatch");
@@ -871,6 +993,10 @@ function setup(): void {
       }
       applyControls();
       placeRainSquall();
+      if (c.visNm !== undefined) {
+        setVisibility(c.visNm);
+        app.recorder?.note(app.world, `INSTRUCTOR (remote): visibility ${c.visNm === null ? "good" : `${c.visNm} NM`}.`, true);
+      }
     }
     if (c.cmd === "addTarget") {
       const t = addTypedTarget(app.world, c);
@@ -888,6 +1014,39 @@ function setup(): void {
     if (c.cmd === "traffic") {
       const n = addRandomTraffic(app.world, { ...RANDOM_TRAFFIC_DEFAULT, count: c.count, minNm: c.minNm, maxNm: c.maxNm, threats: c.threats }, c.seed, c.replace);
       app.recorder?.note(app.world, `INSTRUCTOR (remote): random traffic, ${n} ships (seed ${c.seed}, ${c.threats} on close-quarters courses)${c.replace ? ", in place of the ships there" : ""}.`, true);
+      return;
+    }
+    if (c.cmd === "rewind") {
+      // The same as on the station's own radar: ships, weather and faults as they were then; the ARPA starts empty.
+      const t = rewind(app, c.seconds);
+      if (t !== null) banner(`Instructor: the exercise has been taken back to ${mmss(t)}. The ARPA is empty: acquire the targets again.`);
+      return;
+    }
+    if (c.cmd === "restart") {
+      if (exam) startExamPart();
+      else {
+        const id = app.arpaEx ? app.arpaEx.def.id : app.roc ? `roc-${app.roc.ex.id}` : "";
+        if (id) startExerciseById(id);
+        else loadScenario(app.scenario);
+      }
+      banner("Instructor: started again from the beginning. Read the briefing, then press RUN.");
+      app.recorder?.note(app.world, "INSTRUCTOR (remote): started again from the beginning.", true);
+      return;
+    }
+    if (c.cmd === "track") {
+      const t = app.world.targets.find((x) => x.id === c.id);
+      if (!t) return;
+      if (c.points.length === 0) {
+        clearTargetRoute(t);
+        app.recorder?.note(app.world, `INSTRUCTOR (remote): ${t.name} taken off her track.`, true);
+      } else {
+        const own = app.world.own.pos;
+        const pts = c.points.map((p) => {
+          const d = fromPolar(p.bearing, p.rangeNm);
+          return { e: own.e + d.e, n: own.n + d.n };
+        });
+        if (setTargetRoute(t, pts)) app.recorder?.note(app.world, `INSTRUCTOR (remote): ${t.name} given a track of ${pts.length} point${pts.length === 1 ? "" : "s"}.`, true);
+      }
       return;
     }
     if (c.cmd === "fault") app.world.sensors.target = { gyroErrorDeg: c.gyroDeg, logErrorKn: c.logKn };
@@ -1522,7 +1681,7 @@ function heartbeat(): void {
   if (app.running) pausedSince = null;
   else pausedSince ??= performance.now();
   const flags = STATION ? [] : attentionFlags({
-    w, a: app.roc ? null : app.arpa, session: s ?? null, running: app.running, route: app.route,
+    w, a: app.roc ? null : app.arpa, session: s ?? null, running: app.running, route: app.route, fogSignalOn: chk("fogAuto"),
     idleSec: (performance.now() - lastInputAt) / 1000, pausedSec: pausedSince === null ? 0 : (performance.now() - pausedSince) / 1000,
   });
   if (app.recorder && !s?.finished && !(app.roc?.finished)) {
@@ -1606,6 +1765,16 @@ function step(now: number): void {
     // What the exercise's script tells the trainee (a report from the look-out, for example).
     const s = app.arpaEx;
     if (s && s.noticesShown < s.notices.length) banner(s.notices[s.noticesShown++]!);
+    // What the bridge sees when a visibility is set: told to the trainee and written in the record.
+    const seen = lookout.step(app.world);
+    if (seen.length > 0) {
+      banner(seen.join(" "));
+      for (const r of seen) app.recorder?.note(app.world, r);
+    }
+    // The control shows the visibility in force (an exercise or the instructor may have changed it).
+    const vis = byId<HTMLInputElement>("visNm");
+    const want = visibilityNm(app.world) === null ? "" : String(visibilityNm(app.world));
+    if (vis && document.activeElement !== vis && vis.value !== want) vis.value = want;
   }
   drawPpi(ctx, cssSize, app);
   takePicture();
@@ -1663,7 +1832,15 @@ window.addEventListener("beforeunload", () => store.save());
   /** Start an exercise by its id, as the instructor station would. */
   startExercise: (id: string): void => startExerciseById(id),
   /** The targets now: id, name, course and speed ordered. */
-  targets: (): { id: number; name: string; course: number; speed: number }[] => app.world.targets.map((t) => ({ id: t.id, name: t.name, course: Math.round(t.motion?.orderedCourse ?? t.course), speed: t.motion?.orderedSpeed ?? t.speed })),
+  targets: (): { id: number; name: string; course: number; speed: number; onTrack: boolean }[] => app.world.targets.map((t) => ({ id: t.id, name: t.name, course: Math.round(t.motion?.orderedCourse ?? t.course), speed: t.motion?.orderedSpeed ?? t.speed, onTrack: !!t.route })),
+  /** Exercise time now, seconds. */
+  time: (): number => app.world.time,
+  /** Whether trainees must log in with a PIN, and whether this display knows a PIN for a trainee of a batch. */
+  requireLogin: (): boolean => !!store.data.requireLogin,
+  pinSet: (batch: string, name: string): boolean => {
+    const b = store.data.batches.find((x) => x.name === batch);
+    return !!b && hasPin(b, name);
+  },
   /** Own ship's route on the radar (number of waypoints), the MOB mark, and the lanes drawn. */
   routePoints: (): number => app.route.length,
   mobMarked: (): boolean => !!app.mob,
@@ -1693,6 +1870,8 @@ window.addEventListener("beforeunload", () => store.save());
   headingLost: (): boolean => app.headingLost,
   /** The changeover time the station has set (minutes), the trainee at the controls, and the message on the screen. */
   changeover: (): number | null => store.data.changeoverMin ?? null,
+  /** The visibility in force, NM (null: good). */
+  visibility: (): number | null => visibilityNm(app.world),
   atControls: (): string => ctlName,
   bannerText: (): string => ($("banner").hidden ? "" : $("banner").textContent ?? ""),
   /** The names of the batches this display knows. */

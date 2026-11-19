@@ -4,7 +4,7 @@ import { alertRows } from "./alerts-view";
 import { formatLatLon, latLonOf } from "../core/nav";
 import { monitorRoute } from "../core/route";
 import { courseSpeedOf, normalizeDeg, sub, velocityOf } from "../core/vec";
-import { displayNmToWorld, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, pulseFor, radarPower, relativeWind, ringInterval, warmUpLeftSec } from "../engine/index";
+import { displayNmToWorld, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, pulseFor, radarPower, relativeWind, ringInterval, visibilityNm, warmUpLeftSec } from "../engine/index";
 import { AppState, aisLocked } from "./app";
 import { $ } from "./dom";
 import { readoutAt } from "./view";
@@ -518,6 +518,8 @@ export function initConsoleUi(setTab: (t: Tab) => void, freeLines: () => Record<
       pair("RUD", mo ? side1(mo.motion.rudder, 0.5, (x) => `${x.toFixed(0)}°`, "MID") : "---") + pair("ROT", mo ? side1(mo.motion.r * 60, 0.5, (x) => `${x.toFixed(0)}°/min`, "0") : "---") +
       pair("STEER", w.own.anchor ? "ANCHORED" : mo ? (mo.steering === "hand" ? "HAND" : "AUTO") : "---", "pill") +
       pair("WIND", rw ? `R${String(Math.round(rw.fromRel) % 360).padStart(3, "0")} ${rw.speedKn.toFixed(0)} kn` : "CALM") +
+      // Visibility, when one is set: the simulator has no view from the windows, so the trainee is told it here.
+      (visibilityNm(w) === null ? "" : pair("VIS", `${visibilityNm(w)} NM`)) +
       `</div>`);
     // The exercise clock, in the heading of the own ship panel.
     put("cTime", `TIME <b>${time}</b>`);

@@ -59,6 +59,8 @@ describe("the instructor's manual names every tab and section of the instructor 
       "Targets on a display, while the exercise runs", "Alter this target now", "Remove this target", "Add this target now", "Random traffic", "New seed",
       "Needs attention", "Stop watching", "Checklist items", "Save notes",
       "Exercise sheets", "Trainee file", "Assessors compared", "Save the debrief", "Debrief pack", "The class on this exercise", "Save batch and limits", "Show the standard of each item",
+      "Reset all", "Take all back 2 min", "Set this track", "Take off this track", "Trainees log in with their own name and PIN", "Reset PIN", "Progress of this trainee", "Progress of this batch",
+      "Use this server key", "Bring this exercise back with its replay", "Take the batches and settings from the server", "Back up everything", "Restore from a backup", "Keeping the records",
       "Examinations", "Save the parts", "Start the ROC examination", "Start the ARPA examination", "Examination results", "Time limit for the exercise", "Set this time limit",
       "Send these faults to all displays", "Programme a track", "Set track", "Take off track", "Undo point", "Show target tracks on this display",
       "Take exercise back 2 min", "Alter target now", "Add target now", "Start a LINKED exercise on all displays"];

@@ -4,6 +4,7 @@
 // needed to build or use the simulator.
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
+import fs from "node:fs";
 
 const { chromium } = await import("playwright");
 const html = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist", "radar-simulator.html")).href;
@@ -982,7 +983,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
       const byText = await stText("#inRecBy");
       const tfNames = await st.$$eval("#tfWho option", (o) => o.map((x) => x.textContent).join(","));
       check(`${tag} a group's record shows each trainee: time at the controls, own answers, observations`, groupRec && /each trainee/i.test(byText) && /Asha 0[01]:\d\d \(\d+%\)/.test(byText) && /Ravi 0\d:\d\d \(\d+%\)/.test(byText), byText);
-      await st.selectOption("#tfWho", "Asha");
+      await st.selectOption("#tfWho", { label: "Asha" });
       const file = await readPopup("#tfPrint");
       check(`${tag} trainee file: one page for one person across the recorded exercises`, tfNames === "Asha,Ravi" && /Trainee file: Asha/.test(file) && /1\. |ARPA 1/.test(file) && /Ravi/.test(file) && /not a certificate of competence/i.test(file), `${tfNames} | ${file.slice(0, 300)}`);
       // A ROC exercise now ends with points, which go into its record.
@@ -994,6 +995,135 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
       const rocRec = await stWait(() => /ROC: Position fixing/.test(document.querySelector("#inRecs tr")?.innerText ?? ""));
       const rocRow = await st.$eval("#inRecs tr", (e) => e.innerText.replace(/\s+/g, " "));
       check(`${tag} ROC exercise: points on the display at the end, and in the record at the station`, /0 of 30 \(0%\)/.test(rocPts) && /no valid fix/.test(rocPts) && rocRec && /ROC: Position fixing.* 0 /.test(rocRow), `${rocPts.slice(0, 200)} | ${rocRow}`);
+      // ---- Added 18 Nov 2026 (third round): take-back, reset and tracks from the station; visibility; accounts; progress; backup.
+      await T("startExercise", "arpa-1");
+      await p.waitForTimeout(500);
+      await closeMenu();
+      await setVal("speed", "10");
+      await p.evaluate(() => {
+        const b = document.getElementById("run");
+        if (/run/i.test(b.textContent)) b.click();
+      });
+      await waitFor(() => window.__simTest.time() > 70, 20000);
+      await setVal("speed", "1");
+      await stTab("class");
+      await st.click('#inStations button[data-cmd="back2"]');
+      const wentBack = await waitFor(() => window.__simTest.time() < 60 && /taken back to 00:0\d/.test(window.__simTest.bannerText()), 10000);
+      check(`${tag} the station takes a display's exercise back in time, and the trainees are told`, wentBack, `${await T("time")} ${await T("bannerText")}`);
+      // A programmed track for one of that display's targets, typed as bearing and range from its own ship.
+      await st.waitForFunction(() => document.querySelectorAll("#rtTg option").length >= 3, null, { timeout: 12000 }).catch(() => {});
+      await st.fill("#rtTrack", "north of here");
+      await st.click("#rtTrackSet");
+      const badTrack = /type the points as bearing\/range/.test(await st.$eval("#inMsg", (e) => e.textContent));
+      await st.fill("#rtTrack", "090/5, 180/5");
+      await st.click("#rtTrackSet");
+      const onTrack = await waitFor(() => window.__simTest.targets().filter((t) => t.onTrack).length === 1, 8000);
+      await st.click("#rtTrackOff");
+      const offTrack = await waitFor(() => window.__simTest.targets().every((t) => !t.onTrack), 8000);
+      check(`${tag} the station gives a target on a display a programmed track, and takes it off`, badTrack && onTrack && offTrack, `${badTrack} ${onTrack} ${offTrack}`);
+      st.once("dialog", (d) => d.accept());
+      await st.click('#inStations button[data-cmd="reset"]');
+      const wasReset = await waitFor(() => window.__simTest.time() < 2 && /started again from the beginning/.test(window.__simTest.bannerText()), 10000);
+      check(`${tag} the station resets a display's exercise to its beginning`, wasReset, `${await T("time")} ${await T("bannerText")}`);
+      // Visibility set from the station: told to the trainees, shown in the own ship panel, and a vessel inside it is reported.
+      await st.selectOption("#inWxVis", "0.5");
+      await st.click("#inWxSend");
+      const visSet = await waitFor(() => window.__simTest.visibility() === 0.5 && /visibility has closed to 0\.5 NM/.test(window.__simTest.bannerText()), 10000);
+      // The data panels are redrawn a few times a second: wait for the readout rather than read it at once.
+      const visShown = await waitFor(() => /VIS\s*0\.5 NM/.test(document.getElementById("cOwn").innerText), 5000);
+      const ahead = await T("orderedCourse");
+      await st.fill("#rtNewName", "Close one");
+      await st.fill("#rtNewBrg", String(ahead));
+      await st.fill("#rtNewRng", "0.3");
+      await st.fill("#rtNewC", String(ahead));
+      await st.fill("#rtNewS", "0");
+      await st.click("#rtAdd");
+      const sighted = await waitFor(() => /LOOKOUT: a vessel in sight, bearing \d{3}° \(right ahead\), about 0\.3 NM/.test(window.__simTest.bannerText()), 10000);
+      await st.selectOption("#inWxVis", "good");
+      await st.click("#inWxSend");
+      const visGood = await waitFor(() => window.__simTest.visibility() === null && /visibility is good again/.test(window.__simTest.bannerText()), 10000);
+      await st.selectOption("#inWxVis", "");
+      check(`${tag} visibility set from the station: shown, reported by the bridge, and a vessel inside it is reported by the look-out`, visSet && visShown && sighted && visGood && (await waitFor(() => !/VIS/.test(document.getElementById("cOwn").innerText), 5000)), `${visSet} ${visShown} ${sighted} ${visGood} ${await T("bannerText")}`);
+      // Accounts: a batch whose trainees log in with their own PIN.
+      await stTab("batch");
+      await st.fill("#inBatchName", "B44");
+      await st.click("#inBatchAdd");
+      await st.fill("#inStudents", "Asha\nRavi");
+      await st.check("#inReqLogin");
+      await st.click("#inBatchSave");
+      const gotLogin = await waitFor(() => window.__simTest.requireLogin() && window.__simTest.batchNames().includes("B44"), 15000);
+      const openLoginAs = async (name) => {
+        await p.evaluate(() => document.getElementById("whoChange").click());
+        const bid = await p.$eval("#lgBatch", (s) => [...s.options].find((o) => o.textContent === "B44")?.value ?? "");
+        await p.selectOption("#lgBatch", bid);
+        await p.selectOption("#lgS0", name);
+        // The second place offers the name that was there before: this login is of one trainee alone.
+        await p.selectOption("#lgS1", "");
+      };
+      await openLoginAs("Asha");
+      const firstLogin = (await p.isVisible("#lgP0")) && (await p.isVisible("#lgQ0")) && /First login/.test(await p.$eval("#lgH0", (e) => e.textContent)) && !(await p.isVisible("#lgP1"));
+      await p.fill("#lgP0", "1234");
+      await p.fill("#lgQ0", "1235");
+      await p.click("#lgStart");
+      const mismatch = /not the same/.test(await p.$eval("#lgMsg", (e) => e.textContent)) && (await p.isVisible("#login"));
+      await p.fill("#lgQ0", "1234");
+      await p.click("#lgStart");
+      const loggedIn = !(await p.isVisible("#login"));
+      const listed = await stWait(() => /Asha\s+set/.test(document.getElementById("inAccts").innerText));
+      await waitFor(() => window.__simTest.pinSet("B44", "Asha"), 15000);
+      await openLoginAs("Asha");
+      const secondLogin = (await p.isVisible("#lgP0")) && !(await p.isVisible("#lgQ0"));
+      await p.fill("#lgP0", "9999");
+      await p.click("#lgStart");
+      const wrongPin = /Wrong PIN for Asha/.test(await p.$eval("#lgMsg", (e) => e.textContent)) && (await p.isVisible("#login"));
+      await p.fill("#lgP0", "1234");
+      await p.click("#lgStart");
+      check(`${tag} accounts: a first login chooses a PIN (typed twice), the station lists it, a wrong PIN is refused and the right one accepted`,
+        gotLogin && firstLogin && mismatch && loggedIn && listed && secondLogin && wrongPin && !(await p.isVisible("#login")), `${gotLogin} ${firstLogin} ${mismatch} ${loggedIn} ${listed} ${secondLogin} ${wrongPin}`);
+      // Her own results on the display come from the station, which holds the records.
+      await T("startExercise", "arpa-1");
+      await p.waitForTimeout(600);
+      await key("ex");
+      await p.click("#exFinish");
+      await stTab("recs");
+      await stWait(() => /\d Asha ARPA 1:/.test((document.querySelector("#inRecs tr")?.innerText ?? "").replace(/\s+/g, " ")));
+      await p.evaluate(() => document.getElementById("myGet").click());
+      const mine = await waitFor(() => /From the instructor station: 1 recorded exercise/.test(document.getElementById("myMsg").textContent), 12000);
+      // What this display recorded earlier under a typed name "Asha", with no batch, is another person's and stays out.
+      const myText = await p.$eval("#myOut", (e) => e.innerText.replace(/\s+/g, " "));
+      check(`${tag} a trainee who logged in with a PIN sees her own results on the display, from the station`, mine && /Asha: 1 attempt at 1 exercise/.test(myText) && (await p.$$eval("#myOut svg.viz circle", (c) => c.length)) >= 1 && /worked alone/.test(myText), `${mine} ${myText.slice(0, 200)}`);
+      await closeMenu();
+      // Progress of a trainee and of a batch at the station.
+      // The name typed earlier with no batch (three exercises with Ravi and alone) and the Asha of batch B44 are two trainees.
+      const who = await st.$$eval("#tfWho option", (o) => o.map((x) => x.textContent).join(","));
+      await st.selectOption("#tfWho", { label: "Asha" });
+      await st.click("#phShow");
+      const phText = await stText("#phOut");
+      const phSvg = await st.$eval("#phOut svg.viz", (s) => ({ label: s.getAttribute("aria-label"), w: s.getBoundingClientRect().width, dots: s.querySelectorAll('circle[r="4"]').length })).catch(() => null);
+      await st.selectOption("#tfWho", { label: "Asha (B44)" });
+      await st.click("#phShow");
+      const phB44 = await stText("#phOut");
+      check(`${tag} progress of a trainee: the figures, a chart of the scored attempts, each exercise and each attempt; the same name in another batch is another trainee`,
+        who === "Asha,Asha (B44),Ravi" && /Asha: 2 attempts at 2 exercises/.test(phText) && !!phSvg && phSvg.dots === 2 && phSvg.w > 300 && /2 scored attempts, oldest first/.test(phSvg.label) && /Asha \(B44\): 1 attempt at 1 exercise/.test(phB44),
+        `${who} | ${phText.slice(0, 120)} | ${JSON.stringify(phSvg)} | ${phB44.slice(0, 80)}`);
+      await stTab("batch");
+      await st.click("#bmShow");
+      const bm = await stText("#bmOut");
+      check(`${tag} progress of a batch: each trainee against the exercises`, /Asha 0% 1 of 1/.test(bm) && /Ravi - 0 of 1/.test(bm), bm.slice(0, 200));
+      await st.click('#inAccts button[data-reset="Asha"]');
+      check(`${tag} the instructor resets a trainee's PIN`, /Asha none yet/.test(await stText("#inAccts")), await stText("#inAccts"));
+      // A backup of everything, and reading it back adds nothing that is already there.
+      await stTab("recs");
+      const [dl] = await Promise.all([st.waitForEvent("download", { timeout: 8000 }).catch(() => null), st.click("#bkSave")]);
+      const bkPath = dl ? await dl.path() : null;
+      const backup = bkPath ? JSON.parse(fs.readFileSync(bkPath, "utf8")) : null;
+      if (bkPath) await st.setInputFiles("#bkFile", bkPath);
+      const restored = await stWait(() => /Restored: 0 exercises and 0 batches added/.test(document.getElementById("inMsg").textContent), 8000);
+      check(`${tag} backup: one file with the class and every record; restored, it adds nothing already here`,
+        !!backup && backup.kind === "radar-sim-backup" && backup.records.length >= 3 && backup.state.batches.some((b) => b.name === "B44") && restored, `${backup?.kind} ${backup?.records?.length} ${restored}`);
+      check(`${tag} with no classroom server the station says where the records are kept`, /No classroom server at this address/.test(await stText("#svState")), await stText("#svState"));
+      await stTab("batch");
+      await st.uncheck("#inReqLogin");
       // Two elements with one id would make a key or a field act on the wrong one.
       const dupIds = (pg) => pg.evaluate(() => {
         const seen = new Map();

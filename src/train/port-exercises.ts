@@ -198,7 +198,7 @@ const EX25: ArpaExercise = {
     ...KOCHI_APPROACH, id: "radar-25", name: "Radar 25: Kochi in restricted visibility",
     description: "Approach to Kochi in restricted visibility, with rain squalls. Real coastline and land heights; invented ships.",
     own: { heading: 90, speed: 12, pos: { e: 3, n: 1 } },
-    env: { seaState: 3, wind: { from: 250, speedKn: 18 }, current: { set: 340, drift: 0.6 }, rain: [{ center: { e: 10.5, n: 5 }, radius: 1.6, intensity: 0.6 }] },
+    env: { seaState: 3, visibilityNm: 1, wind: { from: 250, speedKn: 18 }, current: { set: 340, drift: 0.6 }, rain: [{ center: { e: 10.5, n: 5 }, radius: 1.6, intensity: 0.6 }] },
     targets: [
       vessel(1, "Outbound container ship", "container-pp", { e: 16.5, n: 0.75 }, 268, 12),
       vessel(2, "Inbound LNG carrier", "lng", { e: 9.5, n: -6.8 }, 22, 11),
@@ -208,7 +208,7 @@ const EX25: ArpaExercise = {
     ],
   },
   briefing: [
-    "Restricted visibility: COLREG Rule 19 applies. There are no stand-on and give-way ships: every vessel that is detected by radar alone and is coming into a close-quarters situation must be avoided in good time.",
+    "Restricted visibility, about 1 NM: COLREG Rule 19 applies. There are no stand-on and give-way ships: every vessel that is detected by radar alone and is coming into a close-quarters situation must be avoided in good time.",
     "Acquire the container ship and the LNG carrier, and the fishing boats when they show. There are rain squalls to the north-east: a small boat may be hidden in the rain clutter; use the rain clutter control with care.",
     "Find each ship's CPA and TCPA. Use the trial manoeuvre before you act.",
     "Take action in good time: substantial, and in line with Rule 19(d): no alteration to port for a vessel forward of the beam (other than one being overtaken), and none towards a vessel abeam or abaft the beam.",

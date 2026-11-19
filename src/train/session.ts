@@ -4,7 +4,7 @@ import { rule19Check } from "../core/colreg";
 import { alongTrack, crossTrackError, distanceToSegment } from "../core/nav";
 import { advanceLeg } from "../core/route";
 import { tssConduct } from "../core/tss";
-import { Scenario, Target, World, currentVelocity, ownGroundVelocity, radarTransmitting } from "../engine/index";
+import { Scenario, Target, World, currentVelocity, inSight, ownGroundVelocity, radarTransmitting, visibilityNm } from "../engine/index";
 import { ArpaSystem } from "../arpa/index";
 
 /**
@@ -85,8 +85,10 @@ export interface Observed {
     turnDeg: number;
     speedFrom: number;
     speedTo: number;
-    /** Vessels with which a close-quarters situation was developing at that moment. */
-    threats: { id: number; relBearing: number }[];
+    /** Vessels with which a close-quarters situation was developing at that moment; with a visibility set, whether each was in sight. */
+    threats: { id: number; relBearing: number; inSight?: boolean }[];
+    /** The visibility then, NM, when one was set. */
+    visibilityNm?: number;
     /** The trainee at the controls then, and how close each of those vessels would have passed, and when, had nothing been done. */
     by?: string;
     risk?: { id: number; name: string; cpa: number; tcpaMin: number }[];
@@ -456,7 +458,12 @@ export class ArpaExSession {
         turnDeg: turn,
         speedFrom: this.startSpeed,
         speedTo: w.own.ordered.speed,
-        threats: threats(w, this.def.safeNm).map((id) => ({ id, relBearing: normalizeDeg(bearingOf(sub(targetById(w, id)!.pos, w.own.pos)) - w.own.heading) })),
+        threats: threats(w, this.def.safeNm).map((id) => {
+          const t = targetById(w, id)!;
+          const seen = inSight(w, t);
+          return { id, relBearing: normalizeDeg(bearingOf(sub(t.pos, w.own.pos)) - w.own.heading), ...(seen === null ? {} : { inSight: seen }) };
+        }),
+        ...(visibilityNm(w) === null ? {} : { visibilityNm: visibilityNm(w)! }),
         ...(this.controls ? { by: this.controls } : {}),
         risk: threats(w, this.def.safeNm).map((id) => {
           // As it stood on the course and speed held until now (the ordered values have just changed; the ship has not yet).
@@ -611,11 +618,16 @@ export function judgeSafePassing(def: Pick<ArpaExercise, "safeNm">): OutcomeJudg
   }, { rule });
 }
 
-/** The avoiding action was substantial (Rule 8(b)) and, in restricted visibility, respected Rule 19(d). */
+/**
+ * The avoiding action was substantial (Rule 8(b)) and, in restricted visibility, respected Rule 19(d).
+ * `restrictedVisibility`: the exercise is one in which no vessel is in sight, so Rule 19(d) is applied to every
+ * vessel. In any other exercise it is applied only to a vessel that was not in sight when the action was taken,
+ * which can only be when the instructor or the scenario has set a visibility.
+ */
 export function judgeAction(restrictedVisibility: boolean): OutcomeJudge {
   const rule = (cfg: ScoringConfig): string =>
     `a turn of at least ${cfg.substantialTurnDeg}° or a cut to ${Math.round((1 - cfg.substantialSpeedCut) * 100)}% of the speed or less (Rule 8(b))` +
-    (restrictedVisibility ? "; no turn to port for a vessel forward of the beam other than one being overtaken, and no turn towards a vessel abeam or abaft the beam (Rule 19(d))" : "");
+    (restrictedVisibility ? "; no turn to port for a vessel forward of the beam other than one being overtaken, and no turn towards a vessel abeam or abaft the beam (Rule 19(d))" : "; with a visibility set, Rule 19(d) is applied for a vessel that was not in sight when the action was taken");
   return Object.assign((c: TaskCtx) => {
     const m = c.obs.manoeuvre;
     if (!m) return { ok: false, detail: "no alteration of course or speed was made" };
@@ -624,7 +636,8 @@ export function judgeAction(restrictedVisibility: boolean): OutcomeJudge {
     const bigCut = c.obs.minSpeedRatio <= 1 - c.cfg.substantialSpeedCut + 1e-9;
     const faults: string[] = [];
     if (!bigTurn && !bigCut) faults.push(`Action too small to be readily apparent (turn ${Math.abs(turn).toFixed(0)}°, speed to ${(c.obs.minSpeedRatio * 100).toFixed(0)}%).`);
-    if (restrictedVisibility && Math.abs(turn) >= 5) faults.push(...rule19Check(turn, m.threats.map((t) => ({ relBearing: t.relBearing }))).faults);
+    const unseen = restrictedVisibility ? m.threats : m.threats.filter((t) => t.inSight === false);
+    if (unseen.length > 0 && Math.abs(turn) >= 5) faults.push(...rule19Check(turn, unseen.map((t) => ({ relBearing: t.relBearing }))).faults);
     const what = `${Math.abs(turn) >= 5 ? `turned ${Math.abs(turn).toFixed(0)}° to ${turn > 0 ? "starboard" : "port"}` : "no turn"}, speed to ${(c.obs.minSpeedRatio * 100).toFixed(0)}%`;
     return { ok: faults.length === 0, detail: faults.length === 0 ? what : `${what}. ${faults.join(" ")}` };
   }, { rule });

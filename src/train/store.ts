@@ -16,6 +16,8 @@ export interface Batch {
   students: string[];
   /** Exercise ids assigned to this batch (ARPA exercise ids and ROC exercise kinds). */
   assigned: string[];
+  /** For each trainee who has chosen a PIN: its digest, by name (see train/accounts.ts). The PIN itself is not kept. */
+  pins?: Record<string, string>;
 }
 
 export interface StoreData {
@@ -36,6 +38,8 @@ export interface StoreData {
   targetHoursPerPair: number | null;
   /** Minutes of exercise time after which the next trainee of a group takes the controls; null or left out: they change by hand. */
   changeoverMin?: number | null;
+  /** Trainees must log in with their own name and PIN (see train/accounts.ts). Left out: names are chosen or typed freely. */
+  requireLogin?: boolean;
   /** The instructor's observation checklist, one item a line; left out: DEFAULT_OBSERVATION_ITEMS. */
   obsItems?: string[];
   /**
@@ -102,6 +106,36 @@ export function emptyStore(): StoreData {
   };
 }
 
+/**
+ * What a class is, apart from its records: the batches with their trainees (and the digests of their PINs), the
+ * scoring settings, the examination parts, the checklist, the limits, the display time and the instructor's own
+ * scenarios. This is what goes into a backup and onto the classroom server. The instructor PIN is not part of it.
+ */
+export type ClassState = Pick<StoreData, "batches" | "scoring" | "pairSeconds" | "maxStudentsPerDisplay" | "targetHoursPerPair" | "scenarios"> &
+  Partial<Pick<StoreData, "exams" | "obsItems" | "changeoverMin" | "requireLogin">>;
+
+export const BACKUP_KIND = "radar-sim-backup";
+
+/** A short mark of a text (FNV-1a, 32 bits, as hexadecimal): to tell whether something has changed, not for security. */
+export function textMark(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+
+/** A mark of a record's contents, leaving out the bulk of its replay (only the number of frames counts). */
+export function recordMark(r: SessionRecord): string {
+  return textMark(JSON.stringify({ ...r, frames: r.frames.length, coasts: r.coasts.length }));
+}
+
+const isRecord = (r: unknown): r is SessionRecord => {
+  const x = r as Partial<SessionRecord> | null;
+  return !!x && typeof x.id === "string" && x.id !== "" && typeof x.startedIso === "string" && Array.isArray(x.students) && Array.isArray(x.frames) && Array.isArray(x.events) && typeof x.title === "string";
+};
+
 export const pairKey = (students: string[]): string => [...students].map((s) => s.trim().toLowerCase()).filter(Boolean).sort().join(" + ");
 
 export class Store {
@@ -150,7 +184,8 @@ export class Store {
   addBatch(name: string): Batch | null {
     const n = name.trim();
     if (!n || this.data.batches.some((b) => b.name.toLowerCase() === n.toLowerCase())) return null;
-    const b: Batch = { id: `b${Date.now().toString(36)}${this.data.batches.length}`, name: n, students: [], assigned: [] };
+    // The time and a few random characters: two stations making a batch at the same moment still get different ids.
+    const b: Batch = { id: `b${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: n, students: [], assigned: [] };
     this.data.batches.push(b);
     this.save();
     return b;
@@ -165,7 +200,19 @@ export class Store {
     const b = this.data.batches.find((x) => x.id === batchId);
     if (!b) return;
     b.students = [...new Set(names.map((s) => s.trim()).filter(Boolean))];
+    // A trainee taken off the list loses the account with it.
+    if (b.pins) for (const n of Object.keys(b.pins)) if (!b.students.includes(n)) delete b.pins[n];
     this.save();
+  }
+
+  /** Keep the digest of a trainee's PIN, or with null take the PIN away (the trainee chooses a new one at the next login). */
+  setStudentPin(batchId: string, name: string, digest: string | null): boolean {
+    const b = this.data.batches.find((x) => x.id === batchId);
+    if (!b || !b.students.includes(name)) return false;
+    if (digest === null) {
+      if (b.pins) delete b.pins[name];
+    } else (b.pins ??= {})[name] = digest;
+    return this.save();
   }
 
   setAssigned(batchId: string, ids: string[]): void {
@@ -210,6 +257,90 @@ export class Store {
   /** Every exercise on record, newest first: the full records, then the older ones kept without their replay. */
   history(): SessionRecord[] {
     return [...this.data.records, ...(this.data.archive ?? [])];
+  }
+
+  /** The class apart from its records (see ClassState). */
+  classState(): ClassState {
+    const d = this.data;
+    return {
+      batches: d.batches, scoring: d.scoring, pairSeconds: d.pairSeconds, maxStudentsPerDisplay: d.maxStudentsPerDisplay, targetHoursPerPair: d.targetHoursPerPair, scenarios: d.scenarios,
+      ...(d.exams ? { exams: d.exams } : {}), ...(d.obsItems ? { obsItems: d.obsItems } : {}), ...(d.changeoverMin ? { changeoverMin: d.changeoverMin } : {}), ...(d.requireLogin ? { requireLogin: true } : {}),
+    };
+  }
+
+  /** Take a class from a backup or from the classroom server in place of this one. The records and the instructor PIN stay. False when it is not a class. */
+  applyClassState(s: unknown): boolean {
+    const x = s as Partial<ClassState> | null;
+    if (!x || !Array.isArray(x.batches) || !x.batches.every((b) => b && typeof b.id === "string" && typeof b.name === "string" && Array.isArray(b.students) && Array.isArray(b.assigned))) return false;
+    const def = emptyStore();
+    const sc: Partial<ScoringConfig> = x.scoring ?? {};
+    const d = this.data;
+    d.batches = x.batches;
+    d.scoring = { ...def.scoring, ...sc, tol: { ...def.scoring.tol, ...(sc.tol ?? {}) }, points: { ...def.scoring.points, ...(sc.points ?? {}) } };
+    d.pairSeconds = x.pairSeconds && typeof x.pairSeconds === "object" ? x.pairSeconds : {};
+    d.maxStudentsPerDisplay = typeof x.maxStudentsPerDisplay === "number" ? Math.min(4, Math.max(1, Math.round(x.maxStudentsPerDisplay))) : def.maxStudentsPerDisplay;
+    d.targetHoursPerPair = typeof x.targetHoursPerPair === "number" ? x.targetHoursPerPair : null;
+    if (Array.isArray(x.scenarios)) d.scenarios = x.scenarios;
+    if (x.exams) d.exams = x.exams;
+    else delete d.exams;
+    if (Array.isArray(x.obsItems)) d.obsItems = x.obsItems;
+    else delete d.obsItems;
+    d.changeoverMin = typeof x.changeoverMin === "number" ? x.changeoverMin : null;
+    d.requireLogin = !!x.requireLogin;
+    return this.save();
+  }
+
+  /** Add records this store does not have: with their replay while there is room, otherwise in short. Returns how many were added. */
+  mergeRecords(list: unknown[]): number {
+    const have = new Set(this.history().map((r) => r.id));
+    const fresh = list.filter(isRecord).filter((r) => !have.has(r.id) && (have.add(r.id), true));
+    if (fresh.length === 0) return 0;
+    const newest = (a: SessionRecord, b: SessionRecord): number => b.startedIso.localeCompare(a.startedIso);
+    const full = [...this.data.records, ...fresh.filter((r) => r.frames.length > 0)].sort(newest);
+    this.data.records = full.slice(0, MAX_RECORDS);
+    this.data.archive = [...(this.data.archive ?? []), ...full.slice(MAX_RECORDS).map(lightRecord), ...fresh.filter((r) => r.frames.length === 0)].sort(newest).slice(0, MAX_ARCHIVE);
+    while (!this.save()) {
+      if (this.data.records.length > 1) this.toArchive([this.data.records.pop()!]);
+      else if (this.data.archive.length > 0) this.data.archive.pop();
+      else break;
+    }
+    return fresh.length;
+  }
+
+  /** Everything worth keeping, as text for a file: the class and every record held here. */
+  backup(nowIso: string): string {
+    return JSON.stringify({ kind: BACKUP_KIND, version: 1, savedIso: nowIso, state: this.classState(), records: this.history() });
+  }
+
+  /**
+   * Read a backup. It only adds: the records this store does not have, and the batches it does not have. On a
+   * station with no batch at all (a new browser) the whole class of the backup is taken, settings included.
+   */
+  restore(text: string): { ok: true; records: number; batches: number; settings: boolean } | { ok: false; error: string } {
+    let b: { kind?: unknown; state?: Partial<ClassState>; records?: unknown };
+    try {
+      b = JSON.parse(text) as typeof b;
+    } catch {
+      return { ok: false, error: "This file is not a backup: it could not be read." };
+    }
+    if (!b || b.kind !== BACKUP_KIND || !b.state || !Array.isArray(b.state.batches)) return { ok: false, error: "This file is not a backup of the simulator's records." };
+    let batches = 0;
+    let settings = false;
+    if (this.data.batches.length === 0) {
+      if (!this.applyClassState(b.state)) return { ok: false, error: "The class in this backup could not be read." };
+      batches = this.data.batches.length;
+      settings = true;
+    } else {
+      for (const x of b.state.batches) {
+        if (!x || typeof x.id !== "string" || typeof x.name !== "string" || !Array.isArray(x.students) || !Array.isArray(x.assigned)) continue;
+        if (this.data.batches.some((y) => y.id === x.id || y.name.toLowerCase() === x.name.toLowerCase())) continue;
+        this.data.batches.push(x);
+        batches++;
+      }
+    }
+    const records = this.mergeRecords(Array.isArray(b.records) ? b.records : []);
+    this.save();
+    return { ok: true, records, batches, settings };
   }
 
   removeRecord(id: string): void {

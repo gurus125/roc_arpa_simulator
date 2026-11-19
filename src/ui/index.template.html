@@ -28,6 +28,8 @@
   #side { display:flex; flex-direction:column; gap:10px; }
   .pane { display:flex; flex-direction:column; gap:10px; }
   .pane[hidden] { display:none; }
+  /* A row, a line of keys or a grid that is hidden stays hidden, whatever its layout. */
+  .row[hidden], .btns[hidden], .grid2[hidden], .check[hidden] { display:none; }
   section { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
   section[hidden] { display:none; }
   section h2 { margin:0 0 8px; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--accent); font-weight:600; }
@@ -361,9 +363,9 @@
      teal and green for good states, orange for warnings, red for alarms, amber for echoes. A header with the RADAR /
      ARPA / EXERCISE tabs, the ship's clock and the state of the alerts; a legend of the symbols along the foot.
      Colours: #061329 #0A1D3A #24466F #00BFFF #00D6C9 #FFC928 #20D98A #FF9F1C #FF3B4E #EAF2FF #91A8C5. */
-  :root { --bg:#061329; --panel:#0a1d3a; --box:#081932; --line:#24466f; --text:#eaf2ff; --muted:#91a8c5; --accent:#00bfff; --onaccent:#04121f; --bright:#ffffff; --btn:#0e2547; --btnline:#24466f; --btnhover:#143260; --btnon:#0b6fb8; --warn:#ff9f1c; --caution:#ffd84a; --bad:#ff3b4e;
+  :root { --bg:#061329; --panel:#0a1d3a; --box:#081932; --line:#24466f; --text:#eaf2ff; --muted:#91a8c5; --accent:#00bfff; --onaccent:#04121f; --bright:#ffffff; --btn:#0e2547; --btnline:#24466f; --btnhover:#143260; --btnon:#0b6fb8; --warn:#ff9f1c; --caution:#ffd84a; --bad:#ff3b4e; --viz1:#3987e5;
     --cbg:#0a1d3a; --cline:#24466f; --clab:#a3b9d6; --src:#20d98a; --chead:rgba(36,70,111,.35); --ok:#20d98a; --teal:#00d6c9; --segon:#0b7fd0; --segonline:#00bfff; --segontext:#ffffff; --ackbg:#ffc928; --ackfg:#2a1d00; --menubg:#0a3a2b; --menuline:#20d98a; --hdrbg:#081833; --track:#1c3a60; --hdrH:50px; --ftrH:28px; }
-  body[data-mode=night] { --ok:#4f7a3a; --teal:#3f6a5a; --segon:#2a1a0a; --segonline:#9a6a1c; --segontext:#d59a48; --ackbg:#3a2a08; --ackfg:#b5823c; --menubg:#0d1306; --menuline:#4f6a2a; --hdrbg:#000000; --track:#1c1208; --clab:#6b4f27; }
+  body[data-mode=night] { --viz1:#9a6a1c; --ok:#4f7a3a; --teal:#3f6a5a; --segon:#2a1a0a; --segonline:#9a6a1c; --segontext:#d59a48; --ackbg:#3a2a08; --ackfg:#b5823c; --menubg:#0d1306; --menuline:#4f6a2a; --hdrbg:#000000; --track:#1c1208; --clab:#6b4f27; }
   body { overflow:hidden; font-family:"Segoe UI", system-ui, -apple-system, sans-serif; }
   /* Header */
   header { height:var(--hdrH); padding:0 0 0 14px; display:flex; align-items:center; justify-content:flex-start; gap:16px; background:var(--hdrbg); border-bottom:1px solid var(--line); flex-wrap:nowrap; white-space:nowrap; overflow:hidden; font-size:12px; line-height:1.2; }
@@ -837,6 +839,7 @@
         <div class="row two"><label for="refr">Refraction</label><select id="refr"><option value="standard">Standard atmosphere</option><option value="sub">Sub-refraction (shorter ranges)</option><option value="super">Super-refraction (longer ranges)</option></select></div>
         <p class="hint">Refraction changes how far the radar sees over the horizon: in sub-refraction (cold air over a warmer sea, bad weather) targets are detected at about 80% of the usual range; in super-refraction (warm dry air over a cooler sea, settled weather) at up to about 140%. Ducting carries the beam much further and brings second-trace echoes.</p>
         <div class="check"><input type="checkbox" id="interf"><label for="interf">Interference from another ship's radar</label></div>
+        <div class="row two"><label for="visNm" title="How far one can see. It does not change the radar picture: a look-out reports the vessels that come into sight.">Visibility (NM; blank = good)</label><input type="number" id="visNm" min="0.05" max="20" step="0.05" placeholder="good"></div>
         <div class="row two"><label for="windFrom">Wind from (°)</label><input type="number" id="windFrom" min="0" max="359" value="0"></div>
         <div class="row two"><label for="windSpd">Wind speed (kn)</label><input type="number" id="windSpd" min="0" max="70" step="1" value="0"></div>
         <div class="row two"><label for="curSet">Current set</label><input type="number" id="curSet" min="0" max="359" value="0"></div>

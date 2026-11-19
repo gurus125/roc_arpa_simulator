@@ -1,4 +1,4 @@
-import type { AttentionFlag, Batch, ProgressReport, ScoringConfig, SessionRecord } from "../train/index";
+import type { AttemptRow, AttentionFlag, Batch, ProgressReport, ScoringConfig, SessionRecord } from "../train/index";
 
 /**
  * Link between student displays and the instructor station.
@@ -59,13 +59,38 @@ export interface ClassConfig {
   targetHoursPerPair: number | null;
   /** Minutes of exercise time after which the next trainee of a group takes the controls; null or left out: they change by hand. */
   changeoverMin?: number | null;
+  /** Trainees must log in with their own name and PIN. */
+  requireLogin?: boolean;
+}
+
+/** A trainee's first PIN, chosen at a display: its digest, for the instructor station to keep (see train/accounts.ts). */
+export interface NewAccount {
+  batchId: string;
+  name: string;
+  digest: string;
+}
+
+/** A trainee asks the station for his or her own results; the digest of the PIN shows who is asking. */
+export interface HistoryRequest {
+  station: string;
+  batchId: string;
+  name: string;
+  digest: string;
+}
+
+/** The station's answer: that trainee's attempts, oldest first. */
+export interface HistoryReply {
+  to: string;
+  name: string;
+  rows: AttemptRow[];
+  passPercent: number | null;
 }
 
 export type Command =
   | { to: string; cmd: "pause" | "run" }
   | { to: string; cmd: "message"; text: string }
   | { to: string; cmd: "radio"; station: string; from: string; text: string }
-  | { to: string; cmd: "weather"; seaState: number; rain: boolean; ducting: boolean; interference: boolean; rainPct?: number; windFrom?: number; windKn?: number; curSet?: number; curDrift?: number }
+  | { to: string; cmd: "weather"; seaState: number; rain: boolean; ducting: boolean; interference: boolean; rainPct?: number; windFrom?: number; windKn?: number; curSet?: number; curDrift?: number; /** Visibility, NM; null: good again; left out: no change. */ visNm?: number | null }
   /** A vessel of a catalogue type put on the display's picture, at a true bearing and range from its own ship. */
   | { to: string; cmd: "addTarget"; name: string; typeId: string; bearing: number; rangeNm: number; course: number; speed: number }
   | { to: string; cmd: "removeTarget"; id: number }
@@ -82,7 +107,13 @@ export type Command =
   /** Start this exercise (an ARPA, radar or plotting exercise id, or "roc-" and an ROC exercise). */
   | { to: string; cmd: "startExercise"; id: string }
   /** Set these fault controls (FAULT_IDS) to these values. */
-  | { to: string; cmd: "faults"; values: Record<string, number | boolean> };
+  | { to: string; cmd: "faults"; values: Record<string, number | boolean> }
+  /** Take the display's exercise back by this many seconds (ships, weather and faults as they were then). */
+  | { to: string; cmd: "rewind"; seconds: number }
+  /** Start the display's exercise (or its free scenario) again from the beginning. */
+  | { to: string; cmd: "restart" }
+  /** A track for one of the display's targets: points as true bearing and range from its own ship now, in order. No points: taken off its track. */
+  | { to: string; cmd: "track"; id: number; points: { bearing: number; rangeNm: number }[] };
 
 /** `id` marks one message, so that a copy arriving a second way (same-computer channel and server) is dropped. */
 type Envelope = (
@@ -93,6 +124,9 @@ type Envelope = (
   /** The instructor station's batches and scoring, for every display. */
   | { kind: "config"; config: ClassConfig }
   | { kind: "picture"; picture: LivePicture }
+  | { kind: "account"; account: NewAccount }
+  | { kind: "historyRequest"; request: HistoryRequest }
+  | { kind: "history"; reply: HistoryReply }
 ) & { id?: string };
 
 /** After this many failures in a row the server is treated as out of reach; it is then tried again less often. */
@@ -110,6 +144,9 @@ export class Link {
   onRecord: (r: SessionRecord) => void = () => {};
   onConfig: (c: ClassConfig) => void = () => {};
   onPicture: (p: LivePicture) => void = () => {};
+  onAccount: (a: NewAccount) => void = () => {};
+  onHistoryRequest: (r: HistoryRequest) => void = () => {};
+  onHistory: (r: HistoryReply) => void = () => {};
   /** "server", "server out of reach (trying again)", "same computer only", "no classroom server at this address ..." or "off". */
   mode = "off";
   private bc: BroadcastChannel | null = null;
@@ -151,6 +188,9 @@ export class Link {
     if (m.kind === "record" && m.record && typeof m.record.id === "string") this.onRecord(m.record);
     if (m.kind === "config" && m.config && Array.isArray(m.config.batches)) this.onConfig(m.config);
     if (m.kind === "picture" && m.picture && m.picture.station !== this.station) this.onPicture(m.picture);
+    if (m.kind === "account" && m.account && typeof m.account.name === "string") this.onAccount(m.account);
+    if (m.kind === "historyRequest" && m.request && m.request.station !== this.station) this.onHistoryRequest(m.request);
+    if (m.kind === "history" && m.reply && m.reply.to === this.station) this.onHistory(m.reply);
   }
 
   private send(m0: Envelope): void {
@@ -214,6 +254,18 @@ export class Link {
     let rec = r;
     while (JSON.stringify(rec).length > 900_000 && rec.frames.length > 20) rec = { ...rec, frames: rec.frames.filter((_, i) => i % 2 === 0) };
     this.send({ kind: "record", record: rec });
+  }
+
+  sendAccount(a: NewAccount): void {
+    this.send({ kind: "account", account: a });
+  }
+
+  sendHistoryRequest(r: HistoryRequest): void {
+    this.send({ kind: "historyRequest", request: r });
+  }
+
+  sendHistory(r: HistoryReply): void {
+    this.send({ kind: "history", reply: r });
   }
 
   sendPicture(p: LivePicture): void {

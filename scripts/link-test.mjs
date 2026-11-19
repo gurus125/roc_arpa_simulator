@@ -5,7 +5,14 @@
 // server is stopped and started again. Run with `npm run test:link` after `npm run build`.
 // It runs on one machine: it does not replace a trial on the classroom's own PCs and network.
 import { createServer } from "node:http";
-import { handle } from "../server/server.mjs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { handle, setDataDir, stationKey } from "../server/server.mjs";
+
+// The server's store goes to a folder of its own for the test, never to the project's "data" folder.
+const dataDir = mkdtempSync(join(tmpdir(), "radar-sim-link-"));
+setDataDir(dataDir);
 
 const { chromium } = await import("playwright");
 const PORT = 8137;
@@ -137,6 +144,50 @@ await instr.click('#topTabs button[data-st="class"]');
   await instr.click('#topTabs button[data-st="class"]');
 }
 
+// The station keeps its records and its class on the server's disk, once it has the station key.
+{
+  await instr.click('#topTabs button[data-st="batch"]');
+  await instr.fill("#inBatchName", "L1");
+  await instr.click("#inBatchAdd");
+  await instr.fill("#inStudents", "Asha\nRavi");
+  await instr.click("#inBatchSave");
+  await instr.click('#topTabs button[data-st="recs"]');
+  const sv = (p = instr) => text(p, "#svState");
+  check("without the station key the server keeps nothing for the station", await until(async () => /Type the station key/.test(await sv())), await sv());
+  await instr.fill("#svKey", "AAAA-AAAA-AAAA-AAAA");
+  await instr.click("#svKeySet");
+  check("a wrong station key is refused", await until(async () => /does not accept this key/.test(await sv())), await sv());
+  await instr.fill("#svKey", stationKey());
+  await instr.click("#svKeySet");
+  check("with the key, the station's records and class are kept on the server", await until(async () => /Kept on the classroom server: [1-9]\d* exercises? \([1-9]\d* with their replay\)/.test(await sv()), 40000), await sv());
+  const h = { "x-station-key": stationKey() };
+  const list = await (await fetch(`http://localhost:${PORT}/api/store/history`, { headers: h })).json();
+  const state = await (await fetch(`http://localhost:${PORT}/api/store/state`, { headers: h })).json();
+  check("the server's disk holds the record with its replay, and the batch", Array.isArray(list) && list.some((e) => /ARPA 1:/.test(e.light.title) && e.replay) && Array.isArray(state.batches) && state.batches.some((b) => b.name === "L1"), `${JSON.stringify(list).slice(0, 120)} ${JSON.stringify(state).slice(0, 120)}`);
+  check("nothing of the store is given without the key", (await fetch(`http://localhost:${PORT}/api/store/history`)).status === 401);
+  // An exercise of last month that only the server still holds (no browser has its replay any more).
+  const frame = (t) => ({ t, own: { e: 0, n: t / 300, hdg: 0, spd: 12, ordC: 0, ordS: 12 }, tg: [], tracks: 0, alarms: [] });
+  const old = { id: "2026-10-01T09:00:00.000Z-arpa-6", exerciseId: "arpa-6", title: "ARPA 6: Trial manoeuvre", kind: "arpa", students: ["Asha"], batch: "L1", startedIso: "2026-10-01T09:00:00.000Z", simSeconds: 60, names: {}, coasts: [], frames: [frame(0), frame(60)], events: [], result: null, summary: [] };
+  await fetch(`http://localhost:${PORT}/api/store/record`, { method: "PUT", headers: h, body: JSON.stringify({ light: { ...old, frames: [] }, sig: "old", full: old }) });
+  // A station opened in another browser (as on another PC) takes the class from the server and brings that exercise back with its replay.
+  const st2 = await open(true);
+  await st2.click('#topTabs button[data-st="recs"]');
+  await st2.fill("#svKey", stationKey());
+  await st2.click("#svKeySet");
+  const ready = await until(async () => (await st2.isVisible("#svRestore")) && (await st2.isVisible("#svOpen")), 40000);
+  await st2.click("#svRestore");
+  const gotBatch = await until(async () => (await st2.$$eval("#inBatch option", (o) => o.map((x) => x.textContent).join(","))).includes("L1"));
+  await st2.selectOption("#svOld", old.id);
+  await st2.click("#svOpen");
+  const opened = await until(async () => (await st2.isVisible("#inRecView")) && /ARPA 6:/i.test(await text(st2, "#inRecTitle")));
+  // Its trainee is now in the second station's list, from the server's records.
+  const names = await st2.$$eval("#tfWho option", (o) => o.map((x) => x.textContent).join(","));
+  check("a station on another PC takes the class from the server and brings a record back with its replay", ready && gotBatch && opened && names.includes("Asha (L1)"), `${ready} ${gotBatch} ${opened} ${names} ${await sv(st2)}`);
+  check("no script errors on the second station", st2.errs.length === 0, st2.errs.join("; "));
+  await st2.context().close();
+  await instr.click('#topTabs button[data-st="class"]');
+}
+
 // The server stops (power cut, cable out) and comes back: the displays find it again by themselves.
 // Connections still open are cut at once (waiting for them to end could hang the test).
 await new Promise((r) => {
@@ -174,5 +225,6 @@ for (const p of [instr, ...students, hst]) check("no script errors on a display"
 await browser.close();
 await new Promise((r) => hosted.close(r));
 await new Promise((r) => server.close(r));
+rmSync(dataDir, { recursive: true, force: true });
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nAll link checks passed");
 process.exit(fails.length ? 1 : 0);

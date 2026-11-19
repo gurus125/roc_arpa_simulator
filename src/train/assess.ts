@@ -97,7 +97,8 @@ export function evidenceOf(s: ArpaExSession, w: World, a: ArpaSystem): Record<Ev
   const m = o.manoeuvre;
   const action = !m ? "No alteration of course or speed."
     : `First action at ${mmss(m.time)}${m.by ? ` by ${m.by}` : ""}: ${Math.abs(m.turnDeg) >= 5 ? `${Math.abs(Math.round(m.turnDeg))}° to ${m.turnDeg > 0 ? "starboard" : "port"}` : `speed ${m.speedFrom} to ${m.speedTo} kn`}.` +
-      (m.risk && m.risk.length > 0 ? ` Then: ${m.risk.slice(0, 2).map((r) => `${r.name} would have passed at ${r.cpa.toFixed(2)} NM in ${r.tcpaMin.toFixed(0)} min`).join("; ")}.` : " No vessel was then closing inside the safe distance.");
+      (m.risk && m.risk.length > 0 ? ` Then: ${m.risk.slice(0, 2).map((r) => `${r.name} would have passed at ${r.cpa.toFixed(2)} NM in ${r.tcpaMin.toFixed(0)} min${m.threats.find((t) => t.id === r.id)?.inSight === false ? " (not in sight)" : ""}`).join("; ")}.` : " No vessel was then closing inside the safe distance.") +
+      (m.visibilityNm !== undefined ? ` Visibility ${m.visibilityNm} NM.` : "");
   const near = vessels.map((t) => ({ name: t.name, nm: o.minRange[t.id] ?? Infinity })).sort((x, y) => x.nm - y.nm)[0];
   const effect = near && Number.isFinite(near.nm) ? `Closest so far: ${near.name} at ${near.nm.toFixed(2)} NM (safe distance ${safe} NM).` : "No vessels.";
   const pi = o.pi.filter((p) => p.on).length;
@@ -176,8 +177,18 @@ export function traineeNames(records: SessionRecord[]): string[] {
 
 const DECISION: Record<string, string> = { competent: "Competent", "not-yet": "Not yet competent", "": "-" };
 
+/**
+ * The trainees named in the records, each with the batch the record was made under: two trainees of the same
+ * name in different batches are two people. In order of name, then batch.
+ */
+export function traineeKeys(records: SessionRecord[]): { name: string; batch: string }[] {
+  const seen = new Map<string, { name: string; batch: string }>();
+  for (const r of records) for (const name of r.students) seen.set(`${r.batch}\u0001${name}`, { name, batch: r.batch });
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name) || a.batch.localeCompare(b.batch));
+}
+
 /** One trainee's file: every recorded exercise he or she took part in, oldest first, as a page to print. */
-export function traineeFileHtml(records: SessionRecord[], name: string): string {
+export function traineeFileHtml(records: SessionRecord[], name: string, progress = ""): string {
   const mine = records.filter((r) => r.students.includes(name)).sort((a, b) => a.startedIso.localeCompare(b.startedIso));
   const rows = mine.map((r) => {
     const t = traineeResults(r).find((x) => x.name === name)!;
@@ -195,7 +206,7 @@ table{border-collapse:collapse;width:100%}td,th{border:1px solid #888;padding:2p
 <h1>Trainee file: ${esc(name)}</h1>
 <p class="draft">Training simulator record, not a certificate of competence. Points and limits are placeholders unless the institute has set its own. "At the controls" is the name chosen on the display. The assessor's decision is the prime criterion (STCW Code A-I/12, paragraph 8).</p>
 <table><tr><th>Date</th><th>Exercise</th><th>With</th><th>At the controls</th><th>Own answers and actions</th><th>Group result</th><th>Observations about ${esc(name)}</th><th>Flagged "now" while at the controls</th><th>Decision</th></tr>
-${rows || '<tr><td colspan="9">No recorded exercise.</td></tr>'}</table></body></html>`;
+${rows || '<tr><td colspan="9">No recorded exercise.</td></tr>'}</table>${progress ? `<h2 style="font-size:13px;margin:14px 0 4px">Progress</h2>${progress}` : ""}</body></html>`;
 }
 
 // ---------------------------------------------------------------- the evidence before the decision

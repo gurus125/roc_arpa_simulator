@@ -1,17 +1,18 @@
 import { bearingOf, fromPolar, length, normalizeDeg } from "../core/vec";
-import { IMO_TABLE2, RANDOM_TRAFFIC_DEFAULT, addRandomTraffic, nextTargetId, Scenario, TARGET_TYPES, Target, TargetKind, clearTargetRoute, initTargetMotion, orderTarget, rcsForDetectionRange, routeAhead, setTargetRoute, targetFromType, targetTypeById } from "../engine/index";
+import { IMO_TABLE2, VISIBILITY_STEPS_NM, RANDOM_TRAFFIC_DEFAULT, addRandomTraffic, nextTargetId, Scenario, TARGET_TYPES, Target, TargetKind, clearTargetRoute, initTargetMotion, orderTarget, rcsForDetectionRange, routeAhead, setTargetRoute, targetFromType, targetTypeById } from "../engine/index";
 import { MAX_ROUTE_WAYPOINTS } from "../core/route";
 import { EXERCISES } from "../roc/index";
 import {
   ARPA_EXERCISES, RADAR_EXERCISES, PLOTTING_EXERCISES, SELF_TEST_EXERCISES, SelfTestRow, selfTestExercise, markingSheetsHtml, examSheetsHtml, DEFAULT_EXAMS, Observation, rankFlags, bookmarks, controlsShare,
   ChecklistItem, parseChecklist, checklistLines, DEBRIEF_STEPS, debriefPack, debriefPackHtml, evidenceHtml, traineeTableHtml, decisionConflicts, traineeConflicts, assessorStats,
-  classComparison, traineeNames, traineeFileHtml, exerciseSheetHtml, exerciseSheetsHtml, rocSheetHtml, syllabusRefs, MAX_RECORDS, PLACEHOLDER_SCORING, SETUP_LIMITS, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
+  parseTrackText, hasPin, traineeKeys, traineeAttempts, progressHtml, batchMatrix, batchMatrixHtml, lightRecord, recordMark, textMark, classComparison, traineeNames, traineeFileHtml, exerciseSheetHtml, exerciseSheetsHtml, rocSheetHtml, syllabusRefs, MAX_RECORDS, PLACEHOLDER_SCORING, SETUP_LIMITS, ScoringConfig, SessionRecord, Store, frameAt, frameInterpolated, REPLAY_SPEEDS, PICTURE_INTERVAL_SEC, PictureFrame, pictureAt, recordsCsv, resultCsv, scenarioFromJson, scenarioToJson,
 } from "../train/index";
 import { AppState, rewind } from "./app";
 import { deletePictures, loadPictures } from "./picture-store";
 import { $, download, esc, inputValue, mmss } from "./dom";
 import { FAULT_IDS, Link, StationStatus } from "./link";
 import { resultHtml } from "./train-ui";
+import { ServerStore } from "./server-store";
 
 export interface InstructorApi {
   getApp: () => AppState;
@@ -32,6 +33,10 @@ export interface InstructorApi {
 export interface InstructorUi {
   tick: (app: AppState) => void;
   refresh: () => void;
+  /** Every exercise on record at this station (and, when the classroom server keeps records, those it holds). */
+  history: () => SessionRecord[];
+  /** A trainee has chosen a PIN at a display: show it in the list of accounts. */
+  accountsChanged: () => void;
   /** A record has come in (from a display): list the records again. */
   recordsChanged: () => void;
 }
@@ -197,7 +202,13 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div class="row two" style="margin-top:8px"><label for="inBatch">Batch</label><select id="inBatch"></select></div>
       <label class="small" for="inStudents">Students (one name per line)</label><textarea id="inStudents" rows="5"></textarea>
       <div class="small" style="margin-top:6px">Assigned exercises:</div><div id="inAssign" class="small"></div>
+      <div class="check" style="margin-top:6px"><input type="checkbox" id="inReqLogin"><label for="inReqLogin">Trainees log in with their own name and PIN</label></div>
       <div class="btns"><button id="inBatchSave">Save batch and limits</button><button id="inBatchDel">Delete batch</button></div>
+      <h2 style="margin-top:10px">Trainee accounts of this batch</h2>
+      <table class="res"><thead><tr><th>Trainee</th><th>PIN</th><th></th></tr></thead><tbody id="inAccts"></tbody></table>
+      <div class="btns"><button id="bmShow">Progress of this batch</button></div>
+      <div id="bmOut"></div>
+      <p class="hint">With "Trainees log in with their own name and PIN" on, a display accepts only a name from the batch with that trainee's PIN, so that a record and a result belong to the person named. A trainee chooses the PIN at the first login (4 to 8 digits, typed twice); "Reset PIN" takes it away, and the trainee chooses a new one at the next login. The trainee can then see his or her own results on the display (EXERCISE, My results). This keeps one trainee from logging in as another in a classroom. It is not real security: only a digest of each PIN is kept, but a short PIN can be found from its digest, and nothing on the classroom network is encrypted. Free practice (the other key of the login screen) stays open and records no names.</p>
       <div class="grid2" style="margin-top:8px"><div><label for="inMaxStu">Students per display</label><input type="number" id="inMaxStu" min="1" max="4" step="1"></div>
         <div><label for="inPairHrs">Hours per pair (blank = not set)</label><input type="number" id="inPairHrs" min="0" step="0.5"></div>
         <div style="grid-column:1/3"><label for="inChange">Change over at the controls every (minutes of exercise time; blank = the trainees change by hand)</label><input type="number" id="inChange" min="1" step="1"></div></div>
@@ -237,7 +248,8 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
         <details><summary class="small">Checklist items (one a line; its standard may follow as: item :: what Yes looks like :: what No looks like)</summary><textarea id="obsList" rows="8"></textarea>
           <div class="btns"><button id="obsListSave">Save the list</button><button id="obsListReset">Back to the proposed list</button></div></details>
         <p class="hint">Tick what you see while the exercise runs: Yes for done well, No for not done or done badly; leave an item alone if you did not see it. "About" names the whole group or one trainee. The ticks and the notes go into that exercise's record and its report. Under each item is its standard, so that every instructor ticks against the same words, and what the simulator has measured about it on that display so far (from the real positions: the trainees do not see it). The items and standards proposed are not from any syllabus: put in the objectives you gave at the briefing.</p></div>
-      <div class="btns"><button id="inAllPause">Pause all</button><button id="inAllRun">Run all</button></div>
+      <div class="btns"><button id="inAllPause">Pause all</button><button id="inAllRun">Run all</button><button id="inAllBack">Take all back 2 min</button><button id="inAllReset">Reset all</button></div>
+      <p class="hint">"Back 2 min" and "Back 5 min" on a display's card return its ships, weather and faults to that moment so the trainees can try again (its ARPA starts empty; not in an ROC exercise). "Reset" starts its exercise, or its free scenario, again from the beginning; what was done in it so far is not kept.</p>
       <div class="row two" style="margin-top:8px"><label for="inExSel">Exercise</label><select id="inExSel">${REMOTE_EXERCISES.map((e) => `<option value="${e.id}">${esc(e.label)}</option>`).join("")}</select></div>
       <div class="btns"><button id="inExAll">Start this exercise on all displays</button></div>
       <h2 style="margin-top:12px">Faults to send</h2>
@@ -251,13 +263,16 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div class="grid2"><div><label for="inWxRainPct">Rain intensity (% of heavy)</label><input type="number" id="inWxRainPct" min="5" max="100" step="5" value="50"></div>
         <div><label for="inWxWindF">Wind from (°) and speed (kn)</label><span style="display:flex;gap:4px"><input type="number" id="inWxWindF" min="0" max="359" placeholder="from"><input type="number" id="inWxWindS" min="0" max="70" placeholder="kn"></span></div>
         <div><label for="inWxCurS">Current set (°) and drift (kn)</label><span style="display:flex;gap:4px"><input type="number" id="inWxCurS" min="0" max="359" placeholder="set"><input type="number" id="inWxCurD" min="0" max="6" step="0.1" placeholder="kn"></span></div>
+        <div><label for="inWxVis">Visibility</label><select id="inWxVis"><option value="">no change</option><option value="good">good</option>${VISIBILITY_STEPS_NM.map((v) => `<option value="${v}">${v} NM</option>`).join("")}</select></div>
         <div><label for="inWxTo">Send the weather to</label><select id="inWxTo"><option value="all">All displays</option></select></div></div>
       <div class="btns"><button id="inWxSend">Set this weather</button></div>
-      <p class="hint">Wind and current are sent only when filled in; left blank, each display keeps its own.</p>
+      <p class="hint">Wind and current are sent only when filled in; left blank, each display keeps its own. Visibility does not change the radar picture: the simulator has no view from the windows, so the trainees are told the visibility, a look-out reports each vessel that comes into sight (taken as: her range is not more than the visibility, a placeholder), and Rule 19(d) is applied in the marking to a vessel that was not in sight when the action was taken.</p>
       <h2 style="margin-top:12px">Targets on a display, while the exercise runs</h2>
       <div class="grid2"><div><label for="rtSt">Display</label><select id="rtSt"><option value="all">All displays</option></select></div><div><label for="rtTg">Target</label><select id="rtTg"></select></div>
         <div><label for="rtC">New course (°), blank: no change</label><input type="number" id="rtC" min="0" max="359"></div><div><label for="rtS">New speed (kn), blank: no change</label><input type="number" id="rtS" min="0" max="60" step="0.5"></div></div>
       <div class="btns"><button id="rtAlter">Alter this target now</button><button id="rtDel">Remove this target</button></div>
+      <label class="small" for="rtTrack">Track for this target: true bearing / range (NM) from that own ship, in the order she is to pass them, for example 045/6, 090/8</label><input type="text" id="rtTrack" placeholder="045/6, 090/8">
+      <div class="btns"><button id="rtTrackSet">Set this track</button><button id="rtTrackOff">Take off this track</button></div>
       <div class="grid2"><div><label for="rtNewName">New target: name</label><input type="text" id="rtNewName" value="Intruder"></div><div><label for="rtNewKind">Type</label><select id="rtNewKind">${TARGET_TYPES.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select></div>
         <div><label for="rtNewBrg">True bearing from that own ship (°)</label><input type="number" id="rtNewBrg" min="0" max="359" value="30"></div><div><label for="rtNewRng">Range (NM)</label><input type="number" id="rtNewRng" min="0.1" max="48" step="0.1" value="4"></div>
         <div><label for="rtNewC">Course (°)</label><input type="number" id="rtNewC" min="0" max="359" value="210"></div><div><label for="rtNewS">Speed (kn)</label><input type="number" id="rtNewS" min="0" max="60" step="0.5" value="12"></div></div>
@@ -276,9 +291,17 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <table class="res"><thead><tr><th>When</th><th>Students</th><th>Exercise</th><th>%</th><th></th></tr></thead><tbody id="inRecs"></tbody></table>
       <div class="btns"><button id="inCsvAll">Export all (CSV)</button><button id="asCmp">Assessors compared</button></div>
       <div class="row two"><label for="tfWho">Trainee</label><select id="tfWho"></select></div>
-      <div class="btns"><button id="tfPrint">Trainee file (print or save as PDF)</button></div>
+      <div class="btns"><button id="tfPrint">Trainee file (print or save as PDF)</button><button id="phShow">Progress of this trainee</button></div>
+      <div id="phOut"></div>
       <div id="asCmpOut"></div>
       <p class="hint">The trainee file is one page for one person: every recorded exercise he or she took part in, with the time at the controls, the answers and actions that were his or her own, the observations about him or her and the decision. "Assessors compared" sets the assessors side by side: how many exercises each found competent, the mean score of those and of the ones found not yet competent, and how many decisions went against the record. Like figures mean like marking; a difference is a reason to talk, not a proof, since the classes may have differed. The newest ${MAX_RECORDS} exercises are kept with their replay; older ones stay in the files and comparisons without it.</p>
+      <h2 style="margin-top:10px">Keeping the records</h2>
+      <p class="small" id="svState"></p>
+      <div class="btns" id="svKeyRow"><input type="text" id="svKey" placeholder="Server key (the classroom server prints it when it starts)" style="flex:1" autocomplete="off"><button id="svKeySet">Use this server key</button></div>
+      <div class="row two" id="svOldRow" hidden><label for="svOld">On the server, its replay not in this browser</label><select id="svOld"></select></div>
+      <div class="btns"><button id="svOpen" hidden>Bring this exercise back with its replay</button><button id="svRestore" hidden>Take the batches and settings from the server</button></div>
+      <div class="btns"><button id="bkSave">Back up everything (JSON)</button><button id="bkLoad">Restore from a backup</button><input type="file" id="bkFile" accept="application/json,.json" hidden></div>
+      <p class="hint">This browser keeps the newest ${MAX_RECORDS} exercises with their replay and 300 older ones without. To keep more, and to keep them apart from this browser: (1) the classroom server ("npm run serve") can keep every record with its replay, and the batches and settings, as files in its "data" folder on its own computer. Type the station key it prints when it starts; from then on this station sends each record there, and the trainee files, the progress and the comparisons reach back over all of them. (2) "Back up everything" saves the class and every record held here in one file; "Restore from a backup" adds the records and batches this station does not have (on a station with no batch yet it takes the settings too) and never deletes. Neither is encrypted: the files hold trainees' names and results, so keep them as the institute keeps its other records.</p>
       <div id="inRecView" hidden><h2 style="margin-top:10px" id="inRecTitle"></h2>
         <canvas id="inReplay" style="aspect-ratio:1/1;background:#08100e"></canvas>
         <p class="small" id="inPicNote"></p>
@@ -339,7 +362,8 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div class="row two"><label for="edBase">Start from</label><select id="edBase"></select></div>
       <div class="grid2"><div><label for="edName">Scenario name</label><input type="text" id="edName"></div><div><label for="edSea">Sea state (0-9)</label><input type="number" id="edSea" min="0" max="9"></div>
         <div><label for="edHdg">Own heading (°)</label><input type="number" id="edHdg" min="0" max="359"></div><div><label for="edSpd">Own speed (kn)</label><input type="number" id="edSpd" min="0" max="40" step="0.5"></div>
-        <div><label for="edSet">Current set (°)</label><input type="number" id="edSet" min="0" max="359"></div><div><label for="edDrift">Current drift (kn)</label><input type="number" id="edDrift" min="0" max="6" step="0.1"></div></div>
+        <div><label for="edSet">Current set (°)</label><input type="number" id="edSet" min="0" max="359"></div><div><label for="edDrift">Current drift (kn)</label><input type="number" id="edDrift" min="0" max="6" step="0.1"></div>
+        <div><label for="edVis">Visibility (NM; blank = good)</label><input type="number" id="edVis" min="0.05" max="20" step="0.05"></div></div>
       <div style="overflow-x:auto"><table class="res" id="edTable"><thead><tr><th>Name</th><th>Kind</th><th>Brg</th><th>Rng</th><th>Crs</th><th>Spd</th><th>At min</th><th>→Crs</th><th>→Spd</th><th></th></tr></thead><tbody id="edRows"></tbody></table></div>
       <div class="btns"><button id="edAdd">Add target</button><button id="edLoad">Load in simulator</button><button id="edSave">Save to library</button></div>
       <div class="btns"><button id="edDown">Download JSON</button><button id="edUp">Open JSON file</button><button id="edDel">Delete from library</button><input type="file" id="edFile" accept=".json,application/json" hidden></div>
@@ -400,8 +424,27 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
   // ------------------------------------------------------------ batches
   const allExercises = [...ARPA_EXERCISES.map((e) => ({ id: e.id, label: `ARPA ${e.number}` })), ...RADAR_EXERCISES.map((e) => ({ id: e.id, label: `Radar ${e.number}` })), ...PLOTTING_EXERCISES.map((e) => ({ id: e.id, label: `Plotting ${e.number}` })), ...EXERCISES.map((e) => ({ id: `roc-${e.id}`, label: `ROC ${e.name}` }))];
   const batchSel = $<HTMLSelectElement>("inBatch");
+  /** The trainees of the batch chosen, each with whether a PIN has been chosen. */
+  const drawAccounts = (): void => {
+    const b = st.data.batches.find((x) => x.id === batchSel.value);
+    const html = !b || b.students.length === 0 ? '<tr><td colspan="3" class="small">No trainees in this batch yet.</td></tr>'
+      : b.students.map((n) => `<tr><td>${esc(n)}</td><td>${hasPin(b, n) ? "set" : "none yet: chosen at the first login"}</td><td>${hasPin(b, n) ? `<button data-reset="${esc(n)}">Reset PIN</button>` : ""}</td></tr>`).join("");
+    const box = $("inAccts");
+    if (box.dataset["sig"] !== html) {
+      box.dataset["sig"] = html;
+      box.innerHTML = html;
+    }
+  };
+  $("inAccts").addEventListener("click", (ev) => {
+    const name = (ev.target as HTMLElement).closest("button")?.dataset["reset"];
+    if (!name || !batchSel.value) return;
+    st.setStudentPin(batchSel.value, name, null);
+    msg(`PIN of ${name} reset: a new one is chosen at the next login.`);
+    drawAccounts();
+  });
   const showBatch = (): void => {
     const b = st.data.batches.find((x) => x.id === batchSel.value);
+    drawAccounts();
     ($("inStudents") as HTMLTextAreaElement).value = b ? b.students.join("\n") : "";
     $("inAssign").innerHTML = allExercises.map((e) => `<label style="margin-right:8px;white-space:nowrap"><input type="checkbox" data-as="${e.id}" ${b?.assigned.includes(e.id) ? "checked" : ""}> ${e.label}</label>`).join(" ");
   };
@@ -413,6 +456,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     ($("inMaxStu") as HTMLInputElement).value = String(st.data.maxStudentsPerDisplay);
     ($("inPairHrs") as HTMLInputElement).value = st.data.targetHoursPerPair === null ? "" : String(st.data.targetHoursPerPair);
     ($("inChange") as HTMLInputElement).value = st.data.changeoverMin ? String(st.data.changeoverMin) : "";
+    ($("inReqLogin") as HTMLInputElement).checked = !!st.data.requireLogin;
     const tgt = st.data.targetHoursPerPair;
     $("inPairs").innerHTML = Object.entries(st.data.pairSeconds).map(([k, s]) => `${esc(k)}: ${(s / 3600).toFixed(2)} h${tgt !== null ? ` of ${tgt} h` : ""}`).join("<br>") || "No display time recorded yet.";
   };
@@ -435,6 +479,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     st.data.maxStudentsPerDisplay = Math.min(4, Math.max(1, Math.round(Number(inputValue("inMaxStu")) || 2)));
     const h = inputValue("inPairHrs");
     st.data.targetHoursPerPair = h === "" ? null : Math.max(0, Number(h));
+    st.data.requireLogin = ($("inReqLogin") as HTMLInputElement).checked;
     const ch = inputValue("inChange");
     st.data.changeoverMin = ch === "" || !(Number(ch) > 0) ? null : Math.max(1, Math.round(Number(ch)));
     msg(st.save() ? (id ? "Batch saved." : "Class limits saved (no batch is chosen).") : "Could not save: the browser's storage is full or blocked.");
@@ -547,6 +592,15 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
   api.link.addStatusListener((s) => stations.set(s.station, s));
   $("inAllPause").addEventListener("click", () => api.link.sendCommand({ to: "all", cmd: "pause" }));
   $("inAllRun").addEventListener("click", () => api.link.sendCommand({ to: "all", cmd: "run" }));
+  $("inAllBack").addEventListener("click", () => {
+    api.link.sendCommand({ to: "all", cmd: "rewind", seconds: 120 });
+    msg("All displays asked to go back 2 min.");
+  });
+  $("inAllReset").addEventListener("click", () => {
+    if (!confirm("Start every display's exercise again from the beginning? What the trainees have done so far is not kept.")) return;
+    api.link.sendCommand({ to: "all", cmd: "restart" });
+    msg("All displays started again from the beginning.");
+  });
   $("inWxSend").addEventListener("click", () => {
     const chk = (id: string): boolean => ($(id) as HTMLInputElement).checked;
     const opt = (id: string): number | undefined => (inputValue(id) === "" ? undefined : Number(inputValue(id)));
@@ -554,6 +608,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     api.link.sendCommand({
       to: inputValue("inWxTo") || "all", cmd: "weather", seaState: Math.min(9, Math.max(0, Number(inputValue("inWxSea")) || 0)), rain: chk("inWxRain"), ducting: chk("inWxDuct"), interference: chk("inWxInt"),
       rainPct: Math.min(100, Math.max(5, Number(inputValue("inWxRainPct")) || 50)),
+      ...(inputValue("inWxVis") === "" ? {} : { visNm: inputValue("inWxVis") === "good" ? null : Number(inputValue("inWxVis")) }),
       ...Object.fromEntries(Object.entries(w).filter(([, v]) => v !== undefined && Number.isFinite(v))),
     });
     msg(`Weather sent to ${inputValue("inWxTo") === "all" ? "all displays" : `display ${inputValue("inWxTo")}`}.`);
@@ -576,6 +631,23 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     if (!id) return;
     api.link.sendCommand({ to: rtTo(), cmd: "removeTarget", id });
     msg("Target removed.");
+  });
+  // A programmed track for a target on a trainee's display, typed as points from that display's own ship.
+  $("rtTrackSet").addEventListener("click", () => {
+    const id = Number(inputValue("rtTg"));
+    const points = parseTrackText(inputValue("rtTrack"));
+    if (!id || !points) {
+      msg(`Choose a target and type the points as bearing/range, for example 045/6, 090/8 (at most ${MAX_ROUTE_WAYPOINTS}).`);
+      return;
+    }
+    api.link.sendCommand({ to: rtTo(), cmd: "track", id, points });
+    msg(`Track of ${points.length} point${points.length === 1 ? "" : "s"} sent to ${rtTo() === "all" ? "all displays" : `display ${rtTo()}`}. The target steers from point to point and carries on as she goes after the last.`);
+  });
+  $("rtTrackOff").addEventListener("click", () => {
+    const id = Number(inputValue("rtTg"));
+    if (!id) return;
+    api.link.sendCommand({ to: rtTo(), cmd: "track", id, points: [] });
+    msg("Target taken off her track: she keeps the course and speed she has.");
   });
   $("rtAdd").addEventListener("click", () => {
     api.link.sendCommand({
@@ -627,6 +699,22 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     }
     if (cmd === "obs") {
       observe(to);
+      return;
+    }
+    if (cmd === "back2" || cmd === "back5") {
+      const s = stations.get(to);
+      if (s && /^ROC /.test(s.exercise)) {
+        msg("An ROC exercise cannot be taken back in time. Reset starts it again.");
+        return;
+      }
+      api.link.sendCommand({ to, cmd: "rewind", seconds: cmd === "back2" ? 120 : 300 });
+      msg(`Display ${to} asked to go back ${cmd === "back2" ? 2 : 5} min. Its time in the table shows when it has (states are kept every minute).`);
+      return;
+    }
+    if (cmd === "reset") {
+      if (!confirm("Start this display's exercise again from the beginning? What the trainees have done in it so far is not kept.")) return;
+      api.link.sendCommand({ to, cmd: "restart" });
+      msg(`Display ${to} started again from the beginning.`);
       return;
     }
     msg(`Sent to display ${to}.`);
@@ -848,7 +936,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       box.dataset["sig"] = sig;
       box.innerHTML = [...stations.values()].map((s) => `<div style="display:grid;grid-template-columns:110px 1fr;gap:8px;margin:8px 0;border-top:1px solid var(--line);padding-top:8px">
         <canvas id="stC_${s.station}" width="110" height="110" style="width:110px;height:110px;background:#08100e"></canvas>
-        <div><div class="small" id="stT_${s.station}"></div><div class="btns"><button data-st="${s.station}" data-cmd="pause">Pause</button><button data-st="${s.station}" data-cmd="run">Run</button><button data-st="${s.station}" data-cmd="ex">Start exercise</button><button data-st="${s.station}" data-cmd="faults">Send faults</button><button data-st="${s.station}" data-cmd="clear">Clear faults</button><button data-st="${s.station}" data-cmd="watch">Watch</button><button data-st="${s.station}" data-cmd="obs">Observe</button></div></div></div>`).join("") || '<p class="small">No other display is reporting.</p>';
+        <div><div class="small" id="stT_${s.station}"></div><div class="btns"><button data-st="${s.station}" data-cmd="pause">Pause</button><button data-st="${s.station}" data-cmd="run">Run</button><button data-st="${s.station}" data-cmd="ex">Start exercise</button><button data-st="${s.station}" data-cmd="faults">Send faults</button><button data-st="${s.station}" data-cmd="clear">Clear faults</button><button data-st="${s.station}" data-cmd="watch">Watch</button><button data-st="${s.station}" data-cmd="obs">Observe</button><button data-st="${s.station}" data-cmd="back2">Back 2 min</button><button data-st="${s.station}" data-cmd="back5">Back 5 min</button><button data-st="${s.station}" data-cmd="reset">Reset</button></div></div></div>`).join("") || '<p class="small">No other display is reporting.</p>';
     }
     if (box.dataset["sel"] !== sig) {
       // The displays that can be chosen for weather and for targets.
@@ -904,6 +992,167 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
 
   // ------------------------------------------------------------ records and replay
   let viewing: SessionRecord | null = null;
+  // ---- Keeping the records beyond this browser: the classroom server's disk, and a backup file.
+  const server = api.station ? new ServerStore((() => {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  })(), location.protocol.startsWith("http")) : null;
+  /** Every exercise this station knows of: those in this browser, then those only the server holds (without their replay). */
+  const allHistory = (): SessionRecord[] => {
+    const local = st.history();
+    if (!server || server.state !== "on") return local;
+    const ids = new Set(local.map((r) => r.id));
+    return [...local, ...server.entries.filter((e) => !ids.has(e.light.id)).map((e) => e.light)];
+  };
+  let syncing = false;
+  let lastSync = 0;
+  let lastPull = 0;
+  let sentAt = "";
+  let stateMark = "";
+  /** Send to the server what it does not have or has in an older form. One pass at a time. */
+  const syncServer = async (): Promise<void> => {
+    if (!server || syncing || server.state === "no-server" || server.state === "no-key") return;
+    syncing = true;
+    try {
+      // Ask the server what it holds: at the start, after it was out of reach, and every two minutes (another station may have sent something).
+      if (server.state !== "on" || Date.now() - lastPull > 120_000) {
+        if ((await server.refresh()) !== "on") return;
+        lastPull = Date.now();
+        recSig = "";
+      }
+      const have = new Map(server.entries.map((e) => [e.light.id, e]));
+      let sent = 0;
+      for (const r of st.data.records) {
+        const mark = recordMark(r);
+        const e = have.get(r.id);
+        if (e && e.sig === mark && e.replay) continue;
+        if (!(await server.putRecord(lightRecord(r), mark, r))) return;
+        sent++;
+      }
+      // An older record held here in short: sent only if the server has nothing of it.
+      for (const r of st.data.archive ?? []) {
+        if (have.has(r.id)) continue;
+        if (!(await server.putRecord(r, recordMark(r)))) return;
+        sent++;
+      }
+      // The class: never an empty one over a class the server holds (a new browser must take it first).
+      const mark = textMark(JSON.stringify(st.classState()));
+      if (mark !== stateMark && (st.data.batches.length > 0 || !server.hasState)) {
+        if (await server.putState(st.classState() as unknown as Record<string, unknown>)) {
+          stateMark = mark;
+          sent++;
+        }
+      }
+      if (sent > 0) {
+        sentAt = new Date().toTimeString().slice(0, 8);
+        recSig = "";
+      }
+    } finally {
+      syncing = false;
+      drawServer();
+    }
+  };
+  const drawServer = (): void => {
+    if (!server) return;
+    const withReplay = server.entries.filter((e) => e.replay).length;
+    const text: Record<string, string> = {
+      "no-server": "No classroom server at this address: the records are kept in this browser only. Use the backup to keep them or to move them.",
+      "no-key": "The classroom server can keep every record and the class on its own disk. Type the station key it prints when it starts.",
+      "wrong-key": "The classroom server does not accept this key. Type the key it prints when it starts.",
+      "out-of-reach": "The classroom server is out of reach: trying again.",
+      on: `Kept on the classroom server: ${server.entries.length} exercise${server.entries.length === 1 ? "" : "s"} (${withReplay} with their replay), and the batches and settings.${sentAt ? ` Last sent at ${sentAt}.` : ""}`,
+    };
+    const line = text[server.state] ?? "";
+    if ($("svState").textContent !== line) $("svState").textContent = line;
+    $("svKeyRow").hidden = server.state === "no-server" || server.state === "on";
+    // Exercises whose replay the server has and this browser has not.
+    const here = new Set(st.data.records.map((r) => r.id));
+    const old = server.state === "on" ? server.entries.filter((e) => e.replay && !here.has(e.light.id)) : [];
+    const sel = $<HTMLSelectElement>("svOld");
+    const sig = old.map((e) => e.light.id).join("|");
+    if (sel.dataset["sig"] !== sig) {
+      sel.dataset["sig"] = sig;
+      sel.innerHTML = old.map((e) => `<option value="${esc(e.light.id)}">${esc(e.light.startedIso.slice(0, 10))} ${esc(e.light.students.join(" / ") || "no names")}: ${esc(e.light.title)}</option>`).join("");
+    }
+    $("svOldRow").hidden = old.length === 0;
+    $("svOpen").hidden = old.length === 0;
+    $("svRestore").hidden = !(server.state === "on" && server.hasState && st.data.batches.length === 0);
+  };
+  if (server) {
+    // Asked once at the start, key or no key: is there a classroom server at this address at all?
+    void server.refresh().then(() => drawServer());
+    $("svKeySet").addEventListener("click", () => {
+      server.setKey(inputValue("svKey"));
+      ($("svKey") as HTMLInputElement).value = "";
+      drawServer();
+      void syncServer();
+    });
+    $("svOpen").addEventListener("click", () => {
+      const id = inputValue("svOld");
+      void server.getRecord(id).then((full) => {
+        if (!full) {
+          msg("The server could not give that exercise.");
+          return;
+        }
+        st.addRecord(full);
+        recSig = "";
+        drawRecs();
+        openRec(st.data.records.find((r) => r.id === id) ?? full);
+        drawServer();
+      });
+    });
+    $("svRestore").addEventListener("click", () => {
+      void server.getState().then((s) => {
+        if (s && st.applyClassState(s)) {
+          stateMark = textMark(JSON.stringify(st.classState()));
+          refresh();
+          msg(`Taken from the server: ${st.data.batches.length} batch${st.data.batches.length === 1 ? "" : "es"} and the settings.`);
+        } else msg("The server's settings could not be read.");
+        drawServer();
+      });
+    });
+  } else for (const id of ["svState", "svKeyRow"]) $(id).hidden = true;
+  $("bkSave").addEventListener("click", () => download(`radar-sim-backup-${new Date().toISOString().slice(0, 10)}.json`, st.backup(new Date().toISOString()), "application/json"));
+  $("bkLoad").addEventListener("click", () => $<HTMLInputElement>("bkFile").click());
+  $("bkFile").addEventListener("change", () => {
+    const f = $<HTMLInputElement>("bkFile").files?.[0];
+    if (!f) return;
+    void f.text().then((text) => {
+      const r = st.restore(text);
+      msg(r.ok ? `Restored: ${r.records} exercise${r.records === 1 ? "" : "s"} and ${r.batches} batch${r.batches === 1 ? "" : "es"} added${r.settings ? ", with the settings" : ""}. Nothing was deleted.` : r.error);
+      ($("bkFile") as HTMLInputElement).value = "";
+      if (r.ok) {
+        recSig = "";
+        refresh();
+      }
+    });
+  });
+  /** The trainee chosen under the records list (a name within a batch), and the records of that batch. */
+  const chosenTrainee = (): { name: string; label: string; records: SessionRecord[] } | null => {
+    const v = inputValue("tfWho");
+    if (!v) return null;
+    const [batch = "", name = ""] = v.split("\u0001");
+    return { name, label: batch ? `${name} (${batch})` : name, records: allHistory().filter((r) => r.batch === batch) };
+  };
+  $("phShow").addEventListener("click", () => {
+    const t = chosenTrainee();
+    $("phOut").innerHTML = t ? progressHtml(traineeAttempts(t.records, t.name), t.label, st.data.scoring.passPercent) : '<p class="small">No trainee is named in the records yet.</p>';
+  });
+  $("bmShow").addEventListener("click", () => {
+    const b = st.data.batches.find((x) => x.id === batchSel.value);
+    if (!b) {
+      $("bmOut").innerHTML = '<p class="small">Choose a batch.</p>';
+      return;
+    }
+    const records = allHistory().filter((r) => r.batch === b.name);
+    // The exercises assigned to the batch; with none assigned, those its trainees have attempted.
+    const done = new Set(records.map((r) => r.exerciseId));
+    const list = allExercises.filter((e) => (b.assigned.length > 0 ? b.assigned.includes(e.id) : done.has(e.id)));
+    $("bmOut").innerHTML = batchMatrixHtml(batchMatrix(records, b.students, list.map((e) => e.id)), list);
+  });
   /** Radar pictures recorded with the record being viewed (loaded when it is opened; may be none). */
   let pictures: PictureFrame[] = [];
   let playing = false;
@@ -1036,7 +1285,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
   });
   $("clsShow").addEventListener("click", () => {
     if (!viewing) return;
-    const rows = classComparison(st.history(), viewing.exerciseId);
+    const rows = classComparison(allHistory(), viewing.exerciseId);
     const full = new Set(st.data.records.map((r) => r.id));
     $("clsOut").innerHTML = `<table class="res" id="clsTable"><thead><tr><th>Trainees</th><th>Date</th><th>%</th><th>Min</th><th>First action</th><th>Closest vessel</th><th>Flags</th><th></th></tr></thead><tbody>` +
       rows.map((c) => `<tr${c.recId === viewing!.id ? ' style="font-weight:600"' : ""}><td>${esc(c.who)}</td><td>${esc(c.date)}</td><td>${c.percent === null ? "-" : c.percent}</td><td>${c.minutes}</td><td>${c.actedAt === null ? "-" : `at ${mmss(c.actedAt)}`}</td><td>${c.closest ? `${esc(c.closest.name)} ${c.closest.nm.toFixed(2)} NM` : "-"}</td><td>${c.flagsNow} now, ${c.flagsSoon} soon</td><td>${full.has(c.recId) && c.recId !== viewing!.id ? `<button data-rec="${esc(c.recId)}">Open</button>` : ""}</td></tr>`).join("") +
@@ -1072,6 +1321,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     if (b.dataset["act"] === "open") openRec(r);
     if (b.dataset["act"] === "del" && confirm("Delete this record?")) {
       st.removeRecord(r.id);
+      void server?.removeRecord(r.id);
       void deletePictures(r.id);
       if (viewing === r) {
         viewing = null;
@@ -1102,15 +1352,15 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     if (viewing) printDoc(debriefPackHtml(viewing), "debrief-pack.html", "debrief pack");
   });
   $("tfPrint").addEventListener("click", () => {
-    const name = inputValue("tfWho");
-    if (!name) {
+    const t = chosenTrainee();
+    if (!t) {
       msg("No trainee is named in the records yet.");
       return;
     }
-    printDoc(traineeFileHtml(st.history(), name), `trainee-file-${name.replace(/[^\w-]+/g, "-")}.html`, "trainee file");
+    printDoc(traineeFileHtml(t.records, t.name, progressHtml(traineeAttempts(t.records, t.name), t.label, st.data.scoring.passPercent)), `trainee-file-${t.name.replace(/[^\w-]+/g, "-")}.html`, "trainee file");
   });
   $("asCmp").addEventListener("click", () => {
-    const rows = assessorStats(st.history(), st.data.scoring);
+    const rows = assessorStats(allHistory(), st.data.scoring);
     const pc = (x: number | null): string => (x === null ? "-" : `${x}%`);
     $("asCmpOut").innerHTML = rows.length === 0 ? '<p class="small">No assessor has saved a decision yet.</p>'
       : `<table class="res" id="asCmpTable"><thead><tr><th>Assessor</th><th>Decided</th><th>Competent</th><th>Mean score when competent</th><th>Mean score when not yet</th><th>Against the record</th></tr></thead><tbody>` +
@@ -1177,9 +1427,10 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     recSig = sig;
     const who = $<HTMLSelectElement>("tfWho");
     const cur = who.value;
-    const names = traineeNames(st.history());
-    who.innerHTML = names.map((n) => `<option>${esc(n)}</option>`).join("") || '<option value="">no names yet</option>';
-    if (names.includes(cur)) who.value = cur;
+    // A name within a batch: two trainees of the same name in different batches are kept apart.
+    const keys = traineeKeys(allHistory()).map((k) => ({ value: `${k.batch}\u0001${k.name}`, label: k.batch ? `${k.name} (${k.batch})` : k.name }));
+    who.innerHTML = keys.map((k) => `<option value="${esc(k.value)}">${esc(k.label)}</option>`).join("") || '<option value="">no names yet</option>';
+    if (keys.some((k) => k.value === cur)) who.value = cur;
     $("inRecs").innerHTML = st.data.records.map((r) => `<tr><td>${esc(r.startedIso.slice(5, 16).replace("T", " "))}</td><td>${esc(r.students.join(" / "))}</td><td>${esc(r.title)}</td><td>${r.result ? r.result.percent.toFixed(0) : "-"}</td>
       <td><button data-rec="${esc(r.id)}" data-act="open">Open</button> <button data-rec="${esc(r.id)}" data-act="del">✕</button></td></tr>`).join("") || '<tr><td colspan="5" class="small">No records yet. A record is saved when an exercise is finished.</td></tr>';
   };
@@ -1271,6 +1522,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     ($("edSpd") as HTMLInputElement).value = String(sc.own.speed);
     ($("edSet") as HTMLInputElement).value = String(sc.env.current?.set ?? 0);
     ($("edDrift") as HTMLInputElement).value = String(sc.env.current?.drift ?? 0);
+    ($("edVis") as HTMLInputElement).value = sc.env.visibilityNm ? String(sc.env.visibilityNm) : "";
     $("edRows").innerHTML = sc.targets.map((t) => rowHtml(t, sc.own.pos)).join("");
     edMsg([]);
   };
@@ -1305,7 +1557,13 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       name,
       description: `Instructor scenario "${name}".`,
       own: { ...edBase.own, heading: normalizeDeg(Number(inputValue("edHdg")) || 0), speed: Number(inputValue("edSpd")) || 0 },
-      env: { ...edBase.env, seaState: Number(inputValue("edSea")) || 0, current: { set: normalizeDeg(Number(inputValue("edSet")) || 0), drift: Number(inputValue("edDrift")) || 0 } },
+      env: (() => {
+        const env = { ...edBase!.env, seaState: Number(inputValue("edSea")) || 0, current: { set: normalizeDeg(Number(inputValue("edSet")) || 0), drift: Number(inputValue("edDrift")) || 0 } };
+        const vis = Number(inputValue("edVis"));
+        if (inputValue("edVis") !== "" && vis > 0) env.visibilityNm = Math.min(20, vis);
+        else delete env.visibilityNm;
+        return env;
+      })(),
       targets,
     };
     const back = scenarioFromJson(scenarioToJson(sc));
@@ -1402,6 +1660,13 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     $("inLinkMode").textContent = `Link: ${api.link.mode}. This display is ${api.link.station}.`;
     drawStations();
     drawRecs();
+    if (server) {
+      drawServer();
+      if (app.wall - lastSync > 10 || lastSync === 0) {
+        lastSync = app.wall || 0.001;
+        void syncServer();
+      }
+    }
     if (viewing && playing) {
       const dt = app.wall - lastWall;
       const speed = Number(inputValue("inReplaySpeed")) || 30;
@@ -1417,5 +1682,5 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     lastWall = app.wall;
   };
 
-  return { tick, refresh, recordsChanged: () => (recSig = "") };
+  return { tick, refresh, recordsChanged: () => (recSig = ""), history: allHistory, accountsChanged: drawAccounts };
 }

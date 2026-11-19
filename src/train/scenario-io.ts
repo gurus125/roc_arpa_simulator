@@ -31,6 +31,7 @@ export const SCENARIO_SCHEMA = {
         seaState: { type: "number", minimum: 0, maximum: 9 },
         ducting: { type: "boolean" },
         refraction: { enum: ["standard", "sub", "super"] },
+        visibilityNm: { type: "number", exclusiveMinimum: 0, maximum: 20 },
         rain: {
           type: "array",
           items: { type: "object", required: ["center", "radius", "intensity"], properties: { center: vec, radius: { type: "number", exclusiveMinimum: 0 }, intensity: { type: "number", minimum: 0, maximum: 1 } } },
@@ -109,6 +110,7 @@ export function validateScenario(x: unknown): string[] {
       need(env["ducting"] === undefined || typeof env["ducting"] === "boolean", "ducting must be true or false.");
       need(env["refraction"] === undefined || ["standard", "sub", "super"].includes(env["refraction"] as string), 'refraction must be "standard", "sub" or "super".');
       need(env["interference"] === undefined || typeof env["interference"] === "boolean", "interference must be true or false.");
+      need(env["visibilityNm"] === undefined || (isNum(env["visibilityNm"]) && env["visibilityNm"] > 0 && env["visibilityNm"] <= 20), "Visibility must be above 0 and not more than 20 NM (leave it out for good visibility).");
       const td = env["tidal"];
       need(td === undefined || (isObj(td) && isNum(td["floodSet"]) && isNum(td["maxRateKn"]) && td["maxRateKn"] >= 0 && isNum(td["hoursAfterSlackAtStart"])), "Tidal stream needs floodSet (degrees), maxRateKn (not negative) and hoursAfterSlackAtStart.");
       need(env["seaState"] === undefined || (isNum(env["seaState"]) && env["seaState"] >= 0 && env["seaState"] <= 9), "Sea state must be 0 to 9.");

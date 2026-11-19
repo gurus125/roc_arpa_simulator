@@ -55,7 +55,12 @@ export function initTrainUi(api: TrainUiApi): TrainUi {
       <label class="small" for="dbSelf">What went well, and what would you do differently?</label><textarea id="dbSelf" rows="3"></textarea>
       <label class="small" for="dbPeer">Comments from your partner or the observing trainees (facts, not blame)</label><textarea id="dbPeer" rows="2"></textarea>
       <label class="small" for="dbGoals">Your goals for next time</label><textarea id="dbGoals" rows="2"></textarea>
-      <div class="btns"><button id="dbSave">Save notes to the record</button><span class="small" id="dbMsg"></span></div></section>`;
+      <div class="btns"><button id="dbSave">Save notes to the record</button><span class="small" id="dbMsg"></span></div></section>
+    <section id="mySec" hidden><h2>My results</h2>
+      <div class="row two"><label for="myWho">Trainee</label><select id="myWho"></select></div>
+      <div class="btns"><button id="myGet">Show my results</button><span class="small" id="myMsg"></span></div>
+      <div id="myOut"></div>
+      <p class="hint">Your own recorded exercises: the score at each attempt, each exercise with its first, best and latest score, and the assessor's decisions. When trainees log in with a PIN the list comes from the instructor station and covers every display you have worked at; otherwise it shows what this display has recorded under your name.</p></section>`;
 
   const refreshList = (): void => {
     const assigned = api.assigned();

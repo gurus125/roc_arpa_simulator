@@ -2,7 +2,7 @@ import { Vec2, bearingOf, length, sub } from "../core/vec";
 import { crossTrackError } from "../core/nav";
 import { advanceLeg } from "../core/route";
 import { tssConduct } from "../core/tss";
-import { World, ownGroundVelocity, radarTransmitting } from "../engine/index";
+import { World, ownGroundVelocity, radarTransmitting, visibilityNm } from "../engine/index";
 import { ArpaSystem } from "../arpa/index";
 import { ArpaExSession, distanceToLandNm, timeLimitMin, truthCpa } from "./session";
 
@@ -61,6 +61,8 @@ export interface AttentionInput {
   pausedSec: number;
   /** The route on the radar, if any. */
   route: Vec2[];
+  /** Whether the automatic fog signal is switched on at the display (left out: not known, nothing is flagged). */
+  fogSignalOn?: boolean;
 }
 
 const isVessel = (kind: string): boolean => kind === "ship" || kind === "small-craft";
@@ -124,6 +126,8 @@ export function attentionFlags(i: AttentionInput, max = 6): AttentionFlag[] {
     if (left !== null && left < 0) out.push({ key: "time-up", level: 2, text: `Time is up (${Math.round(-left / 60)} min over) and the exercise is not finished` });
     else if (left !== null && left <= L.timeLeftSec) out.push({ key: "time-left", level: 1, text: `${Math.ceil(left / 60)} min left of the time allowed` });
   }
+  const vis = visibilityNm(w);
+  if (vis !== null && underWay && i.fogSignalOn === false) out.push({ key: "fog-signal", level: 1, text: `Visibility ${vis} NM and no fog signal is being sounded` });
   const c = w.radar.controls;
   if (radarTransmitting(w) && c.gain <= L.gainLow) out.push({ key: "gain", level: 1, text: `Gain very low (${Math.round(c.gain)}): weak echoes will not show` });
   if (radarTransmitting(w) && (c.stc >= L.clutterHigh || c.ftc >= L.clutterHigh)) out.push({ key: "clutter", level: 1, text: `${c.stc >= L.clutterHigh ? "Sea" : "Rain"} clutter control very high (${Math.round(Math.max(c.stc, c.ftc))}): echoes may be hidden` });

@@ -49,8 +49,13 @@ the simulator has no type approval.
   pilotage, traffic) gave a report and no points on the morning of 18 Nov 2026. The same day they
   were given points worked from that report (placeholders; the first check of the answers counts),
   so they now count in the total. There is no theory paper or oral: those stay with the assessor.
-- **Programmed tracks** cannot yet be given to a target on a trainee's display from the station, and
-  a trainee's display cannot be taken back in time from the station.
+- **Programmed tracks** could not be given to a target on a trainee's display, nor a trainee's
+  display taken back in time, on the morning of 18 Nov 2026. Both were built the same day: a track
+  is typed at the station as bearings and ranges from that own ship, and "Back 2 min", "Back 5 min"
+  and "Reset" are on each display's card.
+- **Visibility** (fog, items in several modules): the instructor or the scenario now sets it. There
+  is still no view out of the window: the trainee is told the visibility and a look-out reports the
+  vessels in sight.
 - **Random traffic** is placed without regard to land.
 - All the new limits are placeholders: 0.25 NM off the route; 30 s in the zone or against the flow;
   MOB key within 30 s, back within 0.1 NM at 5 kn; 8 kn within 8 minutes; 8 minutes for the timed

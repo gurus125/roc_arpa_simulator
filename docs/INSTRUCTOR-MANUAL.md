@@ -22,10 +22,10 @@ instructor pages at all: no INSTR or FAULTS key and no PIN box.
 
 | Tab | What is there |
 |-----|---------------|
-| CLASSROOM | Every display that is reporting, with a small picture and its state, and for each: Pause, Run, Start exercise, Send faults, Clear faults. Beside it, what goes to all displays: pause and run, an exercise to start, the faults to send, the weather, a linked exercise, a typed message |
-| RECORDS | The records of every display's finished exercises (each display sends its record to the station when an exercise is finished, and again when the trainees save their debrief notes), with the replay, the reports, the guided debrief, the evidence and the assessor's decision; the trainee files and the comparison of assessors |
+| CLASSROOM | Every display that is reporting, with a small picture and its state, and for each: Pause, Run, Start exercise, Send faults, Clear faults, Watch, Observe, Back 2 min, Back 5 min, Reset. Beside it, what goes to all displays: pause and run, an exercise to start, the faults to send, the weather, a linked exercise, a typed message |
+| RECORDS | The records of every display's finished exercises (each display sends its record to the station when an exercise is finished, and again when the trainees save their debrief notes), with the replay, the reports, the guided debrief, the evidence and the assessor's decision; the trainee files, the progress of a trainee and the comparison of assessors; keeping the records on the classroom server and in a backup |
 | EXERCISES | Examinations, scoring settings, exercise sheets, marking sheets, the self-test of the exercises |
-| BATCHES | Batches, students and assigned exercises; display limits and the changeover time at the controls; the instructor PIN |
+| BATCHES | Batches, students and assigned exercises; the trainees' accounts and the progress of a batch; display limits and the changeover time at the controls; the instructor PIN |
 | SCENARIOS | The scenario editor |
 | OWN RADAR | The station's own radar, as a trainee's: to try a scenario, programme target tracks (MENU, INSTR), set faults on it (MENU, FAULTS) and start a linked exercise with it |
 
@@ -41,6 +41,25 @@ motion, gain 50, sea and rain clutter 0, ARPA on with no targets acquired, simul
 1x. Loading a scenario puts gain, clutter, brilliance, EBL, VRM and parallel index lines back to
 this state. Day or night colours stay as last chosen.
 
+## 1a. Trainee accounts
+
+Station, BATCHES. Tick "Trainees log in with their own name and PIN" and press "Save batch and
+limits". From then on a display accepts only a name chosen from the batch (names can no longer be
+typed) together with that trainee's own PIN:
+
+- A trainee chooses the PIN at the first login: 4 to 8 digits, typed twice.
+- "Trainee accounts of this batch" lists each trainee with "set" or "none yet". "Reset PIN" takes a
+  forgotten PIN away; the trainee chooses a new one at the next login.
+- A trainee taken off the list loses the account with it.
+- On a display, EXERCISE, "My results" then shows the trainee his or her own recorded exercises
+  from the station: the score at each attempt, each exercise, and the assessor's decisions. The
+  station answers only for a trainee who logged in with the right PIN. Without accounts "My
+  results" shows only what that one display has recorded under the name.
+- "Free practice without names" stays open: it records no names.
+
+Each batch keeps its own PINs, and only a digest of each PIN is kept. See section 13 for what this
+does not protect against.
+
 ## 2. Running an exercise
 
 | To do this | Use |
@@ -49,8 +68,8 @@ this state. Day or night colours stay as last chosen.
 | Keep AIS out of a plotting exercise | Nothing to do: the manual plotting exercises switch the AIS display off and lock it (the AIS key reads AIS OFF and is greyed out; the VRM / ARPA panel says AIS OFF FOR THIS EXERCISE) until the trainee presses Finish, because their ships transmit AIS. In ROC exercises both ARPA and AIS are off. Elsewhere AIS is shown on every range scale, with the ARPA on or in standby |
 | Halt and continue | Station, CLASSROOM: Pause and Run on a display's card, or Pause all and Run all. On a display: PAUSE / RUN in the header |
 | Run faster | On a display: the speed box beside PAUSE: 1x, 2x, 5x, 10x |
-| Start again from the beginning | "Restart" in the SCENARIO key, or open the exercise again |
-| Go back in time | Station, OWN RADAR, MENU, INSTR: "Take exercise back 2 min", "Back 5 min", "Back 10 min" (on the station's own radar). The ships, weather and faults return to that moment. The simulator keeps one state a minute for the last 40 minutes. Taking a trainee's display back from the station is not offered yet |
+| Start again from the beginning | Station, CLASSROOM: "Reset" on a display's card, or "Reset all" (it asks first: what the trainees have done in the exercise so far is not kept). On a display: "Restart" in the SCENARIO key, or open the exercise again |
+| Go back in time | Station, CLASSROOM: "Back 2 min" or "Back 5 min" on a display's card, or "Take all back 2 min". The ships, weather and faults of that display return to that moment, its ARPA starts empty, and the trainees are told on the screen. Not in an ROC exercise. On the station's own radar: OWN RADAR, MENU, INSTR, "Take exercise back 2 min", "Back 5 min", "Back 10 min". The simulator keeps one state a minute for the last 40 minutes; with less than that behind it, a display goes back to its earliest state |
 
 Batches and assignments (station, BATCHES, "Batches, students and assignments"): add a batch, type the
 trainees' names one per line, tick the exercises assigned to the batch, and save. "Students per
@@ -77,6 +96,26 @@ squall and its intensity, abnormal propagation, interference and, when filled in
 current. "Send the weather to" chooses all displays or one of them. It acts at once, during an
 exercise too.
 
+**Visibility.** The simulator has no view from the bridge windows, so visibility is a condition of
+the exercise, not something seen. "Visibility" in "Set this weather" sets it on a display: good, or
+5, 2, 1, 0.5, 0.25 or 0.1 NM ("no change" leaves it). On a display or on the station's own radar it
+is "Visibility" under WEATHER (blank is good), and the scenario editor has the same field. What
+then happens on the display:
+
+- the bridge reports the change ("BRIDGE: the visibility has closed to 0.5 NM..."), and OWN SHIP
+  DATA shows VIS with the figure for as long as one is set;
+- a look-out reports each vessel as she comes into sight, with her bearing, her bearing from the
+  bow (Red or Green) and her range, and again when she is lost to sight. A vessel is taken to be in
+  sight when her range is not more than the visibility: a placeholder, which leaves out her size,
+  her lights, daylight and anything between;
+- in the marking of the avoiding action, Rule 19(d) is applied to a vessel that was not in sight
+  when the action was taken (exercises 9 and 25 apply it to every vessel, as before);
+- the radar picture does not change, and the reports are written in the record;
+- if no fog signal is being sounded while under way, "Needs attention" says so as a note.
+
+Exercises 9 and 25 now start with a visibility (0.5 and 1 NM), and in exercise 30 it closes to
+0.8 NM three minutes after the start.
+
 ## 4. Targets
 
 All of this is on the station, OWN RADAR, MENU, INSTR, "Inject events (this display)": it acts on the
@@ -89,6 +128,12 @@ and/or speed and press "Alter this target now"; "Remove this target" takes it aw
 target now" puts a new vessel of any catalogue type at a true bearing and range from that own
 ship, for a sudden threat. The trainees are not told; each act is written to the display's record.
 The target list comes from the display's last report (every two seconds).
+
+A programmed track for one of that display's targets: type its points under "Track for this target"
+as true bearing / range from that own ship, in the order she is to pass them (for example
+`045/6, 090/8`, at most 20 points), and press "Set this track". She steers from point to point and
+carries on as she goes after the last. "Take off this track" leaves her on the course and speed she
+has. The points are fixed on the water at the moment the track is sent.
 
 **Random traffic** (below it): the number of ships, how many of them are on close-quarters courses
 (they pass within 0.5 NM of that own ship in 15 to 35 minutes if nobody acts), the ring they start
@@ -119,7 +164,8 @@ and puts the wheel over early, so a large ship on a tight track cuts the corners
 point it carries on as it goes. "Take off track", or altering its course by hand, ends the track.
 
 Tick "Show target tracks on this display" to see every programmed track in blue. Tracks are drawn
-only on the station's own radar, never on a trainee's display.
+only on the station's own radar, never on a trainee's display. (A track for a target on a trainee's
+display is typed, not clicked: see above.)
 
 Each of up to 100 targets can have its own track. The scenario "Traffic: 100 ships on programmed
 tracks" shows 100 ships running together. The ARPA tracks 40 targets at a time.
@@ -237,7 +283,8 @@ classroom server as above.
 This has been proved with five separate browsers going through the server on one machine
 (`npm run test:link`): monitoring, a linked exercise, pause and run, messages, an exercise started from
 the station, a finished exercise's record reaching the station, a target added and altered and random
-traffic sent from the station, and finding the
+traffic sent from the station, the records and the class kept on the server's disk and taken up by a
+second station, and finding the
 server again after it has been stopped and started. It has not been tried on separate PCs over a
 classroom network: do that before a class. If the server stops, each display shows "server out of
 reach (trying again)" and links up again by itself when the server is back.
@@ -265,9 +312,41 @@ exercise and the score. "Open" shows:
   score is a guide only; the assessor's decision is the prime criterion (STCW Code A-I/12,
   paragraph 8);
 - "Result (CSV)", "Report (print or save as PDF)" and "Record (JSON)". "Export all (CSV)" saves the
-  whole list. Records are kept in the station's browser (and each display keeps its own): export
-  them to keep them. The newest 60 exercises are kept with their replay; when one is dropped to make
-  room, what the trainee file and the comparisons need is kept without the replay (up to 300 more).
+  whole list. The station's browser keeps the newest 60 exercises with their replay; when one is
+  dropped to make room, what the trainee file and the comparisons need is kept without the replay
+  (up to 300 more). To keep more, see "Keeping the records" below.
+
+**Progress of a trainee** (under the list: choose the name, "Progress of this trainee"): how many
+attempts at how many exercises, the mean of the latest scores, a chart of the score at each scored
+attempt (oldest first, the pass mark as a rule if one is set), each exercise with its attempts and
+its first, best and latest score and the change between first and latest, and every attempt with
+what was the trainee's own. Exercises differ in difficulty, so the line of the chart is not by
+itself a measure of progress: the change within one exercise is. The same is printed at the end of
+the trainee file. **Progress of a batch** (BATCHES, "Progress of this batch"): each trainee against
+the exercises assigned to the batch (or, with none assigned, those attempted), with the best score
+in each, bold where found competent, and how many are done.
+
+**Keeping the records** (RECORDS, "Keeping the records"). Two ways, and they can be used together:
+
+1. **On the classroom server.** When the simulator is served by `npm run serve`, the server can
+   keep every record with its replay, and the batches and settings, as files in the folder `data`
+   beside it on its own computer. When it starts it prints a **station key** (sixteen characters;
+   it is also in `data/station-key.txt`). Type it once under "Server key" and press "Use this server
+   key". From then on the station sends each record to the server, and the trainee files, the
+   progress and the comparisons reach back over everything the server holds, however old. An
+   exercise whose replay is no longer in the browser is listed under "On the server": "Bring this
+   exercise back with its replay" opens it. On another PC (or after the browser's data is lost),
+   open the station, type the key, and press "Take the batches and settings from the server".
+   Deleting a record at the station deletes it on the server too.
+2. **A backup file.** "Back up everything (JSON)" saves the class and every record held in the
+   browser in one file. "Restore from a backup" adds the records and the batches this station does
+   not have, and on a station with no batch yet takes the settings too. It never deletes.
+
+Neither is encrypted, and the station key travels in clear on the classroom network: this keeps
+trainees out, not a determined intruder. The files hold trainees' names and results: keep the
+`data` folder and the backups as the institute keeps its other records. Never put the `data`
+folder in the project's Git repository (it is listed in `.gitignore`). The radar pictures of the
+replay stay in the browser of the display that recorded them and are not sent to the server.
 
 ## 8a. Assessing fairly: each trainee, the evidence, the sheets, the debrief
 
@@ -500,9 +579,18 @@ mode (which screen it opens on) has not been tried either.
 - Linked displays and the instructor station have been proved through the server with separate
   browsers on one computer, not yet on separate PCs. A copy hosted on a web site has no classroom
   server (section 7).
-- From the station a trainee's display cannot yet be taken back in time, and a programmed track
-  cannot be given to one of its targets: those work on the station's own radar. Its targets can be
-  altered, added and removed (section 4).
+- A trainee's display cannot be taken back in time in an ROC exercise (it can be reset). A track
+  for a target on a trainee's display is typed as bearings and ranges, not clicked on a picture.
+- Visibility does not change anything seen: there is no view from the windows. A vessel is "in
+  sight" when her range is not more than the visibility, a placeholder. The look-out reports
+  vessels only, not buoys, land or lights, and says nothing of a vessel's aspect.
+- A trainee's PIN keeps one trainee from logging in as another in a classroom. It is not real
+  security: only a digest of each PIN is kept, but a short PIN can be found from its digest, the
+  digests go to every display, and nothing on the classroom network is encrypted.
+- The server's store needs the classroom server: a copy hosted on a web site (for example on
+  Vercel) has none, so there the records stay in the browser and the backup file is the only way
+  to keep them. The store has been tried with separate browsers on one computer, not on separate
+  PCs.
 - The attention flags are a help, not a judgement: their limits are placeholders, they can be wrong
   about what matters in a given exercise, and they do not see what the trainees say to each other.
   The live picture is a copy every two seconds, 480 pixels square: enough to follow, not to measure.

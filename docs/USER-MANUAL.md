@@ -8,6 +8,13 @@ Open `radar-simulator.html` (or the address your instructor gives you) in Chrome
 batch and your names, or press "Free practice without names". Press F11 for full screen. The person
 icon at the top right changes the names later.
 
+**Logging in with a PIN.** Your instructor may have set the class so that each trainee logs in with
+a PIN of his or her own. Then you choose your batch and your name from the list (names cannot be
+typed) and type your PIN. At your first login you choose the PIN yourself: 4 to 8 digits, typed
+twice. Keep it to yourself: it is what makes a record and a result yours. If you forget it, the
+instructor can reset it, and you choose a new one at your next login. Two trainees at one display
+each give their own PIN.
+
 The screen has the radar picture in the middle, as large as the window allows, with three data
 panels down each side of it, laid out the way ships' radars in general present their data (it is
 not a copy of any one maker's screen):
@@ -63,6 +70,7 @@ Own ship's data is in the OWN SHIP DATA panel at the top right:
 | LAT, LON | Own ship's position |
 | RUD, ROT, STEER | Rudder angle (P port, S starboard), rate of turn, and AUTO (autopilot) or HAND steering |
 | WIND | Relative wind (R045 is 45° on the starboard bow) |
+| VIS | The visibility in NM, shown only when it is restricted (see "Visibility" in section 9) |
 | TIME (in the heading of the panel) | The exercise clock |
 
 The small box after a value names the sensor it comes from. It turns red when that sensor has failed.
@@ -461,6 +469,25 @@ course and the line from the target to your ship, as seen from the target: **Red
 is on its port side, **Green** when on its starboard side, from 0° (you are right ahead of it) to
 180° (right astern). A target steering 270° that bears 050° from you has you bearing 230° from
 it, 40° to the left of its course: Red 40°.
+
+**Visibility.** The simulator has no view from the bridge windows, so you are told what the bridge
+would see. When the visibility is restricted, OWN SHIP DATA shows VIS with the distance, and
+messages appear over the screen: "BRIDGE: the visibility has closed to 0.5 NM..." when it changes,
+and "LOOKOUT: a vessel in sight, bearing 045° (Green 45), about 0.4 NM" when a vessel comes within
+it (Green is on your starboard side, Red on your port side, counted from the bow), and again when
+she is lost to sight. A vessel that has not been reported is not in sight: for her, rule 19
+applies, and the marking of your avoiding action follows it. Sound the fog signal (VHF/SIGNAL,
+"Automatic fog signal"). In free practice you can set a visibility yourself: MENU, WEATHER,
+"Visibility" (blank is good).
+
+**If the instructor takes the exercise back or resets it.** A message says so. After going back in
+time the ships are where they were then and the ARPA is empty: acquire the targets again.
+
+**My results.** EXERCISE, "My results", "Show my results": your own recorded exercises, with a
+chart of the score at each attempt, each exercise with its first, best and latest score, and the
+assessor's decisions. If you logged in with a PIN the list comes from the instructor's station and
+covers every display you have worked at; otherwise it shows what this display has recorded under
+your name.
 
 **Points in the ROC exercises.** Each ROC exercise ends with a table of points under its report.
 In the plotting exercise and in set and drift, the answers that count are those of your **first**

@@ -136,9 +136,9 @@ stations, simulating radar that meets the IMO standards.
 | Para | Requirement (short) | Status | Note |
 |------|---------------------|--------|------|
 | 1.1-1.3 | Suitable for the objectives; simulates the equipment's capabilities, limitations and possible errors; enough behavioural realism | Partly | Functions, limitations and errors are simulated. Whether the realism is "appropriate" is for the assessor and the administration to judge |
-| 1.4 | Controlled environment with a variety of conditions, including hazardous or unusual situations | Yes | Weather, current, tidal stream, abnormal propagation, faults, injected targets |
+| 1.4 | Controlled environment with a variety of conditions, including hazardous or unusual situations | Yes | Weather, current, tidal stream, abnormal propagation, faults, injected targets. Since 18 Nov 2026 a visibility set by the instructor or the scenario: with no view from the windows it is told to the trainee and a look-out reports vessels in sight (a placeholder model: range not more than the visibility) |
 | 1.5 | Interface to the equipment, the environment and the instructor | Yes | On-screen controls; typed communications with the instructor and other stations |
-| 1.6, 2.6 | Instructor or assessor can control, monitor and record exercises for debriefing and assessment | Yes | Monitoring, injection, records, replay, taking the exercise back in time |
+| 1.6, 2.6 | Instructor or assessor can control, monitor and record exercises for debriefing and assessment | Yes | Monitoring, injection, records, replay, taking the exercise back in time. Since 18 Nov 2026 a trainee's display can be taken back and reset from the station, and its targets given a programmed track; the records can be kept on the classroom server's disk and in a backup file, with a trainee's progress over time |
 | 4.1 | Stabilised relative motion; sea- and ground-stabilised true motion | Yes | |
 | 4.2 | Weather, tidal streams, current, shadow sectors, spurious echoes and other propagation effects; coastlines, buoys, SARTs | Yes | Tidal stream is a simple rectilinear stream on a 12.42 hour cycle |
 | 4.3 | At least two own-ship stations able to change course and speed | Yes | Linked own ships; not yet tested across several computers |

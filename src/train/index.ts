@@ -13,3 +13,7 @@ export * from "./robot";
 export * from "./attention";
 export * from "./assess";
 export * from "./roc-score";
+export * from "./classroom";
+export * from "./lookout";
+export * from "./accounts";
+export * from "./history";

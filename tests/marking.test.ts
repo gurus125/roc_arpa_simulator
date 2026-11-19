@@ -45,7 +45,10 @@ describe("marking sheets", () => {
       }
     }
     const k = taskCriteria(byId("radar-26"), PLACEHOLDER_SCORING).find((c) => c.id === "action")!;
-    expect(k.limit).not.toContain("Rule 19");
+    // Exercise 26 is in good visibility: Rule 19(d) is not its rule, and comes in only if the instructor sets a visibility.
+    expect(k.limit).not.toContain("no turn to port for a vessel forward of the beam");
+    expect(k.limit).toContain("with a visibility set, Rule 19(d) is applied for a vessel that was not in sight");
+    expect(taskCriteria(byId("arpa-9"), PLACEHOLDER_SCORING).find((c) => c.id === "act")!.limit).toContain("no turn to port for a vessel forward of the beam");
     expect(taskCriteria(byId("radar-22"), PLACEHOLDER_SCORING).find((c) => c.id === "final")!.limit).toContain("0.02 to 0.25");
   });
 

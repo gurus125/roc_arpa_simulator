@@ -172,6 +172,11 @@ export interface Environment {
   tidal?: { floodSet: number; maxRateKn: number; hoursAfterSlackAtStart: number };
   /** Another ship's radar on the same band is causing interference on the picture. */
   interference?: boolean;
+  /**
+   * How far one can see, NM, when the visibility is restricted. Left out: good visibility. It does not
+   * change the radar picture: it decides which vessels are in sight (see engine/visibility.ts).
+   */
+  visibilityNm?: number;
 }
 
 export interface OwnShip {

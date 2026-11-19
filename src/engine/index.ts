@@ -13,3 +13,4 @@ export * from "./real-terrain";
 export * from "./terrain";
 export * from "./power";
 export * from "./traffic";
+export * from "./visibility";

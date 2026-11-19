@@ -364,7 +364,7 @@ const EX9: ArpaExercise = {
       ship(3, "Ship Z", 160, 4, 0, 12),
       ship(4, "Ship AA", 95, 8, 60, 9),
     ],
-    { seaState: 3, rain: [{ center: { e: 2, n: 5 }, radius: 2.5, intensity: 0.5 }] },
+    { seaState: 3, visibilityNm: 0.5, rain: [{ center: { e: 2, n: 5 }, radius: 2.5, intensity: 0.5 }] },
   ),
   briefing: [
     "Visibility is 0.5 NM. No ship is in sight: every decision is made on radar information alone (Rule 19).",

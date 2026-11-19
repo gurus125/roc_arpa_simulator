@@ -234,6 +234,7 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
       interference: sc.env.interference ?? false,
       ...(sc.env.tidal ? { tidal: { ...sc.env.tidal } } : {}),
       ...(sc.env.wind ? { wind: { ...sc.env.wind } } : {}),
+      ...(sc.env.visibilityNm !== undefined && sc.env.visibilityNm > 0 ? { visibilityNm: sc.env.visibilityNm } : {}),
     },
     radar: {
       controls: { rangeNm: 6, gain: 50, tuning: 50, stc: 0, ftc: 0, brilliance: 70 },
