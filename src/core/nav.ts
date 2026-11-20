@@ -223,3 +223,30 @@ export function fixFromPositionLines(lines: PositionLine[], guess: Vec2): Vec2 |
   }
   return Number.isFinite(p.e) && Number.isFinite(p.n) ? p : null;
 }
+
+/** A fix from the range and bearing of one charted mark, worked by plane sailing (see `markFixWorking`). */
+export interface MarkFixWorking {
+  /** Difference of latitude from the mark to own ship, minutes (+ north). */
+  dLatMin: number;
+  /** Departure from the mark to own ship, NM (+ east). */
+  depNm: number;
+  /** Difference of longitude, minutes (+ east): departure ÷ cos(latitude of the mark). */
+  dLonMin: number;
+  /** Own ship's latitude and longitude, degrees. */
+  lat: number;
+  lon: number;
+}
+
+/**
+ * Own ship's position from a charted mark that bears `bearingDeg` (true) at `rangeNm` from her. Own ship lies on the
+ * reciprocal bearing from the mark: d.lat = −range × cos(bearing) minutes, departure = −range × sin(bearing) NM, and
+ * d.long = departure ÷ cos(latitude) minutes, the mark's latitude standing for the middle latitude (the two are
+ * within minutes of each other at radar ranges).
+ */
+export function markFixWorking(mark: { lat: number; lon: number }, bearingDeg: number, rangeNm: number): MarkFixWorking {
+  const b = (bearingDeg * Math.PI) / 180;
+  const dLatMin = -rangeNm * Math.cos(b);
+  const depNm = -rangeNm * Math.sin(b);
+  const dLonMin = depNm / Math.cos((mark.lat * Math.PI) / 180);
+  return { dLatMin, depNm, dLonMin, lat: mark.lat + dLatMin / 60, lon: mark.lon + dLonMin / 60 };
+}

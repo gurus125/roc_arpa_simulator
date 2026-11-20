@@ -39,7 +39,9 @@ const fire = (el: HTMLElement): void => {
   el.dispatchEvent(new Event("input", { bubbles: true }));
   el.dispatchEvent(new Event("change", { bubbles: true }));
 };
-const KIND_LABEL: Record<RobotLogEntry["kind"], string> = { read: "READS", think: "THINKS", do: "DOES", answer: "ANSWERS", mistake: "MISTAKE", result: "RESULT" };
+const KIND_LABEL: Record<RobotLogEntry["kind"], string> = { read: "READS", think: "THINKS", why: "WHY", do: "DOES", answer: "ANSWERS", mistake: "MISTAKE", result: "RESULT" };
+/** The TEACH switch is remembered in this browser (a convenience only: it starts off where nothing is stored). */
+const TEACH_KEY = "radar-sim-robot-teach";
 
 export function initRobotUi(api: RobotUiApi): void {
   document.body.classList.add("demo");
@@ -53,8 +55,11 @@ export function initRobotUi(api: RobotUiApi): void {
         <label class="rbSeed" title="The same seed and level give the same mistakes">Seed <input id="rbSeed" type="number" min="1" max="9999" step="1" value="1"></label>
         <select id="rbSpeed" title="How fast the clock runs while the robot waits (its actions are always at normal speed)"><option value="1">Wait 1x</option><option value="2">Wait 2x</option><option value="5">Wait 5x</option><option value="10" selected>Wait 10x</option><option value="20">Wait 20x</option></select></div>
       <div class="rbRow rbKeys"><button id="rbStart" class="rbGo">START</button><button id="rbPause" disabled>PAUSE</button><button id="rbStop" disabled>STOP</button><button id="rbTake" disabled title="Stop the robot and carry on the exercise yourself">TAKE OVER</button></div>
+      <div class="rbRow rbTeach"><label title="On: the robot stops after each reason (and each mistake) until you press NEXT; the clock waits too"><input type="checkbox" id="rbTeach"> TEACH: stop at each reason</label><button id="rbNext" disabled title="Go on to the next step (Space, Enter or N)">NEXT &#9654;</button></div>
     </div>
-    <div class="rbM"><div id="rbCap">Choose an exercise and a level, then press START. The robot works the exercise with the controls of this display.</div><div id="rbAbout"></div><div id="rbStat"></div><div class="tu">Training simulator &middot; not type approved &middot; not for navigation</div></div>
+    <div class="rbM"><div id="rbCap">Choose an exercise and a level, then press START. The robot works the exercise with the controls of this display.</div>
+      <div id="rbWhy"><div class="rbWhyHead">WHY</div><p class="small">As it works, the robot shows here why it does each thing: the reason, where it looks, the rule and the working with the numbers on the screen. Tick TEACH to have it stop at each one until you press NEXT. Click a WHY or MISTAKE line in the log to see it again.</p></div>
+      <div id="rbAbout"></div><div id="rbStat"></div><div class="tu">Training simulator &middot; not type approved &middot; not for navigation</div></div>
     <div class="rbR"><div id="rbLog" aria-live="polite"></div></div>
   </div>`;
   const pointer = document.createElement("div");
@@ -87,10 +92,134 @@ export function initRobotUi(api: RobotUiApi): void {
   let takeOver = false;
   let current: { id: string; level: number; seed: number } | null = null;
   const logEl = $("rbLog");
+  // ---- the reasons: the WHY panel, TEACH and NEXT
+  const whyEl = $("rbWhy");
+  const teachBox = $<HTMLInputElement>("rbTeach");
+  const nextKey = $<HTMLButtonElement>("rbNext");
+  /** True while the robot waits for NEXT; `release` lets it go on. */
+  let waitingNext = false;
+  let release: (() => void) | null = null;
+  try {
+    teachBox.checked = localStorage.getItem(TEACH_KEY) === "1";
+  } catch {
+    /* no storage: TEACH starts off */
+  }
+  teachBox.addEventListener("change", () => {
+    try {
+      localStorage.setItem(TEACH_KEY, teachBox.checked ? "1" : "0");
+    } catch {
+      /* not kept */
+    }
+    if (!teachBox.checked) release?.();
+  });
+  /** A reason (or a mistake's lesson) as HTML: head, title, reason, where, rule, working. */
+  const whyHtml = (e: RobotLogEntry, earlier: boolean): string => {
+    const w = e.why!;
+    const mistake = e.kind === "mistake";
+    const line = (label: string, text: string | undefined, cls = ""): string => (text ? `<div class="rbWhyLine ${cls}"><b>${label}</b> ${esc(text)}</div>` : "");
+    return (
+      `<div class="rbWhyHead">${mistake ? "MISTAKE <span>made on purpose at this level: what was wrong, and what is right</span>" : "WHY"}${earlier ? ` <span>(from ${mmss(e.t)})</span>` : ""}<button class="rbBig" title="Show it larger, over the picture">&#x2922;</button></div>` +
+      `<div class="rbWhyTitle">${esc(w.title)}</div>` +
+      `<div class="rbWhyReason">${esc(w.reason)}</div>` +
+      line("WHERE", w.look) +
+      line("RULE", w.rule, "rule") +
+      (w.working && w.working.length > 0 ? `<div class="rbWork"><b>WORKING</b>${w.working.map((x) => `<div>${esc(x)}</div>`).join("")}</div>` : "")
+    );
+  };
+  // The card over the picture: the reason in full while the robot waits for NEXT, or on request.
+  const card = document.createElement("div");
+  card.id = "rbCard";
+  card.hidden = true;
+  card.innerHTML = `<div id="rbCardBody"></div><div class="rbCardFoot"><span class="small" id="rbCardHint"></span><button id="rbCardMin" title="Make the card small, to see the picture">SMALLER</button><button id="rbCardClose">CLOSE</button><button id="rbCardNext">NEXT &#9654;</button></div>`;
+  document.body.appendChild(card);
+  let shown: { e: RobotLogEntry; earlier: boolean } | null = null;
+  let cardSmall = false;
+  /** Put the card over the radar picture, above the robot bar. */
+  const placeCard = (): void => {
+    const pic = $("ppi").getBoundingClientRect();
+    const bar = $("legend").getBoundingClientRect();
+    const width = Math.min(820, window.innerWidth - 24);
+    const left = Math.max(12, Math.min(window.innerWidth - width - 12, pic.left + pic.width / 2 - width / 2));
+    card.style.left = `${left}px`;
+    card.style.width = `${width}px`;
+    card.style.bottom = `${window.innerHeight - bar.top + 8}px`;
+    card.style.maxHeight = `${Math.max(160, Math.round((bar.top - 70) * (cardSmall ? 0.22 : 0.62)))}px`;
+  };
+  window.addEventListener("resize", () => {
+    if (!card.hidden) placeCard();
+  });
+  const openCard = (waiting: boolean): void => {
+    if (!shown) return;
+    $("rbCardBody").innerHTML = whyHtml(shown.e, shown.earlier);
+    $("rbCardBody").querySelector(".rbBig")?.remove();
+    card.className = `${shown.e.kind === "mistake" ? "mistake" : ""}${cardSmall ? " small" : ""}`;
+    $("rbCardNext").hidden = !waiting;
+    $("rbCardClose").hidden = waiting;
+    $("rbCardMin").textContent = cardSmall ? "LARGER" : "SMALLER";
+    $("rbCardHint").textContent = waiting ? "The robot and the clock wait. Space, Enter or N: next." : "";
+    card.hidden = false;
+    placeCard();
+    $("rbCardBody").scrollTop = 0;
+  };
+  const closeCard = (): void => {
+    card.hidden = true;
+  };
+  $("rbCardMin").addEventListener("click", () => {
+    cardSmall = !cardSmall;
+    openCard(waitingNext);
+  });
+  $("rbCardClose").addEventListener("click", closeCard);
+  /** Show a reason (or a mistake's lesson) in the WHY panel (and on the card, if it is open or the robot waits). */
+  const showWhy = (e: RobotLogEntry, earlier = false): void => {
+    if (!e.why) return;
+    shown = { e, earlier };
+    whyEl.className = e.kind === "mistake" ? "mistake" : "";
+    whyEl.innerHTML = whyHtml(e, earlier);
+    whyEl.scrollTop = 0;
+    whyEl.querySelector(".rbBig")?.addEventListener("click", () => openCard(waitingNext));
+    if (!card.hidden || earlier) openCard(waitingNext);
+  };
+  const next = (): void => release?.();
+  nextKey.addEventListener("click", next);
+  $("rbCardNext").addEventListener("click", next);
+  /** With TEACH on: hold the robot and the clock at a reason until NEXT. */
+  const teach = async (e: RobotLogEntry): Promise<void> => {
+    showWhy(e);
+    if (!teachBox.checked || stop) return;
+    const app = api.getApp();
+    app.running = false;
+    $("run").textContent = "Run";
+    waitingNext = true;
+    nextKey.disabled = false;
+    nextKey.classList.add("rbWait");
+    $("rbCap").textContent = `${e.kind === "mistake" ? "Mistake" : "Why"}: ${e.text.replace(/\.$/, "")}. Press NEXT to go on.`;
+    openCard(true);
+    nextKey.focus({ preventScroll: true });
+    // Released by NEXT, by turning TEACH off, or by STOP and TAKE OVER.
+    await new Promise<void>((resolve) => {
+      const poll = setInterval(() => {
+        if (stop || !teachBox.checked) go();
+      }, 150);
+      const go = (): void => {
+        clearInterval(poll);
+        release = null;
+        resolve();
+      };
+      release = go;
+    });
+    waitingNext = false;
+    nextKey.disabled = true;
+    nextKey.classList.remove("rbWait");
+    closeCard();
+  };
   const log = (e: RobotLogEntry): void => {
     const div = document.createElement("div");
-    div.className = `rbE ${e.kind}`;
+    div.className = `rbE ${e.kind}${e.why ? " hasWhy" : ""}`;
     div.innerHTML = `<span class="rbT">${mmss(e.t)}</span><span class="rbK">${KIND_LABEL[e.kind]}</span>${esc(e.text)}`;
+    if (e.why) {
+      div.title = "Show the reason again";
+      div.addEventListener("click", () => showWhy(e, true));
+    }
     logEl.appendChild(div);
     while (logEl.childElementCount > 400) logEl.firstElementChild?.remove();
     logEl.scrollTop = logEl.scrollHeight;
@@ -118,13 +247,20 @@ export function initRobotUi(api: RobotUiApi): void {
     $("rbStat").textContent = `Exercise ${ROBOT_EXERCISES.find((e) => e.id === current!.id)?.number ?? ""} · level ${current.level} · seed ${current.seed} · exercise time ${mmss(app.world.time)}${paused ? " · PAUSED" : ""}${s ? ` · ${items}` : ""}`;
   }, 400);
 
-  // A person's input is held back while the robot has the controls (its own synthetic events pass).
+  // A person's input is held back while the robot has the controls (its own synthetic events pass). While it waits
+  // for NEXT, Space, Enter, N or the right arrow press NEXT.
   const robotBar = $("robotBar");
   for (const type of ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick", "keydown", "keyup", "wheel", "touchstart", "contextmenu"]) {
     window.addEventListener(type, (ev) => {
       if (!running || !ev.isTrusted) return;
+      if (type === "keydown" && waitingNext && [" ", "Enter", "n", "N", "ArrowRight"].includes((ev as KeyboardEvent).key)) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        next();
+        return;
+      }
       const t = ev.target as Node | null;
-      if (t && robotBar.contains(t)) return;
+      if (t && (robotBar.contains(t) || card.contains(t))) return;
       ev.stopPropagation();
       if (type !== "wheel" && type !== "touchstart") ev.preventDefault();
     }, { capture: true, passive: false });
@@ -312,6 +448,7 @@ export function initRobotUi(api: RobotUiApi): void {
     alerts: () => alertRows(api.getApp()).filter((r) => !r.acked && r.priority !== "caution"),
     log,
     stopRequested: () => stop,
+    teach,
   };
 
   const doAct = async (a: RobotAction): Promise<void> => {
@@ -508,12 +645,14 @@ export function initRobotUi(api: RobotUiApi): void {
   $("rbStop").addEventListener("click", () => {
     stop = true;
     paused = false;
+    release?.();
     setButtons();
   });
   $("rbTake").addEventListener("click", () => {
     stop = true;
     takeOver = true;
     paused = false;
+    release?.();
     setButtons();
   });
   setButtons();

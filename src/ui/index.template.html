@@ -619,16 +619,17 @@
   @media (max-width: 1400px) { body[data-station=instructor] #brand b { font-size:15px; } body[data-station=instructor] #topTabs button { padding:0 6px; font-size:12px; letter-spacing:0; } }
   @media (max-width: 1300px) { body[data-station=instructor] #brand b { font-size:14px; } body[data-station=instructor] #hdrRight > * { padding:0 8px; } }
   /* The robot student (#demo): its bar takes the place of the legend at the foot of the screen. */
-  body.demo { --ftrH:150px; }
-  @media (max-height:700px) { body.demo { --ftrH:128px; } }
+  body.demo { --ftrH:214px; }
+  @media (max-height:820px) { body.demo { --ftrH:184px; } }
+  @media (max-height:700px) { body.demo { --ftrH:150px; } }
   body.demo footer#legend { display:block; padding:0; white-space:normal; overflow:hidden; }
-  #robotBar { height:100%; display:grid; grid-template-columns:minmax(300px, 25%) minmax(0, 1fr) minmax(320px, 36%); gap:0; font:12px/1.35 "Segoe UI", system-ui, sans-serif; color:var(--text); }
+  #robotBar { height:100%; display:grid; grid-template-columns:minmax(300px, 24%) minmax(0, 1fr) minmax(300px, 30%); gap:0; font:12px/1.35 "Segoe UI", system-ui, sans-serif; color:var(--text); }
   #robotBar > div { padding:7px 12px; min-width:0; overflow:hidden; display:flex; flex-direction:column; }
   #robotBar > div + div { border-left:1px solid var(--line); }
   #robotBar .rbTitle { display:flex; align-items:baseline; gap:10px; margin-bottom:5px; }
   #robotBar .rbTitle b { color:var(--ackbg); letter-spacing:.12em; font-size:12.5px; }
   #robotBar .rbTitle span { color:var(--muted); font-size:11px; white-space:nowrap; }
-  #robotBar .rbM .tu { margin-top:auto; color:var(--accent); font-size:11px; }
+  #robotBar .rbM .tu { margin-top:auto; color:var(--accent); font-size:11px; flex:none; }
   #robotBar .rbRow { display:flex; gap:6px; align-items:center; margin:4px 0; }
   #robotBar select, #robotBar input, #robotBar button { height:25px; margin:0; padding:0 7px; font:600 11.5px "Segoe UI", system-ui, sans-serif; border-radius:4px; background:var(--btn); border:1px solid var(--line); color:var(--text); width:auto; }
   #robotBar #rbEx { flex:1; min-width:0; }
@@ -638,12 +639,53 @@
   #robotBar .rbKeys button { flex:1 1 0; min-width:0; padding:0 4px; letter-spacing:.04em; white-space:nowrap; font-size:11px; }
   #robotBar .rbKeys .rbGo:not(:disabled) { background:var(--ackbg); color:var(--ackfg); border-color:var(--ackbg); }
   #robotBar button:disabled { opacity:.45; }
-  #rbCap { font:600 16px/1.3 "Segoe UI", system-ui, sans-serif; color:var(--bright); min-height:42px; max-height:63px; overflow:hidden; }
+  #rbCap { font:600 14px/1.3 "Segoe UI", system-ui, sans-serif; color:var(--bright); max-height:37px; overflow:hidden; flex:none; }
+  #robotBar .rbTeach { justify-content:space-between; }
+  #robotBar .rbTeach label { display:flex; align-items:center; gap:6px; font:600 11.5px "Segoe UI", system-ui, sans-serif; color:var(--text); white-space:nowrap; cursor:pointer; }
+  #robotBar .rbTeach input { width:15px; height:15px; padding:0; accent-color:var(--ackbg); }
+  #robotBar #rbNext { min-width:96px; letter-spacing:.06em; }
+  #robotBar #rbNext.rbWait { background:var(--ackbg); color:var(--ackfg); border-color:var(--ackbg); animation:rbPulse 1.1s ease-in-out infinite; }
+  @keyframes rbPulse { 50% { box-shadow:0 0 0 4px rgba(255,201,40,.35); } }
+  #rbWhy { flex:1; min-height:0; overflow-y:auto; margin-top:5px; padding:6px 9px; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:4px; background:rgba(0,0,0,.14); font:12px/1.4 "Segoe UI", system-ui, sans-serif; color:var(--text); }
+  #rbWhy.mistake { border-left-color:var(--warn); }
+  #rbWhy .small { color:var(--muted); margin:2px 0 0; }
+  #rbWhy .rbWhyHead { font:700 10.5px "Segoe UI", system-ui, sans-serif; letter-spacing:.12em; color:var(--accent); }
+  #rbWhy.mistake .rbWhyHead { color:var(--warn); }
+  #rbWhy .rbWhyHead span { letter-spacing:0; font-weight:400; color:var(--muted); }
+  #rbWhy .rbWhyTitle { font-weight:700; color:var(--bright); margin:1px 0 2px; }
+  #rbWhy .rbWhyLine { margin-top:3px; }
+  #rbWhy .rbWhyLine b, #rbWhy .rbWork > b { font-size:10px; letter-spacing:.1em; color:var(--clab); margin-right:4px; }
+  #rbWhy .rbWhyLine.rule { color:var(--accent); }
+  #rbWhy .rbWork { margin-top:4px; font:11.5px/1.45 Consolas, "DejaVu Sans Mono", ui-monospace, monospace; color:var(--bright); }
+  #rbWhy .rbWork > b { display:block; font-family:"Segoe UI", system-ui, sans-serif; }
+  #rbWhy .rbBig { float:right; height:18px !important; padding:0 6px !important; font-size:11px !important; line-height:16px; }
+  #rbCard { position:fixed; z-index:9990; display:flex; flex-direction:column; background:var(--panel, #0d1f3a); border:1px solid var(--line); border-top:3px solid var(--accent); border-radius:6px; box-shadow:0 10px 34px rgba(0,0,0,.55); font:13.5px/1.45 "Segoe UI", system-ui, sans-serif; color:var(--text); }
+  #rbCard[hidden] { display:none; }
+  #rbCard.mistake { border-top-color:var(--warn); }
+  #rbCardBody { flex:1; min-height:0; overflow-y:auto; padding:10px 16px 6px; }
+  #rbCard .rbWhyHead { font:700 11px "Segoe UI", system-ui, sans-serif; letter-spacing:.14em; color:var(--accent); }
+  #rbCard.mistake .rbWhyHead { color:var(--warn); }
+  #rbCard .rbWhyHead span { letter-spacing:0; font-weight:400; color:var(--muted); }
+  #rbCard .rbWhyTitle { font:700 16px/1.3 "Segoe UI", system-ui, sans-serif; color:var(--bright); margin:3px 0 6px; }
+  #rbCard .rbWhyLine { margin-top:6px; }
+  #rbCard .rbWhyLine b, #rbCard .rbWork > b { font-size:10.5px; letter-spacing:.12em; color:var(--clab); margin-right:6px; }
+  #rbCard .rbWhyLine.rule { color:var(--accent); }
+  #rbCard .rbWork { margin-top:8px; padding:7px 10px; border-radius:4px; background:rgba(0,0,0,.22); font:12.5px/1.55 Consolas, "DejaVu Sans Mono", ui-monospace, monospace; color:var(--bright); }
+  #rbCard .rbWork > b { display:block; font-family:"Segoe UI", system-ui, sans-serif; margin-bottom:2px; }
+  #rbCard .rbCardFoot { flex:none; display:flex; align-items:center; gap:8px; padding:7px 12px; border-top:1px solid var(--line); }
+  #rbCard .rbCardFoot .small { flex:1; color:var(--muted); font-size:11.5px; }
+  #rbCard .rbCardFoot button { height:28px; margin:0; padding:0 12px; font:700 11.5px "Segoe UI", system-ui, sans-serif; letter-spacing:.06em; border-radius:4px; background:var(--btn); border:1px solid var(--line); color:var(--text); width:auto; }
+  #rbCard #rbCardNext { background:var(--ackbg); color:var(--ackfg); border-color:var(--ackbg); min-width:110px; }
+  #rbCard #rbCardNext[hidden], #rbCard #rbCardClose[hidden] { display:none; }
+  #rbLog .hasWhy { cursor:pointer; }
+  #rbLog .hasWhy:hover { background:rgba(255,255,255,.06); }
+  #rbLog .why .rbK { color:var(--accent); }
+  #rbLog .why { color:var(--text); }
   #rbCap.mistake { color:var(--warn); }
   #rbCap.think { color:var(--accent); }
   #rbCap.result { color:var(--ok); }
-  #rbAbout { font-size:11.5px; color:var(--muted); margin-top:4px; }
-  #rbStat { font:12px Consolas, "DejaVu Sans Mono", ui-monospace, monospace; color:var(--clab); margin-top:5px; }
+  #rbAbout { font-size:11.5px; color:var(--muted); margin-top:4px; flex:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #rbStat { font:12px Consolas, "DejaVu Sans Mono", ui-monospace, monospace; color:var(--clab); margin-top:4px; flex:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #rbLog { flex:1; min-height:0; overflow-y:auto; font:11.5px/1.35 "Segoe UI", system-ui, sans-serif; color:var(--muted); }
   #rbLog .rbE { padding:1px 0; }
   #rbLog .rbT { font-family:Consolas, ui-monospace, monospace; color:var(--clab); margin-right:6px; }

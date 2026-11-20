@@ -17,6 +17,9 @@ import { PLOTTING_EXERCISES, PLOT_RULES } from "./plotting-exercises";
 import { GOA_ANCHOR, GOA_PI_NM, MALABAR_POINT } from "./port-exercises";
 import { RADAR_EXERCISES } from "./radar-exercises";
 import { ArpaExSession, ArpaExercise, ExerciseResult, NumberTask, distanceToLandNm, threats, truthCpa } from "./session";
+import { PlotWork, ReasonCtx, RobotWhy, choiceWhy, ctsLines, dataLine, encounterLine, f1, f2, planWhy, readNumber } from "./robot-reasons";
+
+export type { RobotWhy } from "./robot-reasons";
 
 /**
  * The robot student: works the exercises of the ARPA EX list at the controls, as a trainee of a chosen level
@@ -33,6 +36,9 @@ import { ArpaExSession, ArpaExercise, ExerciseResult, NumberTask, distanceToLand
  *  - At levels 1 to 4 it makes mistakes on purpose, by chance: misread values, wrong choices, steps of the
  *    briefing forgotten, action too small, too late or to port, alarms left unacknowledged, sloppy steering
  *    and radar settings. Each mistake is written in its log, so the result can be compared with what it did.
+ *  - It explains itself (train/robot-reasons.ts): before each answer and decision it writes why, the rule behind
+ *    it and the working with the numbers on the screen; after each mistake, what was wrong and what is right.
+ *    With TEACH on, the #demo display stops at each of these until NEXT is pressed.
  *
  * The chances and sizes of the mistakes (ROBOT_LEVELS) are chosen for the demonstration. They are not
  * measured from trainees and are not part of any marking scheme.
@@ -118,12 +124,14 @@ export type RobotAction =
   | { k: "finish" }
   | { k: "debrief"; text: string };
 
-export type RobotLogKind = "read" | "think" | "do" | "answer" | "mistake" | "result";
+export type RobotLogKind = "read" | "think" | "why" | "do" | "answer" | "mistake" | "result";
 export interface RobotLogEntry {
   /** Exercise time, s. */
   t: number;
   kind: RobotLogKind;
   text: string;
+  /** The reason (for "why") or the lesson (for "mistake"). */
+  why?: RobotWhy;
 }
 
 /** What the robot can see. */
@@ -151,6 +159,11 @@ export interface RobotHost {
   log(e: RobotLogEntry): void;
   /** True once Stop or Take over has been pressed. */
   stopRequested(): boolean;
+  /**
+   * Called with each reason or lesson before the robot goes on. The screen host holds the robot (and the clock)
+   * here until NEXT is pressed when TEACH is on; left out, the robot never stops.
+   */
+  teach?(e: RobotLogEntry): Promise<void>;
 }
 
 export class RobotStopped extends Error {
@@ -189,6 +202,8 @@ export function readAs(task: Pick<NumberTask, "unit" | "circular">, tol: number,
   return tol < 0.3 ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10;
 }
 const show = (v: number): string => String(Math.round(v * 100) / 100);
+/** A value with its unit: degrees and minutes of arc close up (50°, 42.2'), others after a space (0.8 NM). */
+const withUnit = (v: number, unit: string): string => `${show(v)}${unit === "°" || unit === "'" ? "" : " "}${unit}`;
 
 // ---------------------------------------------------------------- the brain
 
@@ -198,7 +213,13 @@ class Brain {
   private ackAt = new Map<string, number>();
   private steerJob: { every: number; next: number; fn: () => Promise<void> } | null = null;
   private busy = false;
-  private plot = new Map<number, { t: number; rel: Vec2 }[]>();
+  private plot = new Map<number, { t: number; rel: Vec2; bearing: number; range: number }[]>();
+  /** The target the plotting answers are about. */
+  plotFocus: number | null = null;
+  /** Reasons and lessons not yet stepped through (TEACH). */
+  private toTeach: RobotLogEntry[] = [];
+  /** Explanations given once a run. */
+  private told = new Set<string>();
   /** Extra avoiding action already taken while monitoring. */
   private extra = 0;
   /** The ships the avoiding action was taken for. */
@@ -236,15 +257,54 @@ class Brain {
   think(text: string): void {
     this.log("think", text);
   }
-  mistake(text: string): void {
-    this.mistakes.push(text);
-    this.log("mistake", text);
+  /**
+   * Write why: the reason for what comes next, its rule and its working. `once` gives it only the first time in a
+   * run; `stop: false` never stops for it with TEACH (for what repeats).
+   */
+  explain(why: RobotWhy, o: { once?: string; stop?: boolean } = {}): void {
+    if (o.once) {
+      if (this.told.has(o.once)) return;
+      this.told.add(o.once);
+    }
+    const e: RobotLogEntry = { t: this.now(), kind: "why", text: why.title, why };
+    this.host.log(e);
+    if (o.stop !== false) this.toTeach.push(e);
   }
-  /** False (and a mistake logged) when this level forgets the step. */
-  maybe(step: string): boolean {
+  /** Step through the reasons and lessons written since the robot last did something. */
+  async flush(): Promise<void> {
+    while (this.toTeach.length > 0) {
+      const e = this.toTeach.shift()!;
+      if (this.host.teach) await this.host.teach(e);
+      this.checkStop();
+    }
+  }
+  /**
+   * A mistake made on purpose, with what was wrong and what is right. A lesson with a `once` key is given (and
+   * stopped at) only the first time; the same kind of mistake again is logged without it.
+   */
+  mistake(text: string, lesson?: Omit<RobotWhy, "title">, once?: string): void {
+    this.mistakes.push(text);
+    const teachIt = lesson && !(once && this.told.has(once));
+    if (once) this.told.add(once);
+    const e: RobotLogEntry = { t: this.now(), kind: "mistake", text, ...(teachIt ? { why: { title: `Mistake: ${text}`, ...lesson } } : {}) };
+    this.host.log(e);
+    if (teachIt) this.toTeach.push(e);
+  }
+  /** False (and a mistake logged, with why the step matters) when this level forgets the step. */
+  maybe(step: string, matters: string): boolean {
     if (!this.chance(this.lv.forget)) return true;
-    this.mistake(`Forgot to ${step}.`);
+    this.mistake(`Forgot to ${step}.`, { reason: matters });
     return false;
+  }
+  /** What the reasons can see. */
+  rc(): ReasonCtx {
+    return {
+      ex: this.ex, w: this.w, a: this.a, measured: this.v.measured,
+      name: (id) => this.name(id),
+      track: (id) => this.track(id),
+      plot: () => this.plotWork(),
+      trial: (course, speed, delayMin) => this.trialRows(course, speed, delayMin),
+    };
   }
   checkStop(): void {
     if (this.host.stopRequested()) throw new RobotStopped();
@@ -252,6 +312,7 @@ class Brain {
 
   async act(a: RobotAction, text: string): Promise<void> {
     this.checkStop();
+    await this.flush();
     this.log(a.k === "answer" ? "answer" : "do", text);
     await this.host.act(a);
   }
@@ -261,6 +322,7 @@ class Brain {
     const end = this.now() + sec;
     while (this.now() < end - 1e-6) {
       this.checkStop();
+      await this.flush();
       await this.host.wait(Math.min(5, end - this.now()));
       await this.duties();
     }
@@ -300,9 +362,21 @@ class Brain {
       at = next.raisedAt + this.rand(this.lv.ackDelay[0], this.lv.ackDelay[1]);
       this.ackAt.set(key, at);
       this.log("read", `Alert: ${next.text}`);
-      if (at - next.raisedAt > 45) this.mistake(`Left the alert "${next.text}" unacknowledged for ${Math.round(at - next.raisedAt)} s.`);
+      if (at - next.raisedAt > 45) {
+        this.mistake(`Left the alert "${next.text.replace(/\.$/, "")}" unacknowledged for ${Math.round(at - next.raisedAt)} s.`, {
+          reason: "An alarm is there to make the watchkeeper look at once. Left sounding, it shows nobody has seen it, and it can hide the next alarm.",
+          rule: "Acknowledge an alarm promptly, then deal with its cause.",
+        }, "lateAck");
+      }
     }
-    if (this.now() >= at) await this.act({ k: "ack" }, "ALARM ACK");
+    if (this.now() >= at) {
+      this.explain({
+        title: "Acknowledge the alarm",
+        reason: `"${next.text.replace(/\.$/, "")}". Acknowledging tells the system the alarm has been seen; then I look at what raised it.`,
+        look: "ALARM ACK key, or Ack in the alarm list.",
+      }, { once: "ack" });
+      await this.act({ k: "ack" }, "ALARM ACK");
+    }
   }
   /** Look at the steering every `every` seconds (null: stop). */
   steer(every: number | null, fn?: () => Promise<void>): void {
@@ -367,6 +441,7 @@ class Brain {
     await this.act({ k: "open" }, `Opens exercise ${this.ex.number}: ${this.ex.title}`);
     this.log("read", this.ex.aim);
     for (const b of this.ex.briefing.slice(0, 2)) this.log("read", b);
+    this.explain(planWhy(this.ex));
   }
   async run(): Promise<void> {
     await this.act({ k: "run" }, "RUN: the exercise clock starts");
@@ -374,9 +449,18 @@ class Brain {
   }
 
   async acquire(ids: number[]): Promise<void> {
+    const todo = ids.filter((id) => !this.track(id) && this.target(id));
+    if (todo.length > 0) {
+      this.explain({
+        title: `Acquire ${todo.map((id) => this.name(id)).join(", ")}`,
+        reason: "The ARPA gives a target's CPA, TCPA, course and speed, and alarms for her, only once it tracks her. Every ship that could come close is acquired, the nearest and closing ones first.",
+        look: "ARPA: ACQUIRE, then click on each echo.",
+        rule: "Rule 7: proper use of radar, with systematic observation of the ships detected, to judge risk of collision.",
+      }, { once: "acquire" });
+    }
     for (const id of ids) {
       if (this.track(id) || !this.target(id)) continue;
-      if (!this.maybe(`acquire ${this.name(id)}`)) continue;
+      if (!this.maybe(`acquire ${this.name(id)}`, "A ship that is not acquired has no CPA or TCPA on the ARPA and never gives a dangerous-target alarm: she can come close without the ARPA saying anything.")) continue;
       await this.rangeFor(this.target(id)!.pos);
       await this.act({ k: "acquire", target: id }, `Acquires ${this.name(id)}`);
       await this.idle(this.rand(0.5, 1.5) * (this.lv.level >= 4 ? 1 : 2));
@@ -385,11 +469,19 @@ class Brain {
   async waitSteady(ids: number[], maxSec = 300): Promise<void> {
     const want = ids.filter((id) => this.a.tracks.some((t) => t.truthId === id && t.state === "tracking"));
     if (want.length === 0) return;
+    this.explain({
+      title: "Wait for steady data",
+      reason: "A new track's first data are rough. The ARPA needs about a minute to show a trend and about three minutes before the vectors, CPA and TCPA are steady. Values read earlier can be far out.",
+      look: "While a track is preliminary its data carry a ? and its light in the target list is orange; green when steady.",
+    }, { once: "steady" });
     this.think(`Waiting for steady data on ${want.map((id) => this.name(id)).join(", ")} (about 3 minutes from acquisition).`);
     // A weaker trainee reads before the data has settled.
     if (this.lv.level <= 2 && this.chance(0.5)) {
       await this.until(() => want.every((id) => (this.track(id)?.quality ?? "acquiring") !== "acquiring"), maxSec);
-      this.mistake("Read the data while the vectors were still preliminary (dashed).");
+      this.mistake("Read the data while the vectors were still preliminary (dashed).", {
+        reason: "Preliminary data come from too few plots: course, speed, CPA and TCPA can all be well out, and the answers or decisions taken from them with them.",
+        rule: "Wait for steady data (about three minutes after acquisition) before relying on them.",
+      });
       return;
     }
     await this.until(() => this.steady(want), maxSec);
@@ -406,33 +498,53 @@ class Brain {
       .join("; ");
   }
 
+  /**
+   * Answer a question. A number is read off the screen as a trainee would (the ARPA's data, the own ship data, the
+   * EBL and VRM, the robot's own plot: see robot-reasons.ts), or taken from `value`; the exercise's key is used only
+   * to know whether the question can be answered yet, and when nothing on the screen gives the value.
+   */
   async answer(taskId: string, value?: number): Promise<boolean> {
     const t = this.ex.tasks.find((x) => x.id === taskId);
     if (!t || this.s.answers.has(taskId) || this.s.finished) return false;
     const c = this.s.ctx(this.w, this.a);
     if (t.kind === "number") {
-      const truth = value ?? t.truth(c);
-      if (truth === null) return false;
+      const truth = t.truth(c);
+      if (truth === null && value === undefined) return false;
+      const reading = value === undefined ? readNumber(this.rc(), t) : null;
+      const raw = value ?? reading?.value ?? truth;
+      if (raw === null) return false;
       const tol = t.tol(this.s.cfg);
-      let v = readAs(t, tol, truth);
+      let v = readAs(t, tol, raw);
+      const why = reading?.why ?? {
+        title: "",
+        reason: "There are no steady data on the screen for this (the target is not tracked, or the value is not shown): the answer is the best that can be judged from the picture.",
+      };
+      this.explain({ ...why, title: `${t.prompt}: ${withUnit(v, t.unit)}` });
       let slip = "";
+      const was = v;
       if (this.chance(this.lv.misread)) {
         const off = (this.rng() < 0.5 ? -1 : 1) * (1.6 + 1.4 * this.rng()) * tol;
-        const was = v;
         v = readAs(t, tol, t.circular ? normalizeDeg(v + off) : Math.max(0, v + off));
         if (Math.abs(t.circular ? angleDiffDeg(v, was) : v - was) > tol) slip = `Misread "${t.prompt}": typed ${show(v)} ${t.unit}, the display showed about ${show(was)} ${t.unit}.`;
         else v = was;
       }
-      await this.act({ k: "answer", task: taskId, value: v }, `Answers "${t.prompt}": ${show(v)} ${t.unit}`);
-      if (slip) this.mistake(slip);
+      await this.act({ k: "answer", task: taskId, value: v }, `Answers "${t.prompt}": ${withUnit(v, t.unit)}`);
+      if (slip) {
+        this.mistake(slip, {
+          reason: `The display shows about ${withUnit(was, t.unit)}, but ${withUnit(v, t.unit)} was typed. An answer is credited only within ${withUnit(tol, t.unit)} of the right value (a placeholder tolerance), so this one is lost.`,
+          rule: "Read the value twice before entering it, and check that it is the right target, the right field and the right unit.",
+        });
+      }
       return true;
     }
     if (t.kind === "choice") {
       const right = t.correct(c);
       let pick = right;
       if (this.chance(this.lv.wrongChoice) && t.choices.length > 1) pick = (right + 1 + Math.floor(this.rng() * (t.choices.length - 1))) % t.choices.length;
+      const why = choiceWhy(this.rc(), t, right);
+      if (pick === right) this.explain({ ...why, title: `${t.prompt} ${t.choices[right]}` });
       await this.act({ k: "answer", task: taskId, value: pick }, `Answers "${t.prompt}": ${t.choices[pick]}`);
-      if (pick !== right) this.mistake(`Chose "${t.choices[pick]}" for "${t.prompt}".`);
+      if (pick !== right) this.mistake(`Chose "${t.choices[pick]}" for "${t.prompt}".`, { ...why, reason: `The right answer is "${t.choices[right]}". ${why.reason}` });
       return true;
     }
     return false;
@@ -457,11 +569,23 @@ class Brain {
   }
 
   async setLimits(cpa: number, tcpa: number): Promise<void> {
-    if (!this.maybe(`set the CPA/TCPA limits to ${cpa} NM / ${tcpa} min`)) return;
+    this.explain({
+      title: `CPA limit ${cpa} NM, TCPA limit ${tcpa} min`,
+      reason: `The ARPA gives the dangerous-target alarm for any tracked ship that will pass inside ${cpa} NM within ${tcpa} minutes. Set before acquiring, the alarm works from the start. These are the briefing's limits.`,
+      look: "VRM / ARPA panel: CPA LIM and TCPA LIM.",
+      rule: "The limits suit the waters and the ship: wider in open sea, closer in a busy lane.",
+    });
+    if (!this.maybe(`set the CPA/TCPA limits to ${cpa} NM / ${tcpa} min`, "With the limits not set as the briefing asks, the dangerous-target alarm comes too late, or not at all, for the ship that matters.")) return;
     await this.act({ k: "limits", cpa, tcpa }, `CPA limit ${cpa} NM, TCPA limit ${tcpa} min`);
   }
   async groundRef(id: number): Promise<void> {
-    if (!this.maybe(`make ${this.name(id)} the ground reference`)) return;
+    this.explain({
+      title: `Ground stabilisation on ${this.name(id)}`,
+      reason: `${this.name(id)} does not move over the ground. Taken as the reference, her apparent movement is treated as the current and removed: true vectors then show motion over the ground, where each ship is really going.`,
+      look: "Select the target, then ARPA: Ground stabilisation. The label changes from SEA STAB to GND STAB (REF TGT).",
+      rule: "The reference must be a fixed echo, small and isolated: a buoy, a beacon, a rock.",
+    });
+    if (!this.maybe(`make ${this.name(id)} the ground reference`, "Without a ground reference the true vectors stay through the water: the set and drift, and each ship's motion over the ground, cannot be read.")) return;
     if (!this.track(id)) await this.acquire([id]);
     await this.until(() => !!this.track(id), 60);
     await this.act({ k: "select", target: id }, `Selects ${this.name(id)}`);
@@ -487,7 +611,13 @@ class Brain {
     return rows.every((r) => r.cpa >= nm || r.tcpa <= 0.01);
   }
   async showTrial(course: number, speed: number): Promise<void> {
-    if (!this.maybe("check the action with the trial manoeuvre first")) return;
+    this.explain({
+      title: `Check with the trial manoeuvre: ${pad3(course)}° at ${speed} kn`,
+      reason: "The trial shows, before anything is changed, the CPA every tracked ship would have with the new course and speed, allowing for own ship's turn and a delay before it starts. It checks that the action works for every ship, not only the dangerous one.",
+      look: "ARPA: TRIAL on, course, speed and a 1 minute delay; the picture shows TRIAL and the predicted vectors.",
+      rule: "Switch the trial off afterwards: a trial picture left on can be taken for the real one.",
+    }, { once: "trial" });
+    if (!this.maybe("check the action with the trial manoeuvre first", "Without the trial the alteration is a guess: it may not clear the dangerous ship, or may bring another one close.")) return;
     await this.act({ k: "trial", on: true, course: normalizeDeg(Math.round(course)) % 360, speed, delay: 1 }, `Trial manoeuvre: ${pad3(course)}° at ${speed} kn, starting in 1 minute`);
     await this.idle(4);
     const rows = this.trialRows(course, speed);
@@ -508,42 +638,84 @@ class Brain {
     }
     this.riskIds = risks.map((r) => r.id);
     this.think(`Close-quarters situation developing: ${risks.map((r) => `${r.name} CPA ${r.cpa.toFixed(1)} NM in ${r.tcpa.toFixed(0)} min`).join("; ")}.`);
+    const rc = this.rc();
+    const tracked = this.ships().filter((id) => this.track(id));
+    this.explain({
+      title: `Close quarters developing with ${risks.map((r) => r.name).join(" and ")}: action is needed`,
+      reason: o.restricted
+        ? "The visibility is restricted and the ships are known by radar alone, so Rule 19 applies: no ship is stand-on or give-way. Every ship coming into a close-quarters situation must be avoided, in ample time."
+        : "The ships are in sight of one another, so the steering and sailing rules for ships in sight decide who gives way.",
+      look: "The target list: every ship's CPA and TCPA, from steady tracks.",
+      rule: o.restricted
+        ? "Rule 19(d): action in ample time; so far as possible, no alteration to port for a ship forward of the beam (unless she is being overtaken), and none towards a ship abeam or abaft the beam."
+        : "Rules 15 and 16: the ship with the other on her starboard side keeps out of the way, early and substantially, and avoids crossing ahead of her.",
+      working: [
+        `The passing distance this exercise asks for: ${o.safeNm} NM (a placeholder).`,
+        ...tracked.map((id) => dataLine(rc, id)),
+        ...risks.map((r) => encounterLine(rc, r.id, o.restricted)),
+      ],
+    });
     const base = { course: this.w.own.ordered.course, speed: this.w.own.ordered.speed };
     const margin = 0.3;
-    let plan: { turn: number; speed: number } | null = null;
+    const rows: string[] = [];
+    const tryRow = (turn: number, speed: number): { ok: boolean; r19: boolean } => {
+      const tr = this.trialRows(base.course + turn, speed);
+      const ok = this.clears(tr, o.safeNm + margin);
+      const r19 = !o.restricted || rule19Check(turn, risks).ok;
+      const close = tr.filter((x) => x.cpa < o.safeNm + margin && x.tcpa > 0.01).map((x) => x.name);
+      rows.push(`${turn}° to starboard (${pad3(base.course + turn)}°)${speed !== base.speed ? ` at ${speed} kn` : ""}: ${tr.map((x) => `${x.name} ${x.cpa.toFixed(1)}`).join(", ")} NM ${ok ? (r19 ? "→ clears every ship" : "→ clears, but not in line with Rule 19(d)") : `→ ${close.join(", ")} inside ${f1(o.safeNm + margin)} NM`}`);
+      return { ok, r19 };
+    };
+    let plan: { turn: number; speed: number; clears: boolean } | null = null;
     for (let turn = o.minTurn ?? 30; turn <= (o.maxTurn ?? 90); turn += 10) {
-      if (!this.clears(this.trialRows(base.course + turn, base.speed), o.safeNm + margin)) continue;
-      if (o.restricted && !rule19Check(turn, risks).ok) continue;
-      plan = { turn, speed: base.speed };
+      const x = tryRow(turn, base.speed);
+      if (!x.ok || !x.r19) continue;
+      plan = { turn, speed: base.speed, clears: true };
       break;
     }
     if (!plan) {
       // No turn alone does it: a large turn with the speed halved.
       for (let turn = o.minTurn ?? 30; turn <= (o.maxTurn ?? 90); turn += 10) {
         const sp = Math.round(base.speed / 2);
-        if (this.clears(this.trialRows(base.course + turn, sp), o.safeNm + margin) || turn + 10 > (o.maxTurn ?? 90)) {
-          plan = { turn, speed: sp };
+        const ok = tryRow(turn, sp).ok;
+        if (ok || turn + 10 > (o.maxTurn ?? 90)) {
+          plan = { turn, speed: sp, clears: ok };
           break;
         }
       }
     }
-    if (!plan) plan = { turn: o.maxTurn ?? 90, speed: base.speed };
+    if (!plan) plan = { turn: o.maxTurn ?? 90, speed: base.speed, clears: false };
     this.think(`Plan: ${plan.turn > 0 ? `alter ${plan.turn}° to starboard` : "hold the course"}${plan.speed !== base.speed ? `, speed to ${plan.speed} kn` : ""}.`);
+    this.explain({
+      title: `Decision: ${plan.turn}° to starboard, to ${pad3(base.course + plan.turn)}°${plan.speed !== base.speed ? `, and speed down to ${plan.speed} kn` : ""}`,
+      reason: `I try alterations to starboard in 10° steps, from ${o.minTurn ?? 30}°, with the trial on every tracked ship (starting in 1 minute, with own ship's turn allowed for), and take the first that clears them all by ${o.safeNm} NM with a ${margin} NM margin for the time the turn takes and the errors in the data${o.restricted ? ", and keeps to Rule 19(d)" : ""}${plan.speed !== base.speed ? ". No turn alone was enough, so the speed comes down as well" : ""}. At least 30°, so that the other ships see it at once on their radar.${plan.clears ? "" : " None of those tried clears every ship: this is the best of them, and I will watch closely and do more once she is steady."}`,
+      rule: "Rule 8: action in good time, large enough to be readily apparent to another ship watching by radar, not a series of small alterations; then checked until every ship is past and clear. To starboard: it takes own ship away from ships ahead and to starboard, and agrees with what they are expected to do.",
+      working: rows,
+    });
     // A weaker trainee may act too little, to port, or late.
     let turn = plan.turn;
     const r = this.rng();
     if (r < this.lv.portTurn) {
       turn = -(30 + 10 * Math.floor(this.rng() * 2));
-      this.mistake(`Altered to port (${-turn}°) instead of to starboard.`);
+      this.mistake(`Altered to port (${-turn}°) instead of to starboard.`, {
+        reason: `The trial and the rules called for ${plan.turn}° to starboard. A turn to port for a ship forward of the beam can meet her own turn to starboard and bring both ships together.`,
+        rule: o.restricted ? "Rule 19(d)(i): avoid an alteration to port for a vessel forward of the beam, other than one being overtaken." : "Rules 14, 15 and 17: in a meeting or crossing the give-way action is to starboard; a turn to port for a ship on the port side is to be avoided.",
+      });
     } else if (r < this.lv.portTurn + this.lv.smallAction && turn > 0) {
       turn = 15 + 5 * Math.floor(this.rng() * 2);
-      this.mistake(`Altered only ${turn}°: too small to be readily apparent on another ship's radar (Rule 8).`);
+      this.mistake(`Altered only ${turn}°: too small to be readily apparent on another ship's radar (Rule 8).`, {
+        reason: `The trial showed ${plan.turn}° was needed to clear every ship. ${turn}° is hard to see on the other ship's radar, does not give the passing distance, and invites a second alteration later.`,
+        rule: "Rule 8(b): an alteration large enough to be readily apparent; a succession of small alterations should be avoided.",
+      });
     }
     const course = normalizeDeg(base.course + turn);
     await this.showTrial(course, plan.speed);
     if (this.chance(this.lv.lateAction)) {
       const wait = this.rand(180, 360);
-      this.mistake(`Waited ${Math.round(wait / 60)} minutes more before acting: the action was late.`);
+      this.mistake(`Waited ${Math.round(wait / 60)} minutes more before acting: the action was late.`, {
+        reason: `With the TCPA only ${Math.round(Math.min(...risks.map((x) => x.tcpa)))} minutes, every minute of waiting needs a bigger alteration later, and leaves the other ship less time to understand it.`,
+        rule: "Rule 8(a) and Rule 19(d): avoiding action is taken in ample time.",
+      });
       await this.idle(wait);
     } else await this.hesitate();
     await this.order(course, plan.speed !== base.speed ? plan.speed : null, "avoiding action");
@@ -566,6 +738,11 @@ class Brain {
     const end = this.now() + o.maxSec;
     let resumed = !o.resume;
     let steadySince: number | null = null;
+    this.explain({
+      title: "Watch until every ship is past and clear",
+      reason: "The action is not finished until every ship is finally past and clear. While own ship turns, the ARPA's data are disturbed, so I judge again only once she is steady on her new course and the tracks have settled (about 3 minutes).",
+      rule: "Rule 8(d): check that the action works until the other vessel is finally past and clear.",
+    }, { once: "monitor" });
     this.think("Watching the ships pass, ready to do more.");
     while (this.now() < end) {
       await this.idle(30);
@@ -580,6 +757,12 @@ class Brain {
           this.extra++;
           steadySince = null;
           this.think(`${close[0]!.name} would still pass at ${close[0]!.cpa.toFixed(1)} NM: more action is needed.`);
+          this.explain({
+            title: "More action: a further 20° to starboard",
+            reason: `Steady on the new course, the data show ${close[0]!.name} would still pass at ${close[0]!.cpa.toFixed(1)} NM, inside ${o.safeNm} NM. The first action was not enough, so more is taken, the same way.`,
+            rule: "Rule 8(d): if the action is not resulting in a safe passing distance, more action is taken.",
+            working: this.trialRows(w.own.ordered.course, w.own.ordered.speed, 0).map((x) => `On ${pad3(w.own.ordered.course)}°: ${x.name} CPA ${x.cpa.toFixed(1)} NM in ${x.tcpa.toFixed(0)} min`),
+          });
           await this.order(normalizeDeg(w.own.ordered.course + 20), null, "a further 20° to starboard");
           continue;
         }
@@ -589,8 +772,15 @@ class Brain {
       if (!past) continue;
       if (!resumed && o.resume) {
         resumed = true;
-        if (this.clears(this.trialRows(o.resume.course, o.resume.speed, 0), o.safeNm + 0.5)) {
+        const back = this.trialRows(o.resume.course, o.resume.speed, 0);
+        if (this.clears(back, o.safeNm + 0.5)) {
           this.think("All past and clearing: back to the original course.");
+          this.explain({
+            title: `Resume the original course, ${pad3(o.resume.course)}°`,
+            reason: `The ships the action was for are past their closest approach, and the trial on the original course shows no ship would come inside ${o.safeNm} NM with a 0.5 NM margin.`,
+            rule: "Come back only when the ships are past and clear, and check first that the old course does not create a new close-quarters situation.",
+            working: back.map((x) => `On ${pad3(o.resume!.course)}°: ${x.name} ${x.tcpa > 0.01 ? `CPA ${x.cpa.toFixed(1)} NM` : "past"}`),
+          });
           await this.order(o.resume.course, o.resume.speed, "resuming");
           continue;
         }
@@ -603,13 +793,19 @@ class Brain {
 
   // ---- manual plotting with the EBL and VRM
   async observe(ids: number[]): Promise<void> {
+    this.explain({
+      title: "Plot each target with the EBL and VRM",
+      reason: "With the ARPA off, the only data are bearings and ranges taken by hand. EBL 1 through the middle of the echo gives its true bearing, VRM 1 on its near edge its range. Each pair goes on the plotting sheet with the time; two or more plots a known time apart show how the target moves.",
+      look: "EBL / CURSOR panel: EBL 1 and VRM 1, read BRG and RNG.",
+      rule: "Rule 7(b): proper use of radar includes radar plotting, or an equivalent systematic watch, of the ships detected.",
+    }, { once: "observe" });
     for (const id of ids) {
       if (!this.target(id)) continue;
       await this.act({ k: "measure", target: id }, `EBL and VRM on ${this.name(id)}`);
       const m = this.v.measured;
       if (!m) continue;
       const list = this.plot.get(id) ?? [];
-      list.push({ t: this.now(), rel: fromPolar(m.bearing, m.range) });
+      list.push({ t: this.now(), rel: fromPolar(m.bearing, m.range), bearing: m.bearing, range: m.range });
       this.plot.set(id, list);
       this.log("read", `Plot ${this.name(id)} at ${mm(this.now())}: ${m.bearing.toFixed(1)}° ${m.range.toFixed(2)} NM`);
     }
@@ -625,6 +821,19 @@ class Brain {
     const c = computeCpa(rel, relVel);
     const ownV = velocityOf({ course: measuredHeading(this.w), speed: this.w.own.speedThroughWater });
     return { rel, relVel, cpa: c.cpa, tcpa: c.tcpaMinutes ?? 0, trueCS: courseSpeedOf(add(relVel, ownV)) };
+  }
+  /** The plot of the target the answers are about, for the reasons. */
+  plotWork(): PlotWork | null {
+    const id = this.plotFocus;
+    if (id === null) return null;
+    const p = this.plot.get(id);
+    const s = this.solve(id);
+    if (!p || !s) return null;
+    const a = p[0]!, b = p[p.length - 1]!;
+    return {
+      id, name: this.name(id), first: { t: a.t, bearing: a.bearing, range: a.range }, last: { t: b.t, bearing: b.bearing, range: b.range },
+      rel: s.rel, relVel: s.relVel, own: { course: measuredHeading(this.w), speed: this.w.own.speedThroughWater }, trueCS: s.trueCS,
+    };
   }
 
   async finish(): Promise<ExerciseResult | null> {
@@ -658,6 +867,13 @@ const avoidance = (o: { ids: number[]; safeNm: number; restricted: boolean; befo
     await b.idle(60);
   }
   for (const id of o.before ?? []) await b.answer(id);
+  if (o.restricted) {
+    b.explain({
+      title: "Restricted visibility: Rule 19",
+      reason: "No ship is in sight, so the rules for ships in sight of one another (stand-on, give-way) do not apply. Each ship detected by radar alone is judged by her CPA and TCPA; if a close-quarters situation is developing, own ship acts, in ample time, whatever the other does.",
+      rule: "Rule 19(d): avoid altering to port for a ship forward of the beam (unless she is being overtaken), and avoid altering towards a ship abeam or abaft the beam. Rule 19(b), (e): safe speed, engines ready.",
+    }, { once: "r19" });
+  }
   const resume = o.resume ? { course: b.w.own.ordered.course, speed: b.w.own.ordered.speed } : undefined;
   await b.avoid({ safeNm: o.safeNm, restricted: o.restricted, ...(o.turnMax ? { maxTurn: o.turnMax } : {}) });
   for (const id of o.after ?? []) await b.answer(id);
@@ -679,17 +895,27 @@ const plotting: Script = async (b) => {
   const worst = sol.filter((x) => x.s.tcpa > 0).sort((p, q) => p.s.cpa - q.s.cpa)[0];
   if (worst) {
     b.think(`${b.name(worst.id)} is the most dangerous: answering from the plot.`);
-    const fresh = (): NonNullable<ReturnType<Brain["solve"]>> => b.solve(worst.id) ?? worst.s;
-    await b.answer("cpa0", fresh().cpa);
-    await b.answer("tcpa0", fresh().tcpa);
-    await b.answer("crs0", fresh().trueCS.course);
-    await b.answer("spd0", fresh().trueCS.speed);
+    b.explain({
+      title: `The most dangerous target: ${b.name(worst.id)}`,
+      reason: "From the plot, each target's relative track gives her CPA; the one that will come closest, soonest, is the most dangerous. The answers are for her.",
+      working: sol.map((x) => `${b.name(x.id)}: CPA ${f2(x.s.cpa)} NM, TCPA ${f1(x.s.tcpa)} min (from the plot)`),
+    });
+    b.plotFocus = worst.id;
+    await b.answer("cpa0");
+    await b.answer("tcpa0");
+    await b.answer("crs0");
+    await b.answer("spd0");
   }
   // The manoeuvre: at 12 minutes, not before (a weak trainee may jump the gun).
   const early = b.chance(b.lv.lateAction * 0.6);
   await b.until(() => b.now() >= (early ? 600 : 720), 800);
   if (!early) await b.observe(ids);
-  else b.mistake("Manoeuvred at 10 minutes, before the 12 minutes the exercise sets.");
+  else {
+    b.mistake("Manoeuvred at 10 minutes, before the 12 minutes the exercise sets.", {
+      reason: "The exercise sets the manoeuvre at 12 minutes, after three plots. Acting at 10 minutes uses a shorter plot (less accurate) and loses the timing item.",
+      rule: "Plot long enough to be sure of each target's motion before acting; here, the exercise's 12 minutes.",
+    });
+  }
   const own = { course: b.w.own.ordered.course, speed: b.w.own.ordered.speed };
   // The result is the closest passing distance as a share of the required 1 NM, and passing wide is marked down
   // too: aim for a little over 1 NM to the target that comes closest.
@@ -706,10 +932,15 @@ const plotting: Script = async (b) => {
     return min;
   };
   let plan: { turn: number; speed: number; cpa: number } | null = null;
+  const rows: string[] = [];
   for (const speed of [own.speed, Math.round(own.speed * 0.75), Math.round(own.speed / 2)]) {
     for (let turn = speed === own.speed ? 20 : 0; turn <= 120; turn += 5) {
       const c = closest(turn, speed);
-      if (c < least) continue;
+      if (c < least) {
+        if (turn % 10 === 0) rows.push(`${turn}° to starboard${speed !== own.speed ? ` at ${speed} kn` : ""}: closest ${Number.isFinite(c) ? f2(c) : "--"} NM, under ${f2(least)} NM`);
+        continue;
+      }
+      rows.push(`${turn}° to starboard${speed !== own.speed ? ` at ${speed} kn` : ""}: closest ${f2(c)} NM, enough`);
       // The smallest such turn, unless it passes far wider than needed while a slower speed would do better.
       if (!plan || Math.abs(c - aim) < Math.abs(plan.cpa - aim) - 0.1) plan = { turn, speed, cpa: c };
       break;
@@ -718,14 +949,29 @@ const plotting: Script = async (b) => {
   }
   plan ??= { turn: 90, speed: Math.round(own.speed / 2), cpa: closest(90, Math.round(own.speed / 2)) };
   b.think(`From the plot: ${plan.turn > 0 ? `${plan.turn}° to starboard` : "no turn"}${plan.speed !== own.speed ? `${plan.turn > 0 ? " and" : ","} speed ${plan.speed} kn` : ""}: the closest target then passes at about ${Number.isFinite(plan.cpa) ? plan.cpa.toFixed(2) : "--"} NM.`);
+  const rv = b.ex.title.includes("restricted");
+  b.explain({
+    title: `Decision at 12 minutes: ${plan.turn > 0 ? `${plan.turn}° to starboard, to ${pad3(own.course + plan.turn)}°` : "no turn"}${plan.speed !== own.speed ? `${plan.turn > 0 ? " and" : ","} speed ${plan.speed} kn` : ""}`,
+    reason: `For each alteration I work, from the plot, how close every target would then pass (allowing for own ship turning at ${PLOT_RULES.turnDegPerMin}°/min and changing speed at ${PLOT_RULES.speedKnPerMin} kn/min). I take the smallest turn to starboard that passes every target at ${f2(least)} NM or more (${PLOT_RULES.requiredCpaNm} NM, and a little for the errors of a hand plot), aiming at about ${f2(aim)} NM: the result is marked down for passing closer than ${PLOT_RULES.requiredCpaNm} NM, and (half as much) for passing wider. A slower speed is tried when a turn alone passes far too wide or not wide enough.`,
+    rule: rv
+      ? "Rule 19(d): no alteration to port for a ship forward of the beam, none towards a ship abeam or abaft. Rule 8: large and in good time."
+      : "Rules 8, 15 and 16: early and substantial action by the give-way ship, avoiding crossing ahead of the other.",
+    working: [...rows, `Chosen: the closest target then passes at about ${Number.isFinite(plan.cpa) ? f2(plan.cpa) : "--"} NM (aim ${f2(aim)} NM).`],
+  });
   let turn = plan.turn;
   const r = b.rand(0, 1);
   if (r < b.lv.portTurn) {
     turn = -30;
-    b.mistake("Altered 30° to port.");
+    b.mistake("Altered 30° to port.", {
+      reason: `The plot called for ${plan.turn}° to starboard. A turn to port is not allowed in this exercise, and for a ship forward of the beam it can meet her own turn to starboard.`,
+      rule: rv ? "Rule 19(d)(i): avoid altering to port for a vessel forward of the beam." : "Rules 14 to 17: the give-way action is to starboard.",
+    });
   } else if (r < b.lv.portTurn + b.lv.smallAction && plan.turn >= 20) {
     turn = Math.max(10, plan.turn - 20);
-    b.mistake(`Altered only ${turn}° instead of the ${plan.turn}° the plot called for.`);
+    b.mistake(`Altered only ${turn}° instead of the ${plan.turn}° the plot called for.`, {
+      reason: `The plot showed ${plan.turn}° was needed for ${PLOT_RULES.requiredCpaNm} NM. ${turn}° leaves the closest target nearer than required and is harder to see on her radar.`,
+      rule: "Rule 8(b): an alteration large enough to be readily apparent.",
+    });
   }
   await b.order(normalizeDeg(own.course + turn), plan.speed !== own.speed ? plan.speed : null, "the manoeuvre at 12 minutes");
   let nextObs = b.now() + 360;
@@ -754,16 +1000,27 @@ const SCRIPTS: Record<string, Script> = {
     await b.begin();
     await b.run();
     await b.acquire([1, 2, 3, 4]);
+    b.explain({
+      title: "Relative vectors first",
+      reason: "A relative vector shows where a ship will be, relative to own ship, after the vector time. Extended, it is her relative track: if it points at own ship (the centre), she is on a collision course. This shows risk at a glance.",
+      look: "VRM / ARPA panel: Vector REL; the vector time (6 min) sets how long the lines are.",
+    });
     await b.act({ k: "vectors", mode: "relative" }, "Vectors: RELATIVE");
     await b.waitSteady([1, 2, 3, 4]);
     b.think("Relative vectors: the one pointing at own ship has the smallest CPA; no relative vector means she moves as we do.");
     await b.answerAll(["coll", "same"]);
-    if (b.maybe("look at the true vectors")) {
+    if (b.maybe("look at the true vectors", "Only true vectors show each ship's own course and speed (her aspect): which way she is heading, and whether she is stopped.")) {
+      b.explain({
+        title: "Now true vectors",
+        reason: "A true vector shows a ship's own course and speed: where she is heading (her aspect), which the collision rules need. Own ship gets a vector too. A ship that is stopped has none.",
+        look: "Vector TRUE.",
+      });
       await b.act({ k: "vectors", mode: "true" }, "Vectors: TRUE");
       await b.idle(15);
       b.think("True vectors: a ship with no true vector is stopped in the water.");
     }
     await b.answerAll(["stop", "crsD", "spdD"]);
+    b.explain({ title: "Back to relative vectors", reason: "For keeping watch, relative vectors show who is on a collision course; true vectors are looked at to judge each ship's aspect.", look: "Vector REL." }, { stop: false });
     await b.act({ k: "vectors", mode: "relative" }, "Back to relative vectors");
     await b.finish();
   },
@@ -772,11 +1029,23 @@ const SCRIPTS: Record<string, Script> = {
     await b.run();
     await b.acquire([1, 2, 3]);
     await b.waitSteady([1, 2, 3]);
-    if (b.maybe("switch on past positions")) await b.act({ k: "past", mode: "true" }, "Past positions: TRUE, 5 dots 1 minute apart");
+    if (b.maybe("switch on past positions", "Without past positions a ship's alteration shows only when her vector has already swung, and the history that shows it happening is lost.")) {
+      b.explain({
+        title: "Past positions on: true, 5 dots a minute apart",
+        reason: "Past positions show where each ship was over the last minutes. Dots in a straight line, evenly spaced: steady course and speed. A bend: she is altering course. Closer or wider spacing: she is changing speed.",
+        look: "VRM / ARPA panel: PAST.",
+      });
+      await b.act({ k: "past", mode: "true" }, "Past positions: TRUE, 5 dots 1 minute apart");
+    }
     b.think("Watching the dots for a bend or a change of spacing.");
     if (await b.until(() => b.truthOf("newcrs") !== null, 1200, 10)) {
       await b.idle(60);
       b.think("Ship H's dots are bending: she has altered course. Waiting for her vector to settle again.");
+      b.explain({
+        title: "Ship H has altered: wait for her vector to settle",
+        reason: "The ARPA smooths each track over several minutes, so after an alteration its vector swings round slowly. Her new course and CPA can only be trusted once the dots run straight again and the vector has stopped moving (a couple of minutes).",
+        look: "Her past position dots and her vector.",
+      });
       await b.idle(150);
     }
     await b.answerAll(["who", "newcrs", "cpaH"]);
@@ -785,9 +1054,19 @@ const SCRIPTS: Record<string, Script> = {
   "arpa-4": async (b) => {
     await b.begin();
     await b.run();
-    if (b.maybe("switch on the guard zone")) await b.act({ k: "zone", which: "guard", on: true }, "Guard 1 on (ring 5.5 to 6 NM)");
-    if (b.maybe("tick automatic acquisition")) await b.act({ k: "autoAcquire", on: true }, "Automatic acquisition on");
-    if (b.maybe("set the exclusion area over the rocks")) await b.act({ k: "zone", which: "exclusion", on: true }, "Exclude 1 on, over the rocks to the north-east");
+    b.explain({
+      title: "Guard zone, automatic acquisition and an exclusion area",
+      reason: "A guard ring (here 5.5 to 6 NM) catches every echo that crosses into it from outside: the ARPA acquires it and sounds a new-target alarm. The rocks to the north-east are small enough to be taken for ships, so an exclusion area over them keeps them out.",
+      look: "ARPA menu: Guard 1, Auto acquisition, Exclude 1.",
+      rule: "Automatic acquisition helps but does not replace the watchkeeper's look-out on the radar picture.",
+    });
+    if (b.maybe("switch on the guard zone", "Without the guard zone nothing is acquired automatically: ships entering the area are not tracked until someone notices them.")) await b.act({ k: "zone", which: "guard", on: true }, "Guard 1 on (ring 5.5 to 6 NM)");
+    if (b.maybe("tick automatic acquisition", "The guard zone alone only alarms; with automatic acquisition the ships it catches are tracked as well.")) await b.act({ k: "autoAcquire", on: true }, "Automatic acquisition on");
+    if (b.maybe("set the exclusion area over the rocks", "Without it the rocks are acquired as false targets, filling the list and hiding real ships among them.")) await b.act({ k: "zone", which: "exclusion", on: true }, "Exclude 1 on, over the rocks to the north-east");
+    b.explain({
+      title: `Acquire ${b.name(4)} by hand`,
+      reason: "She is already inside the guard ring, so she will never cross it: the guard zone cannot acquire her. Only a look at the picture finds her.",
+    });
     await b.acquire([4]);
     b.think("Waiting for ships to come into the guard ring; acknowledging the new-target alarms.");
     await b.until(() => b.done("ships") && b.done("ack"), 1000, 10);
@@ -813,9 +1092,10 @@ const SCRIPTS: Record<string, Script> = {
     await b.run();
     await b.acquire([1, 2, 3]);
     await b.waitSteady([1, 2, 3]);
-    const alt = b.truthOf("alt");
     await b.answer("alt");
-    await b.avoid({ safeNm: 2, restricted: false, minTurn: Math.max(30, alt ?? 30) });
+    // The alteration it found with the trial (as it typed it) is where its avoiding action starts.
+    const typed = parseFloat(b.s.answers.get("alt")?.text ?? "");
+    await b.avoid({ safeNm: 2, restricted: false, minTurn: Math.max(30, Number.isFinite(typed) ? typed : 30) });
     await b.monitor({ safeNm: 2, maxSec: 2400 });
     await b.finish();
   },
@@ -825,6 +1105,17 @@ const SCRIPTS: Record<string, Script> = {
     await b.acquire([1, 2]);
     await b.waitSteady([1, 2]);
     b.think("Sea stabilised: the light float has a true vector, the reverse of the set and drift.");
+    b.explain({
+      title: "Sea stabilised: the light float seems to move",
+      reason: "Sea stabilised, the ARPA knows own ship's motion only through the water (gyro and log). The current carries everything, so a fixed float seems to drift the opposite way: its 'true' vector is the current reversed.",
+      working: [
+        dataLine(b.rc(), 1),
+        ...(() => {
+          const t = b.track(1);
+          return t?.est ? [`Reversed: ${pad3(t.est.trueCS.course)}° − 180° = ${pad3(t.est.trueCS.course + 180)}° at ${f1(t.est.trueCS.speed)} kn: the set and drift of the current, as near as the float's track shows it.`] : [];
+        })(),
+      ],
+    });
     await b.answer("seaC");
     await b.groundRef(1);
     await b.idle(150);
@@ -836,9 +1127,19 @@ const SCRIPTS: Record<string, Script> = {
     await b.begin();
     await b.run();
     await b.acquire([1, 2, 3]);
-    if (b.maybe("run the ARPA self-test")) await b.act({ k: "selfTest" }, "ARPA self-test");
+    b.explain({
+      title: "Run the ARPA self-test",
+      reason: "The self-test checks the ARPA's own processing against known test targets. It cannot check the gyro and log that feed it: those only the watchkeeper can check.",
+      look: "ARPA menu: Self-test.",
+    });
+    if (b.maybe("run the ARPA self-test", "The self-test is the only check that the ARPA's own tracking and calculation are working.")) await b.act({ k: "selfTest" }, "ARPA self-test");
     await b.waitSteady([1, 3]);
     b.think("Comparing the heading with the course made good and watching the beacon's true vector.");
+    b.explain({
+      title: "Watch the inputs: heading, speed and a fixed mark",
+      reason: "A wrong gyro or log gives no alarm. With no current here, HDG should equal COG and STW should equal SOG; and Beacon W, which is fixed, should have no true vector. Any difference means a wrong input.",
+      look: "OWN SHIP DATA: HDG, COG, STW, SOG; Beacon W's vector.",
+    });
     if (await b.until(() => b.truthOf("gyro") !== null, 900, 10)) b.think("The fixed beacon shows a true vector and the heading disagrees: the gyro reads high.");
     await b.answerAll(["which", "gyro", "cpaerr"]);
     await b.until(() => b.done("ack"), 240, 10);
@@ -848,10 +1149,32 @@ const SCRIPTS: Record<string, Script> = {
   "radar-10": async (b) => {
     await b.begin();
     const tr = b.ex.track;
-    if (b.maybe("set the parallel index line")) await b.act({ k: "pi", index: 0, bearing: 0, range: 1.5, on: true }, "PI 1: 000°, 1.5 NM to starboard, through Point Light");
-    if (tr && b.maybe("draw a navigation line")) await b.act({ k: "navLine", points: b.onScreen(tr.a, tr.b) }, "Draws the planned track as a navigation line");
+    b.explain({
+      title: "Parallel index line: 000°, 1.5 NM to starboard",
+      reason: "On the planned track (000°) Point Light passes 1.5 NM to starboard. A line drawn parallel to the track, 1.5 NM to starboard of own ship, is where the light's echo must stay. It moves down the line as the ship goes on; if it leaves the line, the ship has left the track by the same amount.",
+      look: "MENU, PI / MAP: parallel index line 1, bearing 000, distance 1.5 (starboard).",
+      rule: "Parallel indexing works with a stabilised picture and a correctly identified mark; it shows cross-track error directly, without plotting fixes.",
+    });
+    if (b.maybe("set the parallel index line", "Without the index line the distance off track can only be found by fixing again and again; the line shows it at a glance.")) await b.act({ k: "pi", index: 0, bearing: 0, range: 1.5, on: true }, "PI 1: 000°, 1.5 NM to starboard, through Point Light");
+    if (tr && b.maybe("draw a navigation line", "The navigation line marks the track (or a limit) on the radar picture, so a drift towards the shoal is seen early.")) {
+      b.explain({ title: "A navigation line along the track", reason: "Drawn on a ground-stabilised, north-up picture, it stays fixed to the ground: the ship's position against it shows at once whether she is on the track or drifting towards the shoal." }, { stop: false });
+      await b.act({ k: "navLine", points: b.onScreen(tr.a, tr.b) }, "Draws the planned track as a navigation line");
+    }
     await b.run();
     await b.answer("cts");
+    b.explain({
+      title: "How I keep on the track",
+      reason: `Steer the course to steer, then every ${b.lv.steerEvery} s compare the light's echo with the index line (the distance off track) and correct the course: a few degrees towards the track for each tenth of a mile off, never more than 15°.`,
+      working: (() => {
+        const cts = courseToSteer(0, Math.max(1, b.w.own.speedThroughWater), b.w.env.current)?.heading ?? 0;
+        const k = Math.round(6 * b.lv.steerGain);
+        return [
+          `Course to steer for the current: ${pad3(cts)}°.`,
+          `Correction: about ${k}° towards the track for each 0.1 NM off it, at most 15°.`,
+          `For example, the light's echo 0.1 NM inside the index line (own ship 0.1 NM to starboard of the track): steer ${pad3(cts - k)}° until it is back on the line.`,
+        ];
+      })(),
+    });
     b.steer(b.lv.steerEvery, async () => {
       const w = b.w;
       const cts = courseToSteer(0, Math.max(1, w.own.speedThroughWater), w.env.current)?.heading ?? 0;
@@ -870,7 +1193,17 @@ const SCRIPTS: Record<string, Script> = {
     b.think("A line of 12 dots: a SART. The survival craft is at the dot nearest own ship.");
     await b.answerAll(["where", "racon", "band"]);
     await b.idle(20);
+    const sart = b.target(1);
+    if (sart) {
+      await b.rangeFor(sart.pos);
+      await b.act({ k: "measure", target: 1 }, "EBL and VRM on the nearest dot of the SART");
+    }
     await b.answerAll(["rng", "brg"]);
+    b.explain({
+      title: "Home on the SART, slowing down as I close",
+      reason: "Steer straight for the dot nearest own ship and keep it on the heading line. Inside about 3 NM slow down (5 kn, then 4 inside 1 NM): the craft is small, people may be in the water, and own ship must be able to stop close to it.",
+      look: "As the range closes the dots grow into arcs and then circles: own ship is very near.",
+    });
     b.steer(b.lv.steerEvery / 2, async () => {
       const t = b.target(1);
       if (!t) return;
@@ -885,15 +1218,25 @@ const SCRIPTS: Record<string, Script> = {
   "radar-22": async (b) => {
     await b.begin();
     await b.run();
+    b.explain({
+      title: "Switch on: warm-up, standby, transmit",
+      reason: "The RADAR key switches the radar on; the transmitter needs to warm up before it may transmit, then waits in STANDBY. The key again starts transmitting.",
+      look: "The RADAR key; the screen shows WARMING UP, then STANDBY.",
+    });
     await b.act({ k: "radarKey" }, "RADAR key: switches on; it warms up");
     await b.until(() => radarPower(b.w) === "standby", 200, 5);
     await b.act({ k: "radarKey" }, "RADAR key again: transmit");
     await b.answer("first");
-    if (b.maybe("raise the brilliance first")) await b.act({ k: "control", id: "brill", value: 70 }, "Brilliance up to 70");
+    if (b.maybe("raise the brilliance first", "With the brilliance low the noise and the echoes cannot be seen, so the gain and the tuning are set blind.")) await b.act({ k: "control", id: "brill", value: 70 }, "Brilliance up to 70");
+    b.explain({
+      title: "Sea and rain clutter to zero, signal processing off",
+      reason: "The gain is set by the noise speckle. Sea and rain clutter controls, and the processing (echo stretch, averaging, interference rejection), all change what is shown, so they are taken out first; otherwise the gain is set wrongly and weak echoes are lost.",
+      look: "GAIN / CLUTTER: SEA and RAIN to 0; under RADAR: ENH, SC/SC and IR off (their letters go dark).",
+    });
     await b.act({ k: "control", id: "stc", value: 0 }, "Sea clutter to zero");
     await b.act({ k: "control", id: "ftc", value: 0 }, "Rain clutter to zero");
     for (const id of ["echoStretch", "echoAvg", "irOn"] as const) {
-      if (id === "irOn" && !b.maybe("switch off the interference rejection")) continue;
+      if (id === "irOn" && !b.maybe("switch off the interference rejection", "With interference rejection on, the noise speckle is thinned out and the gain is then set too high.")) continue;
       await b.act({ k: "processing", id, on: false }, `${id === "echoStretch" ? "Echo stretch" : id === "echoAvg" ? "Echo averaging" : "Interference rejection"} off`);
     }
     const c = b.w.radar.controls;
@@ -910,28 +1253,58 @@ const SCRIPTS: Record<string, Script> = {
       return best;
     };
     b.think("Gain up until a light, even speckle of noise just shows.");
+    b.explain({
+      title: "Gain to a light speckle of noise",
+      reason: "A light, even speckle of noise means the receiver is just sensitive enough for the weakest echoes. With no speckle at all, weak echoes are lost; with heavy speckle they are hidden in the noise.",
+      look: "The picture beyond the sea clutter, on a medium range scale.",
+    });
     await b.act({ k: "control", id: "gain", value: gainFor(c.tuning, 0.1) }, "Gain to a light speckle");
     b.think("Tuning for the greatest extent of the sea clutter and the land to the east.");
+    b.explain({
+      title: "Tune for the most clutter and land",
+      reason: "Sweep the tuning through and stop where the sea clutter and the land to the east show furthest and strongest. That is where the receiver matches the transmitter; a strong ship's echo looks bright even when the tuning is off.",
+      look: "GAIN / CLUTTER: TUNE; the TUNE meter is only a guide.",
+    });
     let tune = Math.round(opt);
     if (b.chance(b.lv.setupSlip)) {
       tune = Math.max(0, Math.min(100, tune + (b.rand(0, 1) < 0.5 ? -1 : 1) * Math.round(b.rand(9, 14))));
-      b.mistake(`Left the tuning at ${tune}, off the best: judged it on a strong echo instead of the clutter.`);
+      b.mistake(`Left the tuning at ${tune}, off the best: judged it on a strong echo instead of the clutter.`, {
+        reason: "A strong echo saturates and looks bright whatever the tuning, so it cannot show the best point. Mistuned, every weak echo is weaker still and may be lost.",
+        rule: "Judge the tuning on the greatest extent of sea clutter, rain or land, or with the performance monitor.",
+      });
     }
     await b.act({ k: "control", id: "tuning", value: Math.max(0, Math.min(100, tune + (tune > 50 ? -8 : 8))) }, "Tuning: sweeping through");
     await b.act({ k: "control", id: "tuning", value: tune }, "Tuning: best picture");
     let gain = gainFor(tune, 0.1);
     if (b.chance(b.lv.setupSlip)) {
       gain = gainFor(tune, 0.45);
-      b.mistake("Set the gain too high: a heavy speckle of noise over the picture.");
+      b.mistake("Set the gain too high: a heavy speckle of noise over the picture.", {
+        reason: "Heavy noise hides weak echoes among the speckle, and the ARPA can take noise for targets.",
+        rule: "A light, even speckle just showing: no more.",
+      });
     }
+    b.explain({ title: "Gain checked again", reason: "Tuning changes the strength of everything shown, so the speckle is checked once more after it." }, { stop: false });
     await b.act({ k: "control", id: "gain", value: gain }, "Gain checked again after tuning");
-    if (b.maybe("go to the 12 NM range scale")) await b.act({ k: "range", nm: 12 }, "Range 12 NM to judge the picture");
-    if (b.maybe("check the performance monitor")) {
+    if (b.maybe("go to the 12 NM range scale", "On a very short scale the picture cannot be judged: the coast and ships far off do not show.")) {
+      b.explain({ title: "12 NM range scale", reason: "A medium range scale shows the coast, the ships and the noise together, so the whole set-up can be judged." }, { stop: false });
+      await b.act({ k: "range", nm: 12 }, "Range 12 NM to judge the picture");
+    }
+    if (b.maybe("check the performance monitor", "In open water with nothing about, a picture without echoes looks the same whether the radar works or not: the monitor proves it does.")) {
+      b.explain({
+        title: "Performance monitor",
+        reason: "The monitor sends a known test signal and shows it as arcs on the picture. If they look as they should, the transmitter and receiver are working properly; weak arcs mean lost performance.",
+        look: "Under RADAR: performance monitor (MON).",
+      });
       await b.act({ k: "pm", on: true }, "Performance monitor on");
       await b.idle(12);
       b.think("The performance monitor's arcs are as they should be.");
       await b.act({ k: "pm", on: false }, "Performance monitor off");
     }
+    b.explain({
+      title: "Sea clutter set for the sea, last",
+      reason: "Only now is the sea clutter control raised, just enough to break up the clutter close round own ship while small echoes in it still show. Too much wipes out small boats near the ship.",
+      look: "GAIN / CLUTTER: SEA.",
+    });
     await b.act({ k: "control", id: "stc", value: 20 }, "Sea clutter set for the sea");
     const n = noiseSpeckle(b.w.radar.controls, opt);
     if (n < 0.04 || n > 0.22) await b.act({ k: "control", id: "gain", value: gainFor(b.w.radar.controls.tuning, 0.1) }, "Gain touched up");
@@ -943,24 +1316,44 @@ const SCRIPTS: Record<string, Script> = {
     await b.begin();
     await b.run();
     b.think("No GNSS: fixing by radar range and bearing of Malabar Point.");
+    b.explain({
+      title: "Fix by radar on Malabar Point",
+      reason: "With the GNSS failed the position must come from the radar. Malabar Point is charted, high and well defined, so its echo can be identified with confidence. Its range and bearing, taken together, fix the ship.",
+      look: "The high ground north of Back Bay; its west tip.",
+    });
     await b.rangeFor(MALABAR_POINT);
     await b.act({ k: "measure", at: MALABAR_POINT }, "EBL and VRM on Malabar Point");
     const m = b.v.measured;
     if (m) b.log("read", `Malabar Point ${m.bearing.toFixed(1)}° ${m.range.toFixed(2)} NM`);
-    await b.answer("rng", m?.range);
-    await b.answer("brg", m?.bearing);
+    await b.answer("rng");
+    await b.answer("brg");
     b.think("Working the fix: latitude 18°56.9' less range × cos(bearing); longitude 072°47.5' less range × sin(bearing) ÷ cos(lat).");
     await b.answerAll(["lat", "lon", "best", "why"]);
     await b.until(() => b.now() >= 900 || distanceToLandNm(b.w) < 2.6, 1200, 10);
+    b.explain({
+      title: "Stand off the land: course 240°",
+      reason: `The ship is closing the coast at 8 kn and is now about ${f1(distanceToLandNm(b.w))} NM off. With no GNSS and no depths shown here, I turn away in good time to keep well outside the 1 NM margin.`,
+      rule: "Keep a margin of safety from the land that allows for the uncertainty of a radar fix.",
+    });
     await b.order(240, null, "standing off the land");
     await b.idle(300);
     await b.finish();
   },
   "radar-24": async (b) => {
     await b.begin();
-    if (b.maybe("set the parallel index line")) await b.act({ k: "pi", index: 0, bearing: 90, range: -GOA_PI_NM, on: true }, `PI 1: 090°, ${GOA_PI_NM.toFixed(2)} NM to port, through Mormugao Point`);
+    b.explain({
+      title: `Parallel index line: 090°, ${GOA_PI_NM.toFixed(2)} NM to port`,
+      reason: `On the planned track (090°) Mormugao Point lies ${GOA_PI_NM.toFixed(2)} NM to port of the track line. A line parallel to the track at that distance is where its echo must stay as the ship approaches; any movement off the line is the ship leaving the track.`,
+      look: "MENU, PI / MAP: bearing 090, distance −0.54 (port).",
+    });
+    if (b.maybe("set the parallel index line", "Without the index line the distance off the planned track is not seen until a fix is worked: in an approach that is too slow.")) await b.act({ k: "pi", index: 0, bearing: 90, range: -GOA_PI_NM, on: true }, `PI 1: 090°, ${GOA_PI_NM.toFixed(2)} NM to port, through Mormugao Point`);
     await b.run();
     await b.answerAll(["vrm", "cts"]);
+    b.explain({
+      title: "The approach: keep on the line, slow down, let go at the VRM",
+      reason: "Steer the course to steer and correct by the index line. The anchor must go down with almost no way on, so the speed comes off in steps: 6 kn inside 3 NM, 3 kn inside 1.2 NM, then astern to stop. Let go when the point's echo meets the VRM ring and the ship is below 1 kn over the ground.",
+      rule: "Plan the speed reduction: a ship carries her way a long distance.",
+    });
     const w = (): World => b.w;
     b.steer(Math.min(30, b.lv.steerEvery), async () => {
       const x = w();
@@ -976,9 +1369,14 @@ const SCRIPTS: Record<string, Script> = {
     b.steer(null);
     if (b.w.own.anchor) {
       b.think("Anchored. Anchor watch on the anchorage buoy.");
+      b.explain({
+        title: "Anchor watch on the anchorage buoy",
+        reason: "At anchor the ship should stay put. The ARPA's anchor watch marks a fixed echo and alarms if its range or bearing from own ship changes by more than a set amount: that is own ship moving, dragging her anchor. A moored buoy is a good mark; a ship at anchor is not (she swings).",
+        look: "Select the buoy's track, then Anchor watch: On, selected target.",
+      });
       await b.acquire([4]);
       await b.waitSteady([4], 300);
-      if (b.track(4) && b.maybe("set the anchor watch")) {
+      if (b.track(4) && b.maybe("set the anchor watch", "Without the anchor watch a dragging anchor is found only at the next position check, or when the ship is already in danger.")) {
         await b.act({ k: "select", target: 4 }, `Selects ${b.name(4)}`);
         await b.act({ k: "anchorWatch" }, "Anchor watch on the selected target");
         if (b.a.settings.anchorWatch.trackId === null) {
@@ -998,6 +1396,12 @@ const SCRIPTS: Record<string, Script> = {
     await b.begin();
     await b.run();
     await b.answerAll(["side", "xtdmean"]);
+    b.explain({
+      title: "How I keep on the route",
+      reason: `For the leg I am on, work out the course to steer for the current and steer it; every ${Math.min(30, b.lv.steerEvery)} s look at the XTD and steer a little towards the track when off it. Half a mile before each waypoint, change to the next leg: a ship takes time to turn, so the turn starts early.`,
+      look: "EBL / CURSOR panel: the next waypoint, its bearing and distance, and XTD (S = starboard of the leg, P = port).",
+      working: ctsLines(b.rc(), 40),
+    });
     b.steer(Math.min(30, b.lv.steerEvery), async () => {
       const x = b.w;
       const leg = advanceLeg(ROUTE_27, x.own.pos, 0, 0.5);
@@ -1021,20 +1425,38 @@ const SCRIPTS: Record<string, Script> = {
     await b.answerAll(["lane", "ferry", "cross"]);
     b.think("The ferry crosses from starboard: own ship gives way (rule 15). A turn would take us across the lane, so we slow down.");
     let speed = 5;
+    const tried: string[] = [];
     for (const sp of [8, 6, 5, 4]) {
-      if (b.trialRows(b.w.own.ordered.course, sp).every((r) => r.cpa >= 0.8 || r.tcpa <= 0.01)) {
+      const rows = b.trialRows(b.w.own.ordered.course, sp);
+      const ok = rows.every((r) => r.cpa >= 0.8 || r.tcpa <= 0.01);
+      tried.push(`${sp} kn: ${rows.filter((r) => r.tcpa > 0.01).map((r) => `${r.name} ${r.cpa.toFixed(1)}`).join(", ")} NM ${ok ? "→ every ship 0.8 NM or more" : "→ not enough"}`);
+      if (ok) {
         speed = sp;
         break;
       }
     }
+    b.explain({
+      title: `Decision: give way to the ferry by slowing to ${speed} kn`,
+      reason: "The ferry is crossing from starboard with risk of collision, so own ship keeps out of her way. A turn to starboard would take us across our lane towards the ships coming up astern and the slow ship ahead; slowing down lets the ferry cross ahead with room, and keeps us in the lane with the flow. The slowest speed tried first that clears every ship is taken.",
+      rule: "Rule 15 (crossing) and Rule 16 (early and substantial action); Rule 8: a large reduction of speed is as apparent as an alteration; Rule 10: keep in the lane.",
+      working: [dataLine(b.rc(), 1), ...tried],
+    });
     await b.showTrial(b.w.own.ordered.course, speed);
     if (b.chance(b.lv.lateAction)) {
-      b.mistake("Slowed down late.");
+      b.mistake("Slowed down late.", {
+        reason: "The ferry is fast (18 kn): every minute of delay brings her much closer, and a late reduction leaves her too little room to cross.",
+        rule: "Rule 16: the give-way vessel takes early and substantial action.",
+      });
       await b.idle(b.rand(120, 240));
     }
     await b.order(null, speed, "giving way to the ferry");
     await b.until(() => (truthCpa(b.w, 1)?.tcpaMinutes ?? 0) <= 0 && b.now() >= 900, 1200, 10);
     b.think("The ferry is past and clear: back to 12 knots, following the slow ship's progress.");
+    b.explain({
+      title: "Resume 12 kn",
+      reason: "The ferry is past her closest approach and opening. Back to the passage speed, keeping an eye on the slow ship ahead in our lane.",
+      working: [dataLine(b.rc(), 1), dataLine(b.rc(), 2)],
+    });
     await b.order(null, 12, "resuming speed");
     await b.until(() => b.now() >= 1800 && b.clearOfAll(0.5), 1200, 10);
     await b.finish();
@@ -1048,10 +1470,25 @@ const SCRIPTS: Record<string, Script> = {
     b.log("read", "LOOK-OUT: MAN OVERBOARD, STARBOARD SIDE!");
     const react = b.lv.level >= 4 ? b.rand(1, 4) : b.rand(b.lv.hesitate[0], b.lv.hesitate[1] * 1.6);
     await b.idle(react);
-    if (react > 30) b.mistake(`Pressed MOB ${Math.round(react)} s after the report.`);
+    if (react > 30) {
+      b.mistake(`Pressed MOB ${Math.round(react)} s after the report.`, {
+        reason: `At 14 kn the ship runs about 7 m every second: ${Math.round(react)} s puts the mark about ${Math.round(react * 7.2)} m from where the person went in, and a person in the water gives no radar echo.`,
+        rule: "Mark the position the moment the report is heard.",
+      });
+    }
+    b.explain({
+      title: "MOB key at once",
+      reason: "A person in the water gives no radar echo and is soon lost from sight. The MOB key marks the ship's position at that moment on the radar: it is the datum for coming back and for any search.",
+      look: "SHIP CONTROL, or the own ship keys in the menu: MOB.",
+    });
     await b.act({ k: "mob" }, "MOB key: the position is marked");
     const course0 = b.w.own.ordered.course;
     const wh = williamsonHeadings(course0, "starboard");
+    b.explain({
+      title: "Williamson turn: hard a-starboard",
+      reason: `The person fell from the starboard side: hard a-starboard swings the stern and propeller away from him. The Williamson turn then brings the ship back along her own track: at ${pad3(wh.first)}° (60° off) hard a-port, then steady on the reciprocal, ${pad3(wh.reciprocal)}°.`,
+      rule: "The Williamson turn is slower than some, but returns the ship to her track: good at night or in poor visibility, when the person cannot be seen.",
+    });
     await b.act({ k: "helm", deg: 35 }, "Hard a-starboard (Williamson turn)");
     await b.answerAll(["rudder", "shift"]);
     await b.until(() => Math.abs(angleDiffDeg(measuredHeading(b.w), course0)) >= 60, 300, 1);
@@ -1059,7 +1496,12 @@ const SCRIPTS: Record<string, Script> = {
     await b.until(() => Math.abs(angleDiffDeg(measuredHeading(b.w), wh.reciprocal)) <= 25, 600, 1);
     await b.act({ k: "autopilot", course: wh.reciprocal }, `Steady on ${pad3(wh.reciprocal)}°, back along the track`);
     await b.order(null, 8, "reducing speed");
-    if (b.maybe("lay a search pattern from the MOB mark")) await b.act({ k: "search", size: 0.5, course: wh.reciprocal }, "Expanding square from the MOB mark, spacing 0.5 NM");
+    b.explain({
+      title: "Lay an expanding square from the MOB mark",
+      reason: "If the person is not seen on the way back, the search starts at the datum (the MOB mark) and spreads out from it. An expanding square covers the area round a datum that is known well, as here.",
+      look: "MENU, PI / MAP: search pattern, datum MOB mark, expanding square, spacing 0.5 NM.",
+    });
+    if (b.maybe("lay a search pattern from the MOB mark", "Without a pattern ready, a search after a failed return starts late and covers the area unevenly.")) await b.act({ k: "search", size: 0.5, course: wh.reciprocal }, "Expanding square from the MOB mark, spacing 0.5 NM");
     await b.answer("legs");
     b.steer(15, async () => {
       const m = b.v.mob;
@@ -1081,8 +1523,16 @@ const SCRIPTS: Record<string, Script> = {
     await b.answerAll(["factors", "r19", "rain"]);
     await b.until(() => b.now() >= FOG_AT_SEC, FOG_AT_SEC + 10, 1);
     b.log("read", "The visibility has closed in.");
+    b.explain({
+      title: "Visibility closed: down to 5 kn",
+      reason: "Fishing boats are reported in the rain ahead and the rain hides small echoes on X band. At 16 kn the ship would cover the distance at which a boat might first be seen in a few minutes, and could not stop in it. 5 kn gives time to see, to act and to stop. The exercise asks for 8 kn or less within 8 minutes (placeholders).",
+      rule: "Rule 6: a safe speed, so that the ship can stop within a distance suited to the conditions; Rule 19(b): engines ready for immediate manoeuvre.",
+    });
     if (b.chance(b.lv.lateAction)) {
-      b.mistake("Kept the speed up for several minutes after the visibility closed.");
+      b.mistake("Kept the speed up for several minutes after the visibility closed.", {
+        reason: "At full speed in fog with boats about that the radar may not show, the ship cannot stop or turn in the distance she can see.",
+        rule: "Rule 6 and Rule 19(b): safe speed at once when the visibility closes.",
+      });
       await b.idle(b.rand(300, 600));
     } else await b.hesitate();
     await b.order(null, 5, "safe speed in restricted visibility (rule 6)");

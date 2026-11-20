@@ -1250,6 +1250,60 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
   check(`${tag} no script errors`, errs.length === 0, errs.join("; "));
   await p.close();
 }
+
+// The robot student's reasons: TEACH stops it at each one until NEXT, with the clock held, and the reasons stay in the log.
+{
+  const p = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const errs = [];
+  p.on("pageerror", (e) => errs.push(e.message));
+  await p.goto(html + "#demo");
+  await p.waitForTimeout(400);
+  const tag = "[#demo TEACH]";
+  await p.selectOption("#rbEx", "arpa-1");
+  await p.selectOption("#rbLevel", "5");
+  await p.selectOption("#rbSpeed", "20");
+  await p.check("#rbTeach");
+  await p.click("#rbStart");
+  await p.waitForFunction(() => !document.getElementById("rbNext").disabled, null, { timeout: 60000 }).catch(() => undefined);
+  const first = await p.evaluate(() => ({
+    next: !document.getElementById("rbNext").disabled,
+    card: !document.getElementById("rbCard").hidden,
+    title: document.querySelector("#rbCard .rbWhyTitle")?.textContent ?? "",
+    working: document.querySelectorAll("#rbCard .rbWork div").length,
+  }));
+  check(`${tag} it stops at its first reason, its plan, shown on the card with NEXT`, first.next && first.card && /^My plan for exercise 1$/.test(first.title) && first.working >= 3, JSON.stringify(first));
+  // NEXT by the button, by the card's own key and by the space bar; the clock waits while it stops.
+  await p.click("#rbNext");
+  await p.waitForFunction(() => !document.getElementById("rbNext").disabled && !/My plan/.test(document.querySelector("#rbCard .rbWhyTitle")?.textContent ?? ""), null, { timeout: 60000 }).catch(() => undefined);
+  const t0 = await p.evaluate(() => window.__simTest.time());
+  await p.waitForTimeout(1500);
+  const t1 = await p.evaluate(() => window.__simTest.time());
+  const second = await p.evaluate(() => document.querySelector("#rbCard .rbWhyTitle")?.textContent ?? "");
+  check(`${tag} NEXT goes on to the next reason, and the clock waits meanwhile`, /^Acquire Ship A/.test(second) && t0 === t1, `${second} ${t0} ${t1}`);
+  await p.click("#rbCardNext");
+  await p.waitForFunction((s) => !document.getElementById("rbNext").disabled && (document.querySelector("#rbCard .rbWhyTitle")?.textContent ?? "") !== s, second, { timeout: 120000 }).catch(() => undefined);
+  const third = await p.evaluate(() => document.querySelector("#rbCard .rbWhyTitle")?.textContent ?? "");
+  await p.keyboard.press("Space");
+  await p.waitForFunction((s) => !document.getElementById("rbNext").disabled && (document.querySelector("#rbCard .rbWhyTitle")?.textContent ?? "") !== s, third, { timeout: 300000 }).catch(() => undefined);
+  const fourth = await p.evaluate(() => ({ title: document.querySelector("#rbCard .rbWhyTitle")?.textContent ?? "", work: [...document.querySelectorAll("#rbCard .rbWork div")].map((d) => d.textContent).join(" | ") }));
+  check(`${tag} the card's NEXT and the space bar go on too; an answer shows its working`, /^Wait for steady data$/.test(third) && /^CPA of Ship A from the ARPA data: \d/.test(fourth.title) && /CPA = range × sin\(angle\)/.test(fourth.work), `${third} / ${fourth.title} / ${fourth.work.slice(0, 160)}`);
+  // TEACH off: it carries on to the end by itself; every answer was credited.
+  await p.uncheck("#rbTeach");
+  await p.waitForFunction(() => !document.getElementById("rbStart").disabled, null, { timeout: 240000, polling: 500 }).catch(() => undefined);
+  const end = await p.evaluate(() => ({
+    result: [...document.querySelectorAll("#rbLog .result")].map((e) => e.textContent).join(" "),
+    whys: document.querySelectorAll("#rbLog .why.hasWhy").length,
+    card: !document.getElementById("rbCard").hidden,
+  }));
+  check(`${tag} with TEACH turned off it finishes by itself, every item credited, the card put away`, /Result 50 of 50 \(100%\)/.test(end.result) && end.whys >= 6 && !end.card, JSON.stringify(end));
+  // A reason in the log can be looked at again, on the card.
+  await p.locator("#rbLog .why.hasWhy").nth(1).click();
+  const again = await p.evaluate(() => ({ card: !document.getElementById("rbCard").hidden, head: document.querySelector("#rbCard .rbWhyHead")?.textContent ?? "", title: document.querySelector("#rbCard .rbWhyTitle")?.textContent ?? "" }));
+  check(`${tag} a WHY line of the log opens that reason again`, again.card && /\(from \d+:\d\d\)/.test(again.head) && /^Acquire Ship A/.test(again.title), JSON.stringify(again));
+  await p.click("#rbCardClose");
+  check(`${tag} no script errors`, errs.length === 0, errs.join("; "));
+  await p.close();
+}
 await browser.close();
 console.log(fails.length ? `\n${fails.length} FAILED` : "\nAll screen checks passed");
 process.exit(fails.length ? 1 : 0);

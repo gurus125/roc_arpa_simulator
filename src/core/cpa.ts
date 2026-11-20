@@ -71,3 +71,44 @@ export function minRangeOnSegment(
   const p = add(relPos, scale(relVel, t));
   return { range: length(p), time: t };
 }
+
+/** The CPA worked as on a plotting sheet, step by step (see `cpaWorking`). */
+export interface CpaWorking {
+  /** Range and true bearing of the target now, NM and degrees. */
+  rangeNm: number;
+  bearingDeg: number;
+  /** Direction (degrees true) and rate (knots) of the target's relative motion. */
+  relCourseDeg: number;
+  relSpeedKn: number;
+  /**
+   * Angle between the relative track and the line from the target to own ship, degrees (0 to 180). Under 90 the
+   * target is closing; over 90 it is opening and its closest approach is past.
+   */
+  angleDeg: number;
+  /** CPA = range × sin(angle), NM; the run along the relative track to that point = range × cos(angle), NM. */
+  cpaNm: number;
+  runToCpaNm: number;
+  /** TCPA = run ÷ relative speed, minutes (negative when opening; null with no relative motion). */
+  tcpaMin: number | null;
+}
+
+/**
+ * The CPA and TCPA worked the way a plotting sheet does it, for teaching: from the range and bearing of the target
+ * and its relative motion, through the angle between its relative track and the line to own ship. Gives the same
+ * CPA and TCPA as `computeCpa`; this one also returns the steps.
+ */
+export function cpaWorking(relPos: Vec2, relVel: Vec2): CpaWorking {
+  const rangeNm = length(relPos);
+  const bearingDeg = bearingOf(relPos);
+  const relSpeedKn = length(relVel);
+  const relCourseDeg = relSpeedKn < 1e-9 ? 0 : bearingOf(relVel);
+  if (relSpeedKn < 1e-9 || rangeNm < 1e-9) return { rangeNm, bearingDeg, relCourseDeg, relSpeedKn, angleDeg: 0, cpaNm: rangeNm, runToCpaNm: 0, tcpaMin: relSpeedKn < 1e-9 ? null : 0 };
+  // The line from the target to own ship runs on the reciprocal of the bearing.
+  const towardsOwn = (bearingDeg + 180) % 360;
+  let angleDeg = Math.abs(((relCourseDeg - towardsOwn + 540) % 360) - 180);
+  if (angleDeg > 180) angleDeg = 360 - angleDeg;
+  const a = (angleDeg * Math.PI) / 180;
+  const cpaNm = rangeNm * Math.sin(a);
+  const runToCpaNm = rangeNm * Math.cos(a);
+  return { rangeNm, bearingDeg, relCourseDeg, relSpeedKn, angleDeg, cpaNm, runToCpaNm, tcpaMin: hoursToMinutes(runToCpaNm / relSpeedKn) };
+}
