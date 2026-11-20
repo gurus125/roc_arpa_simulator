@@ -10,7 +10,7 @@
     "build": "node scripts/build.mjs",
     "serve": "node server/server.mjs",
     "test:screen": "node scripts/screen-test.mjs",
-    "selftest": "vitest run tests/selftest.test.ts",
+    "selftest": "vitest run tests/selftest",
     "test:link": "node scripts/link-test.mjs"
   },
   "devDependencies": {

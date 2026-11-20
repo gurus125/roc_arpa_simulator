@@ -9,7 +9,7 @@ import { World, logSpeed, measuredHeading, ownCogSog } from "../engine/index";
 import { offRoute, ROUTE_27 } from "./nav-exercises";
 import { PLOT_RULES } from "./plotting-exercises";
 import { GOA_ANCHOR, MORMUGAO_POINT } from "./port-exercises";
-import { ArpaExercise, ChoiceTask, NumberTask } from "./session";
+import type { ArpaExercise, ChoiceTask, NumberTask } from "./session";
 
 /**
  * Why the robot student does what it does: the reason for every answer and decision, the rule or principle behind
@@ -76,6 +76,24 @@ const minLat = (lat: number): string => `${Math.floor(lat)}°${((lat - Math.floo
 const minLon = (lon: number): string => `${String(Math.floor(lon)).padStart(3, "0")}°${((lon - Math.floor(lon)) * 60).toFixed(1)}'E`;
 
 // ---------------------------------------------------------------- reading the ARPA
+
+/**
+ * The ARPA's trial manoeuvre for a course and speed, as it would show it: each tracked target's predicted CPA and
+ * TCPA (nothing on the ARPA is changed). `nameOf` names a target by its id in the scenario.
+ */
+export function arpaTrialRows(w: World, a: ArpaSystem, nameOf: (id: number) => string, course: number, speed: number, delayMin = 1): { name: string; cpa: number; tcpa: number }[] {
+  const st = a.settings;
+  const saved = { ...st.trial };
+  st.trial = { on: false, course: normalizeDeg(course), speed, delayMinutes: delayMin };
+  try {
+    return a.trial(w).map((r) => {
+      const tr = a.tracks.find((t) => t.id === r.trackId);
+      return { name: tr?.truthId != null ? nameOf(tr.truthId) : `track ${r.trackId}`, cpa: r.result.cpa, tcpa: r.result.tcpaMinutes };
+    });
+  } finally {
+    st.trial = saved;
+  }
+}
 
 /** The track's data as the target data panel shows it, or null while it has none worth reading. */
 function est(c: ReasonCtx, id: number): NonNullable<Track["est"]> | null {

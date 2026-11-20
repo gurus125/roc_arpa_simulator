@@ -277,6 +277,28 @@ export function seaClutterProbability(w: World, rangeNm: number, relBearing: num
   return clamp((level - 0.8 * THRESHOLD) / THRESHOLD, 0, 1) * (c.echoAverage ? 0.3 : 1);
 }
 
+/**
+ * `seaClutterProbability` for many points of one scan: what does not change from point to point (the receiver, the
+ * pulse, the band, the direction of the sea) is worked out once. The same arithmetic in the same order, so the
+ * same results to the last digit.
+ */
+export function seaClutterSampler(w: World, c: RadarControls = w.radar.controls): (rangeNm: number, relBearing: number) => number {
+  if (w.env.seaState <= 0) return () => 0;
+  const sens = sensitivity(c, w.radar.tuningOptimum);
+  const wind = w.env.wind;
+  const seaFrom = wind && wind.speedKn > 0 ? wind.from : SEA_FROM_DEFAULT_DEG;
+  const band = w.radar.band === "S" ? Math.sqrt(BAND_DATA.X.wavelengthCm / BAND_DATA.S.wavelengthCm) : 1;
+  const cpf = clutterPulseFactor(c.rangeNm, c.pulse, c.prfHz);
+  const seaState = w.env.seaState;
+  const heading = w.own.heading;
+  const avg = c.echoAverage ? 0.3 : 1;
+  return (rangeNm, relBearing) => {
+    const windward = Math.cos((angleDiffDeg(heading + relBearing, seaFrom) * Math.PI) / 180);
+    const level = seaClutter(rangeNm, seaState, windward) * cpf * band * sens * stcAttenuation(rangeNm, c.stc) * shadowFactor(w.radar, normalizeDeg(relBearing));
+    return clamp((level - 0.8 * THRESHOLD) / THRESHOLD, 0, 1) * avg;
+  };
+}
+
 /** Range at which rain clutter has the strength 3 x the square root of the intensity, before the controls. A PLACEHOLDER scale. */
 export const RAIN_CLUTTER_REF_NM = 2;
 

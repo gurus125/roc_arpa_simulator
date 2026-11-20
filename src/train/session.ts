@@ -6,6 +6,7 @@ import { advanceLeg } from "../core/route";
 import { tssConduct } from "../core/tss";
 import { Scenario, Target, World, currentVelocity, inSight, ownGroundVelocity, radarTransmitting, visibilityNm } from "../engine/index";
 import { ArpaSystem } from "../arpa/index";
+import type { RobotWhy } from "./robot-reasons";
 
 /**
  * ARPA exercise sessions: what the student is asked, what the session watches, and how the
@@ -227,6 +228,8 @@ export interface ResultItem {
   max: number;
   /** The trainee at the controls when the answer was given or the action done. Left out for what is judged from the whole exercise. */
   by?: string;
+  /** Why the correct answer is right, the rule behind it and the working, for the debrief (when the session has an `explain`). */
+  why?: RobotWhy;
 }
 export interface ExerciseResult {
   exerciseId: string;
@@ -248,9 +251,59 @@ export const targetById = (w: World, id: number): Target | undefined => w.target
 
 /** Distance from own ship to the nearest coastline, NM (Infinity when there is none). */
 export function distanceToLandNm(w: World): number {
+  if (w.edges.length === 0) return Infinity;
+  // Squares outward from own ship's, nearest first, until no edge in a further square can be nearer than the nearest
+  // found: an edge first met in the ring k squares out is at least (k - 1) squares' width away. The same answer as
+  // measuring every edge, found sooner.
+  const ix = edgeIndex(w.edges);
+  const p = w.own.pos;
+  const ci = Math.floor(p.e / EDGE_SQUARE_NM), cj = Math.floor(p.n / EDGE_SQUARE_NM);
+  const last = Math.max(Math.abs(ci - ix.i0), Math.abs(ci - ix.i1), Math.abs(cj - ix.j0), Math.abs(cj - ix.j1));
+  const done = new Set<number>();
   let best = Infinity;
-  for (const e of w.edges) best = Math.min(best, distanceToSegment(w.own.pos, e.a, e.b));
+  for (let k = 0; k <= last; k++) {
+    for (let i = ci - k; i <= ci + k; i++) {
+      for (let j = cj - k; j <= cj + k; j++) {
+        if (Math.max(Math.abs(i - ci), Math.abs(j - cj)) !== k) continue;
+        for (const n of ix.squares.get(`${i},${j}`) ?? []) {
+          if (done.has(n)) continue;
+          done.add(n);
+          const e = w.edges[n]!;
+          best = Math.min(best, distanceToSegment(p, e.a, e.b));
+        }
+      }
+    }
+    if (best <= k * EDGE_SQUARE_NM) break;
+  }
   return best;
+}
+
+/** Side of the squares the coastline's edges are filed in for `distanceToLandNm`, NM. */
+const EDGE_SQUARE_NM = 2;
+const edgeIndexes = new WeakMap<object, { squares: Map<string, number[]>; i0: number; i1: number; j0: number; j1: number }>();
+/** Each edge filed in every square its bounding box touches; worked out once for each coastline. */
+function edgeIndex(edges: { a: Vec2; b: Vec2 }[]): { squares: Map<string, number[]>; i0: number; i1: number; j0: number; j1: number } {
+  const hit = edgeIndexes.get(edges);
+  if (hit) return hit;
+  const squares = new Map<string, number[]>();
+  let i0 = Infinity, i1 = -Infinity, j0 = Infinity, j1 = -Infinity;
+  edges.forEach((e, n) => {
+    const a0 = Math.floor(Math.min(e.a.e, e.b.e) / EDGE_SQUARE_NM), a1 = Math.floor(Math.max(e.a.e, e.b.e) / EDGE_SQUARE_NM);
+    const b0 = Math.floor(Math.min(e.a.n, e.b.n) / EDGE_SQUARE_NM), b1 = Math.floor(Math.max(e.a.n, e.b.n) / EDGE_SQUARE_NM);
+    i0 = Math.min(i0, a0);
+    i1 = Math.max(i1, a1);
+    j0 = Math.min(j0, b0);
+    j1 = Math.max(j1, b1);
+    for (let i = a0; i <= a1; i++) for (let j = b0; j <= b1; j++) {
+      const key = `${i},${j}`;
+      const l = squares.get(key);
+      if (l) l.push(n);
+      else squares.set(key, [n]);
+    }
+  });
+  const ix = { squares, i0, i1, j0, j1 };
+  edgeIndexes.set(edges, ix);
+  return ix;
 }
 
 /** Real CPA/TCPA of a target now (both ships over the ground). */
@@ -293,6 +346,8 @@ interface AnswerRec {
   time: number;
   /** The trainee at the controls when the answer was given ("" or left out: not named). */
   by?: string;
+  /** Why the correct answer is right, with the working from the screen at the moment of the answer (see `explain`). */
+  why?: RobotWhy;
 }
 
 export class ArpaExSession {
@@ -497,6 +552,22 @@ export class ArpaExSession {
   }
 
   /** Record the student's answer to a number or choice task. Returns false when it cannot be answered yet. */
+  /**
+   * Gives the reason for a task's correct answer from the screen now (set by the display: train/explain.ts). Each
+   * answer keeps the reason as it was when it was given; the others are worked out at Finish.
+   */
+  explain: ((t: ArpaTask, c: TaskCtx) => RobotWhy | null) | null = null;
+  private whyOf(t: ArpaTask, c: TaskCtx): { why?: RobotWhy } {
+    if (!this.explain) return {};
+    try {
+      const why = this.explain(t, c);
+      return why ? { why } : {};
+    } catch {
+      // A reason is a help, never a reason for an answer or a result to fail.
+      return {};
+    }
+  }
+
   answer(w: World, a: ArpaSystem, taskId: string, value: number): boolean {
     const t = this.def.tasks.find((x) => x.id === taskId);
     if (!t || this.finished) return false;
@@ -506,12 +577,12 @@ export class ArpaExSession {
       if (truth === null || !Number.isFinite(value)) return false;
       const err = t.circular ? Math.abs(angleDiffDeg(value, truth)) : Math.abs(value - truth);
       const shown = t.circular ? normalizeDeg(truth) : truth;
-      this.answers.set(taskId, { text: `${value} ${t.unit}`, correct: `${shown.toFixed(t.unit === "°" || t.unit === "min" ? 0 : 1)} ${t.unit} (±${t.tol(this.cfg)})`, ok: err <= t.tol(this.cfg) + 1e-9, time: w.time, ...(this.controls ? { by: this.controls } : {}) });
+      this.answers.set(taskId, { text: `${value} ${t.unit}`, correct: `${shown.toFixed(t.unit === "°" || t.unit === "min" ? 0 : 1)} ${t.unit} (±${t.tol(this.cfg)})`, ok: err <= t.tol(this.cfg) + 1e-9, time: w.time, ...(this.controls ? { by: this.controls } : {}), ...this.whyOf(t, c) });
       return true;
     }
     if (t.kind === "choice") {
       const right = t.correct(c);
-      this.answers.set(taskId, { text: t.choices[value] ?? "?", correct: t.choices[right] ?? "?", ok: value === right, time: w.time, ...(this.controls ? { by: this.controls } : {}) });
+      this.answers.set(taskId, { text: t.choices[value] ?? "?", correct: t.choices[right] ?? "?", ok: value === right, time: w.time, ...(this.controls ? { by: this.controls } : {}), ...this.whyOf(t, c) });
       return true;
     }
     return false;
@@ -524,17 +595,17 @@ export class ArpaExSession {
       if (t.kind === "number" || t.kind === "choice") {
         const r = this.answers.get(t.id);
         const max = this.cfg.points.question;
-        return { id: t.id, label: t.prompt, kind: t.kind, student: r ? r.text : "not answered", correct: r ? r.correct : "-", ok: !!r?.ok, points: r?.ok ? max : 0, max, ...(r?.by ? { by: r.by } : {}) };
+        return { id: t.id, label: t.prompt, kind: t.kind, student: r ? r.text : "not answered", correct: r ? r.correct : "-", ok: !!r?.ok, points: r?.ok ? max : 0, max, ...(r?.by ? { by: r.by } : {}), ...(r ? (r.why ? { why: r.why } : {}) : this.whyOf(t, c)) };
       }
       if (t.kind === "action") {
         const ok = this.actionsDone.has(t.id) || t.done(c);
         const max = this.cfg.points.action;
         const by = this.actionBy.get(t.id);
-        return { id: t.id, label: t.prompt, kind: t.kind, student: ok ? "done" : "not done", correct: "done", ok, points: ok ? max : 0, max, ...(by ? { by } : {}) };
+        return { id: t.id, label: t.prompt, kind: t.kind, student: ok ? "done" : "not done", correct: "done", ok, points: ok ? max : 0, max, ...(by ? { by } : {}), ...this.whyOf(t, c) };
       }
       const j = t.judge(c);
       const max = this.cfg.points.safety;
-      return { id: t.id, label: t.prompt, kind: t.kind, student: j.detail, correct: "", ok: j.ok, points: j.ok ? max : 0, max };
+      return { id: t.id, label: t.prompt, kind: t.kind, student: j.detail, correct: "", ok: j.ok, points: j.ok ? max : 0, max, ...this.whyOf(t, c) };
     });
     const limit = timeLimitMin(this.def, this.cfg);
     if (limit !== null) {

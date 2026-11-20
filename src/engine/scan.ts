@@ -4,13 +4,14 @@ import { Vec2, add, fromPolar, length, normalizeDeg, scale, sub } from "../core/
 import { footOfPerpendicular, mirrorPoint, reflectionPoint } from "../core/falseecho";
 import {
   THRESHOLD, detectionProbability, effectiveSignal, maskedByClutter, noiseDensity, rainClutterProbability, rainIntensityAt,
-  relativeBearing, seaClutterProbability, sensitivity, stcAttenuation, tuningFactor,
+  relativeBearing, seaClutterSampler, sensitivity, stcAttenuation, tuningFactor,
 } from "./signal";
 import { World } from "./types";
 import { pulseEnergyFactor, pulseFor, rcsForDetectionRange, shorelineDetectionNm, unambiguousRangeNm } from "./band";
 import { NM_M, effectiveEarthRadiusM, elevationAngle, isLandAt, landFaceDetectionNm, terrainHides, visibleLand } from "./terrain";
 import { BAND_DATA } from "./band";
 import { pointInPolygon } from "../core/nav";
+import { TEXTURE, fadeDraw, rainTexture, seaTexture } from "./texture";
 
 export type HitKind =
   | "target" | "coast" | "multiple" | "sidelobe" | "sea-clutter" | "rain-clutter" | "noise" | "racon" | "sart" | "ramark" | "second-trace" | "interference"
@@ -346,8 +347,11 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
     // is not touched, one that comes and goes (a small boat or a buoy in a seaway) is shown less often
     // (Radar and ARPA Manual, 3rd edition, 3.6.3.4). Two scans: the chance of being painted is squared.
     const pd = detectionProbability(e);
+    // In a seaway a buoy or small craft fades for several scans together and comes back (engine/texture.ts): the
+    // draw is spread evenly, as a random number is, so it is painted on the same share of scans in the long run.
+    const fades = (t.kind === "buoy" || t.kind === "small-craft") && w.env.seaState >= TEXTURE.fadeFromSeaState;
     // A target weaker than the sea or rain clutter around it cannot be shown, whatever the controls.
-    if (inWedge(rel) && !hidden() && rng() < (c.echoAverage ? pd * pd : pd) && !maskedByClutter(w, sig, e)) {
+    if (inWedge(rel) && !hidden() && (fades ? fadeDraw(t.id, w.time) : rng()) < (c.echoAverage ? pd * pd : pd) && !maskedByClutter(w, sig, e)) {
       // The paint starts at the target's nearest face and runs outward (the pulse's length lies behind it), so the
       // range is measured to the near edge of the echo (Radar and ARPA Manual, 3rd edition, 2.8.5.1 and 6.6.1).
       const along = lenM > 0 ? targetExtents(lenM, aspect, t.beamM).alongM / NM_M : 0;
@@ -473,20 +477,29 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
     hits.push({ pos: { ...s.pos }, strength: clamp(e / (THRESHOLD * 4), 0.35, 1), kind: "coast", size: 3, arcDeg: land.arcDeg, depthNm: land.depthNm + landDepthNm(s.heightM), outward: true });
   }
 
-  // Sea clutter: a patch of speckle round own ship. STC removes it, and small close targets with it.
+  // Sea clutter: a patch of speckle round own ship. STC removes it, and small close targets with it. It is spiky:
+  // each patch of sea has its own strength on each scan (engine/texture.ts), so the speckle gathers in bright streaks
+  // along the crests that change from one scan to the next. Where the clutter is solid, close to own ship, it stays
+  // solid; the mean density is that of seaClutterProbability everywhere.
   if (w.env.seaState > 0) {
     const trials = Math.ceil(width * 40);
     const maxR = Math.min(c.rangeNm, 5);
+    const clutterAt = seaClutterSampler(w);
     for (let i = 0; i < trials; i++) {
       const r = Math.max(minRangeFloor(c.rangeNm), maxR * Math.pow(rng(), 2));
       const rel = start + width * rng();
       const tb = normalizeDeg(rel + heading);
-      const p = seaClutterProbability(w, r, rel);
-      if (rng() < p) {
-        const pos = add(w.own.pos, fromPolar(tb, r));
+      const p = clutterAt(r, rel);
+      if (p <= 0) {
+        rng();
+        continue;
+      }
+      const pos = add(w.own.pos, fromPolar(tb, r));
+      const tex = seaTexture(w, pos);
+      if (rng() < Math.min(1, p * (1 + (1 - p) * (tex - 1)))) {
         // No sea clutter on land, nor on water in the shadow of land.
         if (isLand(w, pos) || landHides(w, pos, 1)) continue;
-        hits.push({ pos, strength: 0.45, kind: "sea-clutter", size: 1.6 });
+        hits.push({ pos, strength: clamp(0.3 + 0.15 * tex, 0.3, 1), kind: "sea-clutter", size: 1.3 + 0.3 * Math.min(tex, 4) });
       }
     }
   }
@@ -500,8 +513,11 @@ export function scanWedge(w: World, aFrom: number, aTo: number, rng: () => numbe
       const tb = normalizeDeg(rel + heading);
       const pos = add(w.own.pos, fromPolar(tb, r));
       if (rainIntensityAt(w, pos) <= 0) continue;
+      // Rain is irregular: a ragged edge, a heavier core and lumps that drift with the wind (engine/texture.ts).
+      const tex = rainTexture(w, pos);
+      if (tex <= 0) continue;
       const p = rainClutterProbability(w, pos);
-      if (rng() < p) hits.push({ pos, strength: 0.4, kind: "rain-clutter", size: 1.8 });
+      if (rng() < Math.min(1, p * tex)) hits.push({ pos, strength: clamp(0.3 + 0.1 * tex, 0.3, 0.8), kind: "rain-clutter", size: 1.8 });
     }
   }
 

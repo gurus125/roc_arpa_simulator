@@ -427,7 +427,22 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await key("scen");
     await p.selectOption("#scenario", { label: "Approaches to Mumbai (real coastline)" });
     await p.waitForTimeout(600);
-    check(`${tag} real coastline scenario loads`, (await p.evaluate(() => window.__simTest.targetCount())) === 7);
+    check(`${tag} real coastline scenario loads`, (await p.evaluate(() => window.__simTest.targetCount() - window.__simTest.seaMarkCount())) === 7);
+    // The area's buoys, beacons and lights give echoes; the echo sounder reads and the area map has its contours.
+    check(`${tag} real area: sea marks among the targets`, (await p.evaluate(() => window.__simTest.seaMarkCount())) > 10, String(await p.evaluate(() => window.__simTest.seaMarkCount())));
+    check(`${tag} real area: the echo sounder reads the depth`, /≈ \d+ m of water/.test(await p.evaluate(() => document.getElementById("osDepth").textContent)), await p.evaluate(() => document.getElementById("osDepth").textContent));
+    check(`${tag} real area: depth contours to draw`, (await p.evaluate(() => window.__simTest.depthLines())) > 10);
+    await p.evaluate(() => {
+      const c = document.getElementById("areaMap");
+      c.checked = true;
+      c.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await p.waitForTimeout(400);
+    await p.evaluate(() => {
+      const c = document.getElementById("areaMap");
+      c.checked = false;
+      c.dispatchEvent(new Event("change", { bubbles: true }));
+    });
     await p.selectOption("#scenario", { label: "False echoes: power line, bridge and quay" });
     await p.waitForTimeout(600);
     check(`${tag} false echoes scenario loads`, (await p.evaluate(() => window.__simTest.targetCount())) === 3);

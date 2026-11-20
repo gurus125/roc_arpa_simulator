@@ -96,8 +96,13 @@ land. Vessels paint with their class's typical beam, and beam-on against end-on 
 "earth-coastlines-250m" data set, (c) OpenStreetMap contributors, Open Database License (ODbL) 1.0,
 https://www.openstreetmap.org/copyright, about 250 m accuracy. Land heights: `src/engine/real-terrain.ts`, made by
 `scripts/make-terrain.mjs` from Copernicus DEM GLO-90, (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH
-2014-2018, provided under COPERNICUS by the European Union and ESA; all rights reserved. No depths, lights or buoys.
-None of it is a chart.
+2014-2018, provided under COPERNICUS by the European Union and ESA; all rights reserved. Depths (approximate, about
+450 m cells, below mean sea level, no tide): `src/engine/real-depths.ts`, made by `scripts/make-depths.mjs` from the
+ETOPO 2022 15 Arc-Second Global Relief Model, NOAA National Centers for Environmental Information,
+doi:10.25921/fd45-gt74. Buoys, beacons, lights, rocks and wrecks: `src/engine/real-seamarks.ts`, made by
+`scripts/make-seamarks.mjs` from the sea marks mapped in OpenStreetMap, (c) OpenStreetMap contributors, ODbL 1.0.
+None of it is a chart, and the depths never ground the ship. The picture's sea clutter is spiky, rain irregular and
+small echoes fade in runs (`src/engine/texture.ts`), with the calibrated averages unchanged.
 Symbols follow IMO SN.1/Circ.243/Rev.2 (`src/ui/arpa-view.ts`) and alerts follow IMO MSC.302(87)
 (`src/arpa/alerts.ts`: alarm, warning and caution priorities, acknowledged one at a time).
 Checked against IEC 62388:2013 (shipborne radar) and IEC 62288:2014 (presentation) on 13 Nov 2026: see
@@ -180,6 +185,21 @@ best and latest score, a batch against its exercises; and storage beyond the bro
 records and the class as files in `data/` for a station that gives its station key (`server/server.mjs`,
 `src/ui/server-store.ts`), and a backup file can be saved and restored. `data/` is in `.gitignore`: it holds trainees'
 names and results. Tests: `tests/b44-classroom.test.ts`, `tests/server.test.mjs`.
+
+Tenth round (20 Nov 2026), six improvements. (1) The trainee's debrief explains every item: why the correct answer
+is right, where on the screen it is, the rule and the working with the numbers on the trainee's own screen at the
+moment of the answer (`src/train/explain.ts`, the robot's reasons reused; not shown to the trainee in an
+examination). (2) Other ships can keep the collision regulations towards own ship, or one can get it wrong by
+turning to port: an instructor's choice, "hold" by default (`src/engine/traffic-rules.ts`; every figure a
+placeholder). (3) Approximate depths, an echo sounder reading and an area map with depth contours, buoys, beacons,
+lights, rocks and wrecks in the four real areas; the marks in the water give echoes and racons answer
+(`src/engine/depth.ts`, `src/engine/seamarks.ts`). (4) Spiky sea clutter that changes from scan to scan, irregular
+rain and small echoes that fade in runs, with the calibrated averages unchanged (`src/engine/texture.ts`). (5) The
+classroom server keeps a backup a day (the last 14), can be put back to one, exports everything to one file and
+imports such a file, and has instructors' own accounts (salted scrypt hashes), an audit log and a station key that
+can be switched off (`server/server.mjs`). (6) The robot student's code split into four files, and the tests that
+run whole exercises about a quarter faster (the ARPA looks only at the coastline near its tracks and zones; the
+results are the same to the last digit). Tests: `tests/b48-*.test.ts`, `tests/server.test.mjs`.
 Hardware control panel: keys for every radar function, changeable, and knob-box (game controller) inputs
 (`src/ui/panel-map.ts`, `src/ui/panel.ts`; SETTINGS > Control panel). No real panel has been tried.
 `npm run test:link` starts the classroom server and checks the instructor station and four student displays in separate
@@ -195,7 +215,7 @@ arrangement of our own, not a copy of any maker's screen, and no radar instructo
 ## Develop
 
     npm install
-    npm test            # 844 tests
+    npm test            # 913 tests
     npm run typecheck
     npm run build       # rebuilds dist/radar-simulator.html
 
@@ -223,8 +243,10 @@ See `PLAN.md` for the full build plan.
 - `npm run serve` starts a small classroom server so the instructor station can reach other PCs.
   Open the address it prints on every display, and that address followed by `/instructor` on the
   instructor's PC. It also keeps the station's records and class as JSON files in `data/` (or the folder
-  named in `RADAR_SIM_DATA`), for a station that gives the station key it prints at start. Classroom
-  network only: nothing is encrypted, and the key travels in clear.
+  named in `RADAR_SIM_DATA`), for a station that gives the station key it prints at start, or for an
+  instructor logged in with an account of his or her own. It backs itself up every day in `data/backups`
+  (the last 14 kept) and writes who did what in `data/audit.log`. Classroom network only: nothing is
+  encrypted, and the key and passwords travel in clear.
 
 See `docs/PHASE5-8-INSTRUCTOR-CHECK.md`. Nothing here is certified or approved for navigation.
 

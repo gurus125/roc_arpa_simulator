@@ -7,3 +7,5 @@ Thumbs.db
 data/
 # Screen pictures for the complete manual: made again by docs/manual-src/shots.
 manual-img/
+# Exports of OpenStreetMap sea marks (input of scripts/make-seamarks.mjs; not needed to build)
+osm-seamarks*

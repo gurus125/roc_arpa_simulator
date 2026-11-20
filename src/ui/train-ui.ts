@@ -1,4 +1,4 @@
-import { ARPA_EXERCISES, ArpaExercise, ExerciseResult, PLOTTING_EXERCISES, RADAR_EXERCISES, timeLimitMin } from "../train/index";
+import { ARPA_EXERCISES, ArpaExercise, ExerciseResult, PLOTTING_EXERCISES, RADAR_EXERCISES, RobotWhy, timeLimitMin } from "../train/index";
 
 /** Every exercise, listed by number. */
 const ALL = [...ARPA_EXERCISES, ...RADAR_EXERCISES, ...PLOTTING_EXERCISES].sort((a, b) => a.number - b.number);
@@ -15,6 +15,8 @@ export interface TrainUiApi {
   /** Exercise ids assigned to the students at this display (empty = everything is open). */
   assigned: () => string[];
   isInstructor: () => boolean;
+  /** Whether the trainee may see the working behind each item after Finish (not during an examination). */
+  showWorking: () => boolean;
 }
 
 export interface TrainUi {
@@ -23,11 +25,24 @@ export interface TrainUi {
   refreshList: () => void;
 }
 
-export function resultHtml(r: ExerciseResult): string {
+/** The reason behind an item, as the debrief shows it: why, where on the screen, the rule and the working. */
+export function whyHtml(w: RobotWhy): string {
+  const line = (label: string, text: string | undefined, cls = ""): string => (text ? `<div class="wl ${cls}"><b>${label}</b> ${esc(text)}</div>` : "");
+  return `<div class="whyBox"><div class="wt">${esc(w.title)}</div><div>${esc(w.reason)}</div>${line("WHERE", w.look)}${line("RULE", w.rule, "rule")}${w.working && w.working.length > 0 ? `<div class="ww"><b>WORKING</b>${w.working.map((x) => `<div>${esc(x)}</div>`).join("")}</div>` : ""}</div>`;
+}
+
+/**
+ * The result table. With `working` (the default), each item that has a reason gets a "Why" line that opens to show
+ * it: the reason for the correct answer and the working with the numbers on the screen when the answer was given.
+ */
+export function resultHtml(r: ExerciseResult, o: { working?: boolean } = {}): string {
+  const working = o.working ?? true;
   // In a group, who was at the controls when each answer was given or each action done.
   const who = new Set(r.items.map((i) => i.by).filter(Boolean)).size > 1;
+  const cols = who ? 6 : 5;
   const rows = r.items
-    .map((i) => `<tr><td>${esc(i.label)}</td><td>${esc(i.student)}</td><td>${esc(i.correct)}</td><td class="${i.ok ? "ok" : "no"}">${i.ok ? "✓" : "✗"}</td><td>${i.points}/${i.max}</td>${who ? `<td>${esc(i.by ?? "")}</td>` : ""}</tr>`)
+    .map((i) => `<tr><td>${esc(i.label)}</td><td>${esc(i.student)}</td><td>${esc(i.correct)}</td><td class="${i.ok ? "ok" : "no"}">${i.ok ? "✓" : "✗"}</td><td>${i.points}/${i.max}</td>${who ? `<td>${esc(i.by ?? "")}</td>` : ""}</tr>` +
+      (working && i.why ? `<tr class="whyRow"><td colspan="${cols}"><details><summary>${i.ok ? "Why" : "Why, and what is right"}</summary>${whyHtml(i.why)}</details></td></tr>` : ""))
     .join("");
   const verdict = r.passed === null ? "No pass mark has been set by the instructor." : r.passed ? '<span class="ok">Passed.</span>' : '<span class="no">Not yet passed.</span>';
   return `<p><b>${esc(r.title)}</b> &nbsp; ${mmss(r.simSeconds)} simulated</p>
@@ -133,7 +148,7 @@ export function initTrainUi(api: TrainUiApi): TrainUi {
     const r = s.finish(app.world, app.arpa);
     app.running = false;
     $("exResult").hidden = false;
-    $("exResultBody").innerHTML = resultHtml(r);
+    $("exResultBody").innerHTML = resultHtml(r, { working: api.showWorking() });
     api.finished(app, r);
   });
 

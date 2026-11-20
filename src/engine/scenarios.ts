@@ -2,12 +2,22 @@ import { TARGET_TYPES, targetFromType } from "./targets";
 import { fromPolar } from "../core/vec";
 import { Coast, Scenario } from "./types";
 import { REAL_TERRAIN_CREDIT } from "./real-terrain";
+import { REAL_DEPTHS, REAL_DEPTHS_CREDIT } from "./real-depths";
+import { REAL_SEAMARKS, REAL_SEAMARKS_CREDIT } from "./real-seamarks";
 import { GOA_COAST, GOA_ORIGIN, KOCHI_COAST, KOCHI_ORIGIN, KUTCH_COAST, KUTCH_ORIGIN, MUMBAI_COAST, MUMBAI_ORIGIN } from "./real-coasts";
 
-/** What the real-area scenarios say about their data. */
-const REAL_AREA_NOTE =
-  "The coastline is real (about 250 m accuracy) and so are the land heights the radar sees (90 m cells: hills, cliffs, buildings and trees; low land far off shows little, and high ground behind it shows first). The ships, wind and current are invented, and there are no depths, lights or buoys: this is not a chart and not for navigation. " +
-  REAL_TERRAIN_CREDIT;
+/** What a real-area scenario says about its data (`id`: the area, as in engine/real-terrain.ts). */
+function realAreaNote(id: string): string {
+  const depths = !!REAL_DEPTHS[id];
+  const marks = (REAL_SEAMARKS[id] ?? []).length > 0;
+  return (
+    "The coastline is real (about 250 m accuracy) and so are the land heights the radar sees (90 m cells: hills, cliffs, buildings and trees; low land far off shows little, and high ground behind it shows first). " +
+    (depths ? "The depths are approximate (cells of about 450 m, below mean sea level, no tide: banks, reefs and dredged channels smaller than that are missing, and near the coast they are not reliable): the echo sounder reads them and the area map draws their contours. " : "There are no depths. ") +
+    (marks ? "The buoys, beacons and lights are those mapped in OpenStreetMap (some may be missing or have changed); those standing in the water give echoes. " : "There are no buoys or lights. ") +
+    "The ships, wind and current are invented: this is not a chart and not for navigation. " +
+    [REAL_TERRAIN_CREDIT, depths ? REAL_DEPTHS_CREDIT : "", marks ? REAL_SEAMARKS_CREDIT : ""].filter(Boolean).join(" ")
+  );
+}
 
 /** Open sea. Cargo ship A reproduces the worked example on the phase 1 instructor sheet. */
 export const OPEN_SEA: Scenario = {
@@ -194,18 +204,20 @@ export const FALSE_ECHOES: Scenario = {
 
 /**
  * The approaches to Mumbai on a REAL coastline (OpenStreetMap data, about 250 m accuracy; see
- * real-coasts.ts) with the real land heights (real-terrain.ts). Own ship starts at the scenarios'
- * origin, 18 50 N 072 30 E, about 18 NM west of the harbour entrance. The ships, wind and current
- * are invented, and there are no depths, lights or buoys. It is not a chart.
+ * real-coasts.ts) with the real land heights (real-terrain.ts), approximate depths (real-depths.ts) and the
+ * buoys and lights mapped in OpenStreetMap (real-seamarks.ts). Own ship starts at the scenarios' origin,
+ * 18 50 N 072 30 E, about 18 NM west of the harbour entrance. The ships, wind and current are invented.
+ * It is not a chart.
  */
 export const MUMBAI_APPROACH: Scenario = {
   id: "mumbai-approach",
   name: "Approaches to Mumbai (real coastline)",
   description:
     "Own ship is 18 NM west of Mumbai harbour, steering in: Mumbai and its harbour to the east, the coast running south past Alibag. " +
-    REAL_AREA_NOTE +
+    realAreaNote("mumbai") +
     " Use the 12 and 24 NM ranges to pick up the land, and compare the picture with a chart of the area.",
   terrain: "mumbai",
+  seaMarks: true,
   origin: MUMBAI_ORIGIN,
   own: { heading: 80, speed: 12 },
   env: { seaState: 3, wind: { from: 250, speedKn: 14 }, current: { set: 10, drift: 0.8 } },
@@ -226,11 +238,12 @@ export const GOA_APPROACH: Scenario = {
   id: "goa-approach",
   name: "Approaches to Mormugao, Goa (real coast and land)",
   description:
-    "Own ship is 15 NM west of Mormugao, steering in. Ore carriers lie at anchor off the headland, one is leaving, and fishing boats work the coast. The Western Ghats rise behind the coast to over 800 m. " + REAL_AREA_NOTE,
+    "Own ship is 15 NM west of Mormugao, steering in. Ore carriers lie at anchor off the headland, one is leaving, and fishing boats work the coast. The Western Ghats rise behind the coast to over 800 m. " + realAreaNote("goa"),
   own: { heading: 90, speed: 12, pos: { e: 2, n: 0 } },
   env: { seaState: 3, wind: { from: 270, speedKn: 14 }, current: { set: 160, drift: 0.5 } },
   coasts: GOA_COAST,
   terrain: "goa",
+  seaMarks: true,
   origin: GOA_ORIGIN,
   targets: [
     { id: 1, name: "Ore carrier at anchor", ...typed("bulk-cape"), pos: { e: 12.5, n: -1.8 }, course: 250, speed: 0, events: [], atAnchor: true },
@@ -249,11 +262,12 @@ export const KOCHI_APPROACH: Scenario = {
   id: "kochi-approach",
   name: "Approaches to Kochi (real coast and land)",
   description:
-    "Own ship is 16 NM west of the entrance to Kochi, steering in. A container ship is leaving, an LNG carrier is coming up from the south-west, a tanker waits at anchor, and fishing boats are everywhere. The coast is low: at first the radar sees the higher ground and the trees behind the beach, not the water's edge. " + REAL_AREA_NOTE,
+    "Own ship is 16 NM west of the entrance to Kochi, steering in. A container ship is leaving, an LNG carrier is coming up from the south-west, a tanker waits at anchor, and fishing boats are everywhere. The coast is low: at first the radar sees the higher ground and the trees behind the beach, not the water's edge. " + realAreaNote("kochi"),
   own: { heading: 90, speed: 12, pos: { e: 3, n: 1 } },
   env: { seaState: 3, wind: { from: 280, speedKn: 12 }, current: { set: 340, drift: 0.6 } },
   coasts: KOCHI_COAST,
   terrain: "kochi",
+  seaMarks: true,
   origin: KOCHI_ORIGIN,
   targets: [
     { id: 1, name: "Outbound container ship", ...typed("container-pp"), pos: { e: 16.5, n: 0.2 }, course: 265, speed: 12, events: [], aisStatic: { destination: "COLOMBO", eta: "14 NOV 1000 UTC", draughtM: 12.4 } },
@@ -271,11 +285,12 @@ export const KUTCH_APPROACH: Scenario = {
   id: "kutch-approach",
   name: "Gulf of Kutch: Mundra and Kandla (real coast and land)",
   description:
-    "Own ship is entering the Gulf of Kutch, bound for Kandla. Mundra port is on the north shore ahead; the oil terminals of Vadinar and Sikka are on the south shore. A VLCC is making for the Vadinar buoys, a container ship is leaving Mundra, and a tug is towing up the gulf. The land is low on both sides, with islands and reefs on the south side. " + REAL_AREA_NOTE,
+    "Own ship is entering the Gulf of Kutch, bound for Kandla. Mundra port is on the north shore ahead; the oil terminals of Vadinar and Sikka are on the south shore. A VLCC is making for the Vadinar buoys, a container ship is leaving Mundra, and a tug is towing up the gulf. The land is low on both sides, with islands and reefs on the south side. " + realAreaNote("kutch"),
   own: { heading: 80, speed: 12, pos: { e: -12, n: 2 } },
   env: { seaState: 2, wind: { from: 230, speedKn: 12 }, tidal: { floodSet: 75, maxRateKn: 2.5, hoursAfterSlackAtStart: 1 } },
   coasts: KUTCH_COAST,
   terrain: "kutch",
+  seaMarks: true,
   origin: KUTCH_ORIGIN,
   targets: [
     { id: 1, name: "VLCC for Vadinar", ...typed("vlcc"), pos: { e: -5, n: -2 }, course: 100, speed: 10, events: [], aisStatic: { destination: "VADINAR SBM", eta: "13 NOV 1600 UTC", draughtM: 21.2 } },

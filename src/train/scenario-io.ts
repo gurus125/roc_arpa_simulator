@@ -76,6 +76,8 @@ export const SCENARIO_SCHEMA = {
     hazards: { type: "array", items: { type: "object", required: ["name", "center", "radius"], properties: { name: { type: "string" }, center: vec, radius: { type: "number", exclusiveMinimum: 0 } } } },
     route: { type: "array", items: vec },
     depths: { type: "array", items: { type: "object", required: ["name", "points", "depthM"], properties: { name: { type: "string" }, points: { type: "array", items: vec, minItems: 3 }, depthM: { type: "number", minimum: 0 } } } },
+    traffic: { enum: ["hold", "rules", "wrong"], description: "How the other ships behave towards own ship: keep their course and speed (default), keep the collision regulations, or keep them with one ship getting it wrong." },
+    seaMarks: { type: "boolean", description: "With \"terrain\": put the area's buoys, beacons and lights standing in the water on the radar (from OpenStreetMap; numbered from 9001)." },
   },
 } as const;
 
@@ -209,6 +211,10 @@ export function validateScenario(x: unknown): string[] {
     dp === undefined || (Array.isArray(dp) && dp.every((d) => isObj(d) && typeof d["name"] === "string" && isNum(d["depthM"]) && d["depthM"] >= 0 && Array.isArray(d["points"]) && d["points"].length >= 3 && d["points"].every(vecOk))),
     "Each depth area needs a name, a depth in metres and at least three points.",
   );
+  const tb = x["traffic"];
+  need(tb === undefined || tb === "hold" || tb === "rules" || tb === "wrong", '"traffic" must be "hold", "rules" or "wrong".');
+  const sm = x["seaMarks"];
+  need(sm === undefined || typeof sm === "boolean", '"seaMarks" must be true or false.');
   const stx = x["structures"];
   need(
     stx === undefined ||

@@ -23,7 +23,7 @@ const start = (id: string, cfg: ScoringConfig = PLACEHOLDER_SCORING) => {
   return { def, w, a, s: new ArpaExSession(def, w, a, cfg) };
 };
 
-// The three robots work exercises 27 to 31 with all the others in tests/selftest.test.ts.
+// The three robots work exercises 27 to 31 with all the others in tests/selftest.test.ts, selftest-2 and selftest-3.
 
 describe("a time limit", () => {
   it("is the instructor's figure if set, else the exercise's own, else none", () => {

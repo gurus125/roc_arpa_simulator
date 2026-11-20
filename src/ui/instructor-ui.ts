@@ -1,5 +1,5 @@
 import { bearingOf, fromPolar, length, normalizeDeg } from "../core/vec";
-import { IMO_TABLE2, VISIBILITY_STEPS_NM, RANDOM_TRAFFIC_DEFAULT, addRandomTraffic, nextTargetId, Scenario, TARGET_TYPES, Target, TargetKind, clearTargetRoute, initTargetMotion, orderTarget, rcsForDetectionRange, routeAhead, setTargetRoute, targetFromType, targetTypeById } from "../engine/index";
+import { BEHAVIOUR_LABELS, ShipBehaviour, setShipBehaviour, IMO_TABLE2, VISIBILITY_STEPS_NM, RANDOM_TRAFFIC_DEFAULT, addRandomTraffic, nextTargetId, Scenario, TARGET_TYPES, Target, TargetKind, clearTargetRoute, initTargetMotion, orderTarget, rcsForDetectionRange, routeAhead, setTargetRoute, targetFromType, targetTypeById } from "../engine/index";
 import { MAX_ROUTE_WAYPOINTS } from "../core/route";
 import { EXERCISES } from "../roc/index";
 import {
@@ -283,6 +283,10 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
         <div><label for="rgSeed">Seed (the same seed gives the same ships)</label><input type="number" id="rgSeed" min="1" max="999999" value="1"></div></div>
       <div class="check"><input type="checkbox" id="rgReplace"><label for="rgReplace">In place of the ships there now (buoys and beacons stay)</label></div>
       <div class="btns"><button id="rgSend">Random traffic on the display chosen above</button><button id="rgOwn">On the station's own radar</button><button id="rgNew">New seed</button></div>
+      <h2 style="margin-top:12px">How the other ships behave</h2>
+      <div class="row two"><label for="srMode">Other ships</label><select id="srMode">${(Object.keys(BEHAVIOUR_LABELS) as ShipBehaviour[]).map((k) => `<option value="${k}">${esc(BEHAVIOUR_LABELS[k])}</option>`).join("")}</select></div>
+      <div class="btns"><button id="srSend">Set on the display chosen above</button><button id="srOwn">On the station's own radar</button></div>
+      <p class="hint">With "keep the collision regulations", a ship that must give way to own ship alters to starboard in good time, a stand-on ship holds on and acts only at the last moment, and in restricted visibility each alters to starboard for own ship forward of her beam. With "one gets it wrong", the first ship to act turns to port instead. Each manoeuvre is written in the display's record (instructor notes); the trainees are not told. The exercises are marked for ships that keep their course and speed: their answer keys follow the ships as they actually move, but the passing distances may differ from the written exercise.</p>
       <p class="hint">The targets of the display chosen are listed from its last report. An alteration, a new target or random traffic acts at once on that display and is written to its record; the trainees are not told. A ship of a catalogue type comes round and changes speed gradually. Ships on close-quarters courses pass within 0.5 NM of that own ship in 15 to 35 minutes if nobody acts.</p>
       <div class="btns"><button id="inLinked">Start a LINKED exercise on all displays with the scenario loaded here</button></div>
       <div class="btns"><input type="text" id="inMsgText" placeholder="Message to all displays" style="flex:1"><button id="inMsgSend">Send</button></div>
@@ -298,6 +302,23 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <h2 style="margin-top:10px">Keeping the records</h2>
       <p class="small" id="svState"></p>
       <div class="btns" id="svKeyRow"><input type="text" id="svKey" placeholder="Server key (the classroom server prints it when it starts)" style="flex:1" autocomplete="off"><button id="svKeySet">Use this server key</button></div>
+      <div class="btns" id="svLoginRow" hidden><input type="text" id="svUser" placeholder="Instructor's name" autocomplete="username" style="flex:1"><input type="password" id="svPass" placeholder="Password" autocomplete="current-password" style="flex:1"><button id="svLogin">Log in to the server</button></div>
+      <div class="btns" id="svWhoRow" hidden><span class="small" id="svWho" style="flex:1"></span><button id="svLogout">Log out of the server</button></div>
+      <details id="svMore" hidden style="margin:6px 0"><summary class="small" style="cursor:pointer">Backups, export and instructors' accounts on the classroom server</summary>
+        <div class="row two"><label for="svBackups">Backups on the server</label><select id="svBackups"></select></div>
+        <div class="btns"><button id="svBkNow">Back up the server now</button><button id="svBkRestore" class="svAdm">Put the server back to this backup</button></div>
+        <div class="btns"><button id="svExport">Export everything on the server (one file)</button><button id="svImport" class="svAdm">Import a server file</button><input type="file" id="svImportFile" accept="application/json,.json" hidden></div>
+        <div class="svAdm">
+          <p class="small" style="margin-top:8px"><b>Instructors' accounts</b></p>
+          <table class="res"><thead><tr><th>Name</th><th>Role</th><th></th></tr></thead><tbody id="svUsers"></tbody></table>
+          <div class="btns"><input type="text" id="svNewName" placeholder="Name" style="flex:1" autocomplete="off"><select id="svNewRole" style="width:auto"><option value="instructor">Instructor</option><option value="admin">Administrator</option></select><input type="password" id="svNewPass" placeholder="Password" autocomplete="new-password" style="flex:1"><button id="svAddUser">Add this account</button></div>
+          <div class="btns"><button id="svKeyOnOff">Switch the station key off</button></div>
+          <p class="small" style="margin-top:8px"><b>What was done on the server</b></p>
+          <div class="log" id="svAudit" style="max-height:160px"></div>
+        </div>
+        <div class="btns" id="svMyPassRow" hidden><input type="password" id="svMyPass" placeholder="My new password" autocomplete="new-password" style="flex:1"><button id="svSetMyPass">Change my password</button></div>
+        <p class="hint">The server backs itself up once a day (the last 14 days are kept) and before every restore or import, in the "backups" folder of its data folder. "Put the server back to this backup" makes the server's records and settings what they were then; the stations then send again whatever they still hold that the server lacks. "Export everything" saves all the server holds in one file, to keep on another computer or a USB stick; "Import a server file" adds to this server the records it does not have, and never replaces or deletes. With accounts, each instructor logs in with his or her own name and password, and the server writes who did what. An administrator adds and removes the accounts, puts the server back, imports and reads the log. While there is no administrator, the station key can do all of it, so that the first administrator's account can be made. Once every instructor has an account, the station key can be switched off. Passwords are kept as salted hashes, not as typed, but they travel unencrypted on the network: use the classroom network only.</p>
+      </details>
       <div class="row two" id="svOldRow" hidden><label for="svOld">On the server, its replay not in this browser</label><select id="svOld"></select></div>
       <div class="btns"><button id="svOpen" hidden>Bring this exercise back with its replay</button><button id="svRestore" hidden>Take the batches and settings from the server</button></div>
       <div class="btns"><button id="bkSave">Back up everything (JSON)</button><button id="bkLoad">Restore from a backup</button><input type="file" id="bkFile" accept="application/json,.json" hidden></div>
@@ -671,6 +692,18 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     const n = addRandomTraffic(app.world, { ...RANDOM_TRAFFIC_DEFAULT, count: o.count, minNm: o.minNm, maxNm: o.maxNm, threats: o.threats }, o.seed, o.replace);
     note(app, `random traffic, ${n} ships (seed ${o.seed}, ${o.threats} on close-quarters courses).`);
     msg(`${n} ships put on the station's own radar. The same seed sent to a display gives it the same ships round its own ship.`);
+  });
+  $("srSend").addEventListener("click", () => {
+    const mode = inputValue("srMode") as ShipBehaviour;
+    api.link.sendCommand({ to: rtTo(), cmd: "shipRules", mode });
+    msg(`Other ships on ${rtTo() === "all" ? "all displays" : `display ${rtTo()}`}: ${BEHAVIOUR_LABELS[mode].toLowerCase()}.`);
+  });
+  $("srOwn").addEventListener("click", () => {
+    const app = api.getApp();
+    const mode = inputValue("srMode") as ShipBehaviour;
+    setShipBehaviour(app.world, mode);
+    note(app, `other ships ${BEHAVIOUR_LABELS[mode].toLowerCase()}.`);
+    msg(`Other ships on the station's own radar: ${BEHAVIOUR_LABELS[mode].toLowerCase()}.`);
   });
   $("rgNew").addEventListener("click", () => {
     $<HTMLInputElement>("rgSeed").value = String(1 + Math.floor(Math.random() * 999998));
@@ -1065,9 +1098,18 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       "out-of-reach": "The classroom server is out of reach: trying again.",
       on: `Kept on the classroom server: ${server.entries.length} exercise${server.entries.length === 1 ? "" : "s"} (${withReplay} with their replay), and the batches and settings.${sentAt ? ` Last sent at ${sentAt}.` : ""}`,
     };
-    const line = text[server.state] ?? "";
+    const as = server.state === "on" && server.user ? ` Working as ${server.user.role === "station" ? "the station key" : `${server.user.name} (${server.user.role === "admin" ? "administrator" : "instructor"})`}.` : "";
+    const line = (text[server.state] ?? "") + as;
     if ($("svState").textContent !== line) $("svState").textContent = line;
-    $("svKeyRow").hidden = server.state === "no-server" || server.state === "on";
+    $("svKeyRow").hidden = server.state === "no-server" || server.state === "on" || !server.keyOffered;
+    $("svLoginRow").hidden = server.state === "no-server" || !!server.loggedIn || !server.loginOffered;
+    $("svWhoRow").hidden = !server.loggedIn;
+    if (server.loggedIn) $("svWho").textContent = `Logged in to the server as ${server.loggedIn}.`;
+    $("svMore").hidden = server.state !== "on";
+    for (const el of document.querySelectorAll<HTMLElement>("#svMore .svAdm")) el.hidden = !server.user?.admin;
+    $("svMyPassRow").hidden = !server.loggedIn;
+    $("svKeyOnOff").hidden = server.user?.role !== "admin";
+    $("svKeyOnOff").textContent = server.user?.keyEnabled === false ? "Switch the station key on again" : "Switch the station key off";
     // Exercises whose replay the server has and this browser has not.
     const here = new Set(st.data.records.map((r) => r.id));
     const old = server.state === "on" ? server.entries.filter((e) => e.replay && !here.has(e.light.id)) : [];
@@ -1081,9 +1123,127 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
     $("svOpen").hidden = old.length === 0;
     $("svRestore").hidden = !(server.state === "on" && server.hasState && st.data.batches.length === 0);
   };
+  /** The backups, the accounts and the log, shown when the server's box is opened. */
+  const drawServerMore = async (): Promise<void> => {
+    if (!server || server.state !== "on") return;
+    const b = await server.backups();
+    const sel = $<HTMLSelectElement>("svBackups");
+    const kinds: Record<string, string> = { daily: "daily", manual: "made by hand", "before-restore": "before a restore", "before-import": "before an import" };
+    sel.innerHTML = b.ok ? b.data.map((x) => `<option value="${esc(x.id)}">${esc(x.id.slice(0, 10))} ${x.id.length > 10 ? esc(`${x.id.slice(11, 13)}:${x.id.slice(13, 15)}`) : ""} (${esc(kinds[x.kind] ?? x.kind)}): ${x.records} exercise${x.records === 1 ? "" : "s"}${x.state ? ", with the settings" : ""}</option>`).join("") : "";
+    if (!server.user?.admin) {
+      // Not an administrator (any more): nothing of the accounts or the log is left on the page.
+      $("svUsers").innerHTML = "";
+      $("svAudit").innerHTML = "";
+      return;
+    }
+    const u = await server.users();
+    $("svUsers").innerHTML = u.ok
+      ? u.data.map((x) => `<tr><td>${esc(x.name)}</td><td>${x.role === "admin" ? "Administrator" : "Instructor"}</td><td><button data-sv-pass="${esc(x.name)}" title="Gives the account the password typed in the password box above">Set password</button> <button data-sv-del="${esc(x.name)}">Remove</button></td></tr>`).join("") || '<tr><td colspan="3" class="small">No accounts yet: the first must be an administrator\'s.</td></tr>'
+      : `<tr><td colspan="3" class="small">${esc(u.error)}</td></tr>`;
+    const a = await server.audit(100);
+    $("svAudit").innerHTML = a.ok ? a.data.map((l) => `<div>${esc(l.t.slice(0, 16).replace("T", " "))} ${esc(l.who)}: ${esc(l.action)}${l.detail ? ` (${esc(l.detail)})` : ""}</div>`).join("") : esc(a.error);
+  };
   if (server) {
     // Asked once at the start, key or no key: is there a classroom server at this address at all?
     void server.refresh().then(() => drawServer());
+    $("svLogin").addEventListener("click", () => {
+      void server.logIn(inputValue("svUser"), inputValue("svPass")).then((err) => {
+        ($("svPass") as HTMLInputElement).value = "";
+        if (err) msg(err);
+        else {
+          lastPull = Date.now();
+          recSig = "";
+          void syncServer();
+        }
+        drawServer();
+        void drawServerMore();
+      });
+    });
+    $("svLogout").addEventListener("click", () => void server.logOut().then(() => drawServer()));
+    $("svMore").addEventListener("toggle", () => {
+      if (($("svMore") as HTMLDetailsElement).open) void drawServerMore();
+    });
+    $("svBkNow").addEventListener("click", () => void server.backUpNow().then((r) => {
+      msg(r.ok ? `Backup made on the server: ${r.data.id}.` : r.error);
+      void drawServerMore();
+    }));
+    $("svBkRestore").addEventListener("click", () => {
+      const id = inputValue("svBackups");
+      if (!id || !confirm(`Put the records and settings on the server back to the backup ${id}? What the server holds now is kept first in a backup of its own.`)) return;
+      void server.restoreBackup(id).then(async (r) => {
+        msg(r.ok ? `The server is back to ${id}: ${r.data.records} exercise${r.data.records === 1 ? "" : "s"}. The stations will send again what they hold that it lacks.` : r.error);
+        await server.refresh();
+        recSig = "";
+        drawServer();
+        void drawServerMore();
+      });
+    });
+    $("svExport").addEventListener("click", () => void server.exportAll().then((r) => {
+      if (r.ok) download(`radar-sim-classroom-${new Date().toISOString().slice(0, 10)}.json`, r.text, "application/json");
+      else msg(r.error);
+    }));
+    $("svImport").addEventListener("click", () => $<HTMLInputElement>("svImportFile").click());
+    $("svImportFile").addEventListener("change", () => {
+      const f = $<HTMLInputElement>("svImportFile").files?.[0];
+      if (!f) return;
+      void f.text().then((t) => server.importAll(t)).then(async (r) => {
+        ($("svImportFile") as HTMLInputElement).value = "";
+        msg(r.ok ? `Imported into the server: ${r.data.added} exercise${r.data.added === 1 ? "" : "s"} added, ${r.data.skipped} it had already${r.data.state ? ", and the settings" : ""}. Nothing was replaced or deleted.` : r.error);
+        await server.refresh();
+        recSig = "";
+        drawServer();
+        void drawServerMore();
+      });
+    });
+    $("svAddUser").addEventListener("click", () => {
+      const role = inputValue("svNewRole") === "admin" ? "admin" : "instructor";
+      void server.addUser(inputValue("svNewName").trim(), role, inputValue("svNewPass")).then(async (r) => {
+        if (r.ok) {
+          ($("svNewName") as HTMLInputElement).value = "";
+          ($("svNewPass") as HTMLInputElement).value = "";
+          msg("Account added. The instructor logs in with that name and password.");
+          await server.refresh();
+          drawServer();
+        } else msg(r.error);
+        void drawServerMore();
+      });
+    });
+    $("svUsers").addEventListener("click", (ev) => {
+      const b = (ev.target as HTMLElement).closest("button");
+      if (!b) return;
+      const del = b.dataset["svDel"], pass = b.dataset["svPass"];
+      if (del && confirm(`Remove ${del}'s account? The records are kept.`)) void server.removeUser(del).then((r) => {
+        msg(r.ok ? `${del}'s account removed.` : r.error);
+        void drawServerMore();
+      });
+      if (pass) {
+        const p = inputValue("svNewPass");
+        if (!p) return msg("Type the new password in the password box above first.");
+        void server.setPassword(pass, p).then((r) => {
+          ($("svNewPass") as HTMLInputElement).value = "";
+          msg(r.ok ? `${pass}'s password changed.` : r.error);
+          void drawServerMore();
+        });
+      }
+    });
+    $("svKeyOnOff").addEventListener("click", () => {
+      const on = server.user?.keyEnabled === false;
+      if (!on && !confirm("Switch the station key off? From then on only instructors with an account can reach the records on the server.")) return;
+      void server.setKeyEnabled(on).then(async (r) => {
+        msg(r.ok ? (r.data.keyEnabled ? "The station key opens the server again." : "The station key is off: instructors log in with their accounts.") : r.error);
+        await server.refresh();
+        drawServer();
+        void drawServerMore();
+      });
+    });
+    $("svSetMyPass").addEventListener("click", () => {
+      const me = server.loggedIn;
+      if (!me) return;
+      void server.setPassword(me, inputValue("svMyPass")).then((r) => {
+        ($("svMyPass") as HTMLInputElement).value = "";
+        msg(r.ok ? "Your password is changed." : r.error);
+      });
+    });
     $("svKeySet").addEventListener("click", () => {
       server.setKey(inputValue("svKey"));
       ($("svKey") as HTMLInputElement).value = "";
@@ -1114,7 +1274,7 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
         drawServer();
       });
     });
-  } else for (const id of ["svState", "svKeyRow"]) $(id).hidden = true;
+  } else for (const id of ["svState", "svKeyRow", "svLoginRow", "svWhoRow", "svMore"]) $(id).hidden = true;
   $("bkSave").addEventListener("click", () => download(`radar-sim-backup-${new Date().toISOString().slice(0, 10)}.json`, st.backup(new Date().toISOString()), "application/json"));
   $("bkLoad").addEventListener("click", () => $<HTMLInputElement>("bkFile").click());
   $("bkFile").addEventListener("change", () => {

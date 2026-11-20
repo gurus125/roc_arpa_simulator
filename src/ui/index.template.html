@@ -58,6 +58,15 @@
   table.obs, table.res { width:100%; border-collapse:collapse; font:12px ui-monospace, Consolas, monospace; margin-top:8px; }
   table.obs th, table.res th { text-align:left; color:var(--muted); font-weight:500; padding:3px 4px; border-bottom:1px solid var(--line); }
   table.obs td, table.res td { padding:3px 4px; border-bottom:1px solid var(--line); }
+  table.res tr.whyRow td { padding:0 4px 5px; border-bottom:1px solid var(--line); }
+  table.res tr.whyRow summary { cursor:pointer; color:var(--accent); font:600 11px "Segoe UI", system-ui, sans-serif; padding:1px 0; }
+  .whyBox { margin:3px 0 2px; padding:6px 8px; border-left:3px solid var(--accent); background:rgba(0,0,0,.14); font:12px/1.45 "Segoe UI", system-ui, sans-serif; color:var(--text); white-space:normal; }
+  .whyBox .wt { font-weight:700; color:var(--bright); margin-bottom:2px; }
+  .whyBox .wl { margin-top:3px; }
+  .whyBox .wl b, .whyBox .ww > b { font-size:10px; letter-spacing:.1em; color:var(--muted); margin-right:5px; }
+  .whyBox .wl.rule { color:var(--accent); }
+  .whyBox .ww { margin-top:4px; font:11.5px/1.5 Consolas, "DejaVu Sans Mono", ui-monospace, monospace; color:var(--bright); }
+  .whyBox .ww > b { display:block; font-family:"Segoe UI", system-ui, sans-serif; }
   .ok { color:var(--accent); } .no { color:var(--bad); } .wn { color:var(--warn); } .cau { color:var(--caution); } .in { color:#9ec9ff; }
   ul.msgs { margin:6px 0 0; padding-left:18px; font-size:12px; }
   ul.msgs li { margin:3px 0; }
@@ -806,13 +815,14 @@
         <tr><td>SOG</td><td><b id="osSog">---</b></td></tr>
         <tr><td>Heading</td><td><b id="osHdg">---</b></td></tr>
         <tr><td>ROT</td><td><b id="osRot">---</b></td></tr>
+        <tr><td>Depth (echo sounder, approximate)</td><td><b id="osDepth">---</b></td></tr>
         <tr><td>UTC</td><td><b id="osUtc">---</b></td></tr>
         <tr><td>Ship draught (m)</td><td><input type="number" id="osDraught" min="0" max="25" step="0.1"></td></tr>
         <tr><td>Hazardous cargo</td><td><select id="osHaz"><option>None</option><option>Category A (X)</option><option>Category B (Y)</option><option>Category C (Z)</option><option>Category D (OS)</option></select></td></tr>
         <tr><td>Destination</td><td><input type="text" id="osDest" maxlength="20"></td></tr>
         <tr><td>ETA (UTC)</td><td><input type="text" id="osEta" maxlength="16" placeholder="DD-MM HH:MM"></td></tr>
       </tbody></table>
-      <p class="hint">The fixed data and the draught, cargo, destination and ETA are typed in, as on a ship's AIS, and are kept on this computer. Position, COG, SOG, heading, ROT and UTC come from the simulation. The position is counted from a made-up starting point (the scenarios are not tied to a real chart). The starting values are placeholders, not a real ship.</p>
+      <p class="hint">The fixed data and the draught, cargo, destination and ETA are typed in, as on a ship's AIS, and are kept on this computer. Position, COG, SOG, heading, ROT and UTC come from the simulation. In the real areas the depth is the approximate depth of water below mean sea level where the ship is (a world relief model with cells of about 450 m, no tide; not reliable near the coast), and under the keel when the draught is known: a guide only, and the ship never touches bottom. The position is counted from a made-up starting point (the scenarios are not tied to a real chart). The starting values are placeholders, not a real ship.</p>
     </section>
     <section>
       <h2>Communications (VHF, typed)</h2>
@@ -853,9 +863,10 @@
           <div><label for="spCourse">First course (°T)</label><input type="number" id="spCourse" min="0" max="359" step="1" value="0"></div></div>
         <div class="btns"><button id="spMake">Put the search pattern on the radar</button></div>
         <div class="check"><input type="checkbox" id="coastOutline"><label for="coastOutline">Charted coastline over the picture (to compare the echoes with the chart)</label></div>
+        <div class="check"><input type="checkbox" id="areaMap"><label for="areaMap">Area map over the picture: depth contours, buoys and lights (approximate; real areas only)</label></div>
         <div class="btns"><button id="outlineSheet">Outline sheet of this area (to print)</button></div>
         <p class="small" id="rtInfo"></p>
-        <p class="hint">Route: press "add waypoints", click the waypoints in order, press again when done. The route is fixed to the ground. The EBL / CURSOR panel then shows the next waypoint, its bearing and distance, and XTD, the distance off the leg being sailed (S to starboard of it, P to port). A search pattern is a route made for you from a datum: an expanding square (legs of 1, 1, 2, 2, 3, 3 ... times the track spacing, every turn 90° to starboard) or a sector search (three triangles through the datum, every turn 120° to starboard). The charted coastline is the coast as the simulator has it, drawn as a line: land that is low or hidden paints less on the radar than the chart shows. The outline sheet is the same coastline with a latitude and longitude grid, for plotting position lines by hand: it is not a chart.</p>
+        <p class="hint">Route: press "add waypoints", click the waypoints in order, press again when done. The route is fixed to the ground. The EBL / CURSOR panel then shows the next waypoint, its bearing and distance, and XTD, the distance off the leg being sailed (S to starboard of it, P to port). A search pattern is a route made for you from a datum: an expanding square (legs of 1, 1, 2, 2, 3, 3 ... times the track spacing, every turn 90° to starboard) or a sector search (three triangles through the datum, every turn 120° to starboard). The charted coastline is the coast as the simulator has it, drawn as a line: land that is low or hidden paints less on the radar than the chart shows. The outline sheet is the same coastline with a latitude and longitude grid, for plotting position lines by hand: it is not a chart. The depth contours (5, 10, 20, 30, 50 and 100 m; to 10 m solid, deeper dashed) are drawn from a world relief model with cells of about 450 m, below mean sea level and with no tide: banks, reefs and dredged channels smaller than that are not in it and near the coast it is not reliable. They are a guide for comparing the radar with the lie of the bottom, not a chart.</p>
         <div class="row two"><label for="band">Radar band</label><select id="band"><option value="X">X band (3 cm)</option><option value="S">S band (10 cm)</option></select></div>
         <p class="small" id="bandInfo"></p>
         <p class="hint">Offset EBL: press "EBL origin", then click the point it should start from (it stays at that position). Press again to return it to own ship. Nav lines: press "draw", click the points of a line (a channel edge, a limit), press again to end the line; draw as many lines as needed. They are fixed to the ground, so use them on a ground-stabilised picture. Saved maps are kept on this computer. Off-centring works in relative motion. S band sees through rain and sea clutter better, but small craft and buoys are detected at shorter range and SARTs (and X-band racons) do not answer. Detection ranges follow IMO MSC.192(79) table 2; the band and pulse figures shown are typical values, not those of a particular set.</p>
@@ -922,6 +933,8 @@
         <p class="hint">Refraction changes how far the radar sees over the horizon: in sub-refraction (cold air over a warmer sea, bad weather) targets are detected at about 80% of the usual range; in super-refraction (warm dry air over a cooler sea, settled weather) at up to about 140%. Ducting carries the beam much further and brings second-trace echoes.</p>
         <div class="check"><input type="checkbox" id="interf"><label for="interf">Interference from another ship's radar</label></div>
         <div class="row two"><label for="visNm" title="How far one can see. It does not change the radar picture: a look-out reports the vessels that come into sight.">Visibility (NM; blank = good)</label><input type="number" id="visNm" min="0.05" max="20" step="0.05" placeholder="good"></div>
+        <div class="row two"><label for="shipRules" title="How the other ships behave towards own ship">Other ships</label><select id="shipRules"><option value="hold">Keep their course and speed</option><option value="rules">Keep the collision regulations</option><option value="wrong">Keep them, but one gets it wrong</option></select></div>
+        <p class="hint">"Keep the collision regulations": a ship that has to give way to own ship alters to starboard in good time; a stand-on ship holds on, and acts herself only at the last moment if own ship does nothing; in restricted visibility each alters to starboard for own ship forward of her beam; when past and clear she goes back to her course. "One gets it wrong": the first ship to act turns to port instead, as ships sometimes do. Exercises are written and marked for ships that keep their course and speed, so leave it at that unless the instructor wants otherwise. The ships' manoeuvres are written in the record for the instructor; the trainees are not told.</p>
         <div class="row two"><label for="windFrom">Wind from (°)</label><input type="number" id="windFrom" min="0" max="359" value="0"></div>
         <div class="row two"><label for="windSpd">Wind speed (kn)</label><input type="number" id="windSpd" min="0" max="70" step="1" value="0"></div>
         <div class="row two"><label for="curSet">Current set</label><input type="number" id="curSet" min="0" max="359" value="0"></div>

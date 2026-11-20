@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { distanceToSegment, formatLatLon, latLonOf, positionOfLatLon } from "../src/core/nav";
-import { MUMBAI_APPROACH, MUMBAI_BOX, MUMBAI_COAST, MUMBAI_ORIGIN, SCENARIOS, createWorld } from "../src/engine/index";
+import { MUMBAI_APPROACH, MUMBAI_BOX, MUMBAI_COAST, MUMBAI_ORIGIN, SCENARIOS, SEA_MARK_FIRST_ID, createWorld } from "../src/engine/index";
 
 /*
  * Hand-worked. One minute of latitude is one nautical mile. At 60 N a minute of longitude is half
@@ -60,7 +60,8 @@ describe("the real coastline of the Mumbai approaches", () => {
     expect(SCENARIOS).toContain(MUMBAI_APPROACH);
     const w = createWorld(MUMBAI_APPROACH);
     expect(w.coastSamples.length).toBeGreaterThan(2000);
-    for (const t of w.targets) {
+    // The scenario's own ships (the buoys, beacons and lights of the area, numbered from 9001, lie where they are charted).
+    for (const t of w.targets.filter((x) => x.id < SEA_MARK_FIRST_ID)) {
       expect(nearestCoastNm(t.pos)).toBeGreaterThan(1);
       expect(t.pos.e).toBeLessThan(16); // seaward of the harbour entrance
     }

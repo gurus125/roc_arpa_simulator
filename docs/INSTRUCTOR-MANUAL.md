@@ -116,6 +116,31 @@ then happens on the display:
 Exercises 9 and 25 now start with a visibility (0.5 and 1 NM), and in exercise 30 it closes to
 0.8 NM three minutes after the start.
 
+**The picture.** Sea clutter is spiky: bright spots in streaks along the wave crests, new on every
+turn of the antenna, so a spike can pass for a small echo on one scan. Rain paints as an irregular,
+woolly area with a ragged edge and a heavier core, its texture drifting with the wind. In a sea of
+state 2 or more, buoys and small craft fade for several scans together and come back; in the long
+run they are painted as often as before, so the detection ranges of IMO table 2 and the clutter
+controls are unchanged. None of this touches the ARPA's tracking. The figures are placeholders that
+give the look the Radar and ARPA Manual describes (see `RADAR-PICTURE.md`).
+
+**How the other ships behave** (station, CLASSROOM, "How the other ships behave"; on a display or the
+station's own radar, WEATHER, "Other ships"): "Keep their course and speed (as the exercise is
+written)", the normal setting; "Keep the collision regulations"; or "Keep the regulations, but one gets
+it wrong". With the regulations kept, a ship that must give way to own ship alters to starboard in good
+time (Rules 15 and 16; Rule 13 when she is overtaking; Rule 14 head-on); a stand-on ship holds her
+course and speed and acts herself, to starboard, only when own ship has not and they are about to come
+too close (Rule 17); in restricted visibility a ship that has own ship forward of her beam alters to
+starboard (Rule 19(d)). She goes back to her course when own ship is past and clear. With "one gets it
+wrong", the first ship to act turns 30° to port instead. "Set on the display chosen above" sends the
+choice to a display, "On the station's own radar" sets it there. Ships on a programmed track, with a
+scripted alteration still to come, at anchor or nearly stopped are left alone. The ships act on the true
+situation (as if their look-out and radar were perfect). Each manoeuvre is written in the display's
+record as an instructor's note; the trainees are not told. The exercises are marked for ships that keep
+their course and speed: their answer keys follow the ships as they actually move, but the passing
+distances may differ from the written exercise. Every figure (when a ship acts, how far she turns) is a
+placeholder.
+
 ## 4. Targets
 
 All of this is on the station, OWN RADAR, MENU, INSTR, "Inject events (this display)": it acts on the
@@ -305,7 +330,11 @@ exercise and the score. "Open" shows:
 - the bookmarks: one key for each moment something was flagged on the display during the exercise
   (section 6a); a click takes the replay to ten seconds before it;
 - the result, item by item, the trainees' own debrief notes and radio log, who was at the controls
-  and for how long, and the instructor's observations and notes;
+  and for how long, and the instructor's observations and notes. Under each item of the result,
+  "Why" opens the reason for the correct answer, where on the screen it is found, the rule behind it
+  and the working with the numbers that were on the trainee's screen when he or she answered (for an
+  item not answered, or an action or outcome, when Finish was pressed). The trainees see the same on
+  their display after Finish, except in an examination;
 - the assessor's decision: "Competent" or "Not yet competent", the assessor's name and remarks, and for
   a group a decision and remarks for each trainee. What the assessor enters stays when the display
   sends the record again (after the trainees save their debrief). The
@@ -342,8 +371,38 @@ in each, bold where found competent, and how many are done.
    browser in one file. "Restore from a backup" adds the records and the batches this station does
    not have, and on a station with no batch yet takes the settings too. It never deletes.
 
-Neither is encrypted, and the station key travels in clear on the classroom network: this keeps
-trainees out, not a determined intruder. The files hold trainees' names and results: keep the
+**Instructors' accounts, backups, export and import** (RECORDS, "Keeping the records", "Backups, export
+and instructors' accounts on the classroom server"; shown while the station uses the classroom server):
+
+- **Accounts.** Each instructor can have an account of his or her own (name and password), so that the
+  server knows who did what. While there is no administrator, the station key may make the first
+  account, which must be an administrator's: type a name and a password of 8 characters or more,
+  choose "Administrator" and press "Add this account". From then on an administrator adds and removes
+  accounts ("Set password" gives an account the password typed in the password box), and each
+  instructor logs in at the station with "Log in to the server" and can change his or her own
+  password. A login lasts 12 hours; "Log out of the server" ends it. After 5 wrong passwords for one
+  name, that name must wait 15 minutes. (These three figures are placeholders, in
+  `server/server.mjs`, ACCOUNT_RULES.) Passwords are kept as salted scrypt hashes in
+  `data/instructors.json`, never as typed.
+- **The station key** keeps working beside the accounts. Once every instructor has an account, an
+  administrator can press "Switch the station key off": then only a login opens the records.
+- **What was done** lists the newest entries of `data/audit.log`: logins and refused logins, records
+  kept and deleted, settings saved, accounts made and removed, backups, restores, imports and exports,
+  each with the time, the name and the computer's address (administrators only).
+- **Backups.** The server backs itself up once a day (at its start and then every hour it checks
+  whether today's is made), keeping the last 14 days, in `data/backups`; "Back up the server now"
+  makes one at once. A backup holds the records with their replays, the list and the class settings,
+  not the accounts. "Put the server back to this backup" (administrators) makes the server's records
+  and settings what they were then, after keeping what it holds now in a backup of its own ("before a
+  restore"). The stations then send again whatever they still hold that the server lacks.
+- **Export and import.** "Export everything on the server (one file)" saves all the server holds,
+  records with their replays and the class settings, in one file to keep on another computer or a USB
+  stick. "Import a server file" (administrators) adds to this server the records it does not have and,
+  if it has none, the settings; it never replaces or deletes, and it first makes a backup ("before an
+  import").
+
+Neither the store nor the backups are encrypted, and the station key and the passwords travel in
+clear on the classroom network: this keeps trainees out, not a determined intruder. The files hold trainees' names and results: keep the
 `data` folder and the backups as the institute keeps its other records. Never put the `data`
 folder in the project's Git repository (it is listed in `.gitignore`). The radar pictures of the
 replay stay in the browser of the display that recorded them and are not sent to the server.
@@ -548,7 +607,7 @@ the position, for example
 or "low"). Left out, a ship gets a made-up IMO number and a type from its catalogue type, and no
 voyage data.
 
-### Real areas: coastlines and land heights
+### Real areas: coastlines, land heights, depths and sea marks
 
 Four real areas are built in: the approaches to Mumbai, Mormugao (Goa) and Kochi, and the Gulf of
 Kutch. A scenario file uses one with `"terrain": "mumbai"` (or `"goa"`, `"kochi"`, `"kutch"`) and its
@@ -573,6 +632,16 @@ GLO-90, free, with the credit given in the scenario descriptions). On a Windows 
 (one name per whole degree of latitude and longitude the area covers). Then add the area to
 `scripts/areas.mjs` and run `scripts/make-coast.mjs` and `scripts/make-terrain.mjs` as their first
 lines describe. The tiles themselves are not part of the simulator and need not be kept.
+
+The approximate depths come from the ETOPO 2022 15 arc-second relief model (NOAA): cells of about
+450 m, below mean sea level, no tide, not reliable near the coast. `scripts/make-depths.mjs` makes
+them again from the files its first lines name. The buoys, beacons, lights, rocks and wrecks are
+those mapped in OpenStreetMap (none are mapped in the Gulf of Kutch); `scripts/make-seamarks.mjs`
+makes them again from an export of overpass-turbo, with the query in its first lines. In the four
+area scenarios (`"seaMarks": true` in a scenario file) the buoys, beacons and lights standing in the
+water give echoes, numbered from 9001, and a racon on a light ashore answers; the marked exercises
+23 to 26 leave them out, so that their marking is unchanged. "Area map over the picture" (under
+PI / MAP) draws the contours and the marks. The depths are never used to ground the ship.
 
 ## 11a. Two screens at a display
 
@@ -607,7 +676,11 @@ mode (which screen it opens on) has not been tried either.
   ship figures, the ship's response to the sea, automatic clutter settings, echo shapes, the
   strength of false echoes, scoring tolerances. Radar beamwidths and pulse lengths are those of one
   maker's published specification.
-- Radar and ARPA only: no chart display, no outside view, no echo sounder, no voice radio.
+- Radar and ARPA only: no chart display, no outside view, no voice radio. The echo sounder's depth
+  and the area map's contours are approximate (about 450 m cells, no tide), and the buoys and lights
+  are as volunteers mapped them in OpenStreetMap: a guide, not a chart. The ship never grounds.
+- Other ships that keep the collision regulations act on the true situation, as if their look-out
+  were perfect, and only towards own ship, not towards each other.
 - Own ship's ahead, sideways and turning motion come from the manoeuvring model. Roll, pitch, heave
   and the yaw a sea gives are added as simple wave motions whose size is an estimate; the sea does
   not slow the ship or set her. Three ship types are fitted to published turning figures (SHIP menu, ? help);

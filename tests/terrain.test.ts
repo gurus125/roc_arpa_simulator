@@ -5,7 +5,7 @@ import {
   landFaceDetectionNm, packTerrain, terrainHides, unpackTerrain, visibleLand,
 } from "../src/engine/terrain";
 import { REAL_TERRAIN } from "../src/engine/real-terrain";
-import { SCENARIOS, Scenario, World, createWorld, isLand, landHides, scanWedge, shorelineHeightM } from "../src/engine/index";
+import { SCENARIOS, SEA_MARK_FIRST_ID, Scenario, World, createWorld, isLand, landHides, scanWedge, shorelineHeightM } from "../src/engine/index";
 import { ArpaSystem, extractPlots, ARPA_PLACEHOLDERS } from "../src/arpa/index";
 
 /** A test grid: 0.1 NM nodes over e -1..31, n -10..10; land and heights from the functions given. */
@@ -154,9 +154,15 @@ describe("The real areas", () => {
       const w = createWorld(sc);
       expect(w.terrain, sc.id).toBeTruthy();
       expect(isLand(w, w.own.pos), sc.id).toBe(false);
-      for (const t of w.targets) {
+      for (const t of w.targets.filter((x) => x.id < SEA_MARK_FIRST_ID)) {
         expect(isLand(w, t.pos), `${sc.id} ${t.name}`).toBe(false);
         expect(landHides(w, t.pos, t.height), `${sc.id} ${t.name}`).toBe(false);
+      }
+      // The sea marks stand in the water (some behind the land from the start), except the racons of lights ashore,
+      // which have no echo of their own.
+      for (const t of w.targets.filter((x) => x.id >= SEA_MARK_FIRST_ID)) {
+        if (/\(racon\)$/.test(t.name)) expect(t.rcs, `${sc.id} ${t.name}`).toBeLessThan(1e-5);
+        else expect(isLand(w, t.pos), `${sc.id} ${t.name}`).toBe(false);
       }
     }
   });

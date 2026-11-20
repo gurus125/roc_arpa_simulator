@@ -3,6 +3,7 @@ import { Vec2 } from "../core/vec";
 import { SetDrift } from "../core/current";
 import type { TssScheme } from "../core/tss";
 import type { TerrainGrid } from "./terrain";
+import type { ShipBehaviour, TrafficState } from "./traffic-rules";
 
 export type TargetKind = "ship" | "small-craft" | "buoy" | "beacon";
 
@@ -347,8 +348,12 @@ export interface World {
   structures: Structure[];
   /** Ground heights and land mask of a real area (see engine/terrain.ts); absent for drawn coastlines. */
   terrain?: TerrainGrid;
+  /** The real area the scenario is in (its `terrain` id): where its depths and sea marks are looked up. */
+  area?: string;
   /** Latitude and longitude of the frame's origin (0, 0), for positions shown in degrees and minutes. */
   origin: { lat: number; lon: number };
+  /** How the other ships behave towards own ship (engine/traffic-rules.ts). Left out: they keep their course and speed. */
+  traffic?: TrafficState;
 }
 
 export interface Scenario {
@@ -372,6 +377,13 @@ export interface Scenario {
   terrain?: string;
   /** Latitude and longitude of the scenario's origin (0, 0). Left out: 18°50'N 072°30'E, off Mumbai. */
   origin?: { lat: number; lon: number };
+  /** How the other ships behave towards own ship. Left out: "hold" (they keep their course and speed). */
+  traffic?: ShipBehaviour;
+  /**
+   * With `terrain`: put the area's buoys, beacons and lights that stand in the water (engine/seamarks.ts) on the
+   * radar, as targets numbered from 9001. Left out: only the scenario's own targets.
+   */
+  seaMarks?: boolean;
 }
 
 /** IMO MSC.192(79) 5.10.1: 0.25, 0.5, 0.75, 1.5, 3, 6, 12 and 24 NM. */

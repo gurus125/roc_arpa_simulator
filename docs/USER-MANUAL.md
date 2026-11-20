@@ -157,7 +157,19 @@ Also under **PI / MAP**:
   over the echoes, to compare the radar with the chart: low land far off and land in radar shadow
   paint less than the chart shows. "Outline sheet of this area" opens the same coastline with a
   latitude and longitude grid and a scale, to print and plot position lines on by hand. Neither is
-  a chart: there are no depths, lights or buoys.
+  a chart.
+- **Area map over the picture** (the four real areas only). Draws over the echoes the approximate
+  depth contours (5, 10, 20, 30, 50 and 100 m; to 10 m solid, deeper dashed, each labelled), and the
+  buoys, beacons, lights, rocks and wrecks mapped in OpenStreetMap: a red square is a port-hand mark,
+  a green triangle a starboard-hand mark, a yellow diamond with its letter a cardinal mark, a yellow
+  cross a special mark, a magenta star a light, a magenta flare a light on a buoy or beacon, a magenta
+  ring a racon, a white cross a rock (dotted when it dries or is awash) and a white hull a wreck. On
+  the 3 NM range and below each mark has its name and its light (for example "Fl(3) W 20s 85m 27M").
+  With the map on, the cursor readout adds the depth under the cursor. The depths come from a world
+  relief model with cells of about 450 m, below mean sea level and with no tide: banks, reefs and
+  dredged channels smaller than that are not in it, and near the coast it is not reliable. The marks
+  are as volunteers mapped them: some are missing and some may have changed. It is a guide for
+  comparing the radar with the lie of the bottom and the marks, not a chart.
 - In a scenario with a **traffic separation scheme** the scheme is drawn on the picture: the
   separation zone shaded, the outer limits of the lanes dashed, and arrows for the flow.
 
@@ -168,8 +180,11 @@ Each control is a bar: click or drag along it. The figure beside it is the setti
 - **GAIN**: receiver gain. Too low loses weak echoes; too high fills the picture with noise.
 - **SEA**: sea clutter control. It works close to the ship. Too much removes small targets nearby.
   Sea clutter reaches further on the side the wind and sea come from (to windward) than on the
-  other side. A shorter pulse (the PULSE keys) returns less clutter.
-- **RAIN**: rain clutter control. Too much weakens all echoes.
+  other side. A shorter pulse (the PULSE keys) returns less clutter. The clutter is spiky: bright
+  spots in streaks along the wave crests, different on every turn of the antenna, so a spike can
+  look like a small echo for one scan. A real echo stays from scan to scan.
+- **RAIN**: rain clutter control. Too much weakens all echoes. A rain squall paints as an irregular,
+  woolly area with a ragged edge and a heavier core, its texture drifting with the wind.
 - **TUNE**: tune for the highest METER reading.
 - **AUTO**: the set chooses the setting. Like a real automatic control it is a compromise.
 - **BRILL**: brightness of the radar picture.
@@ -341,6 +356,10 @@ Press **SHIP** (or use the ship control window).
   engine is stopped, the AIS sends "At anchor" and the key reads **WEIGH ANCHOR**. The anchor can
   drag (an instructor's fault, or in exercise 24): the ARPA's anchor watch on a fixed echo then gives
   its alarm.
+- **Depth** (OWN SHIP DATA, in the four real areas): the echo sounder's reading, the approximate depth
+  of water where the ship is and, when the draught is known, the water under the keel. It comes from
+  the same relief model as the area map's contours (cells of about 450 m, below mean sea level, no
+  tide): a guide only. The ship never touches bottom in this simulator.
 - **If the GNSS (EPFS) fails** there is no position anywhere: the position reads NO FIX, the cursor
   gives no latitude and longitude, COG and SOG are blank, and the ARPA warns EPFS INPUT ABSENT. Fix
   the position by radar (exercise 23).
@@ -363,6 +382,12 @@ turn and relative wind.
   - close to a bridge, the bridge is painted a second time beyond itself.
   A false echo lies on land, in a shadow sector, or square to a cable, and it moves or vanishes
   when own ship alters course.
+- **Small echoes fade.** In a seaway (sea state 2 and above) a buoy or a small boat is lost for
+  several scans together and comes back, as it drops into the troughs and rolls; it is painted as
+  often as before in the long run, but not on every scan. Watch a weak echo over several scans before
+  deciding it has gone. In the real areas, buoys, beacons and lights standing in the water give
+  echoes of their own in the scenarios of those areas, and a racon on a light ashore paints its Morse
+  letter beyond the land.
 
 ## 7b. A hardware control panel
 
@@ -441,7 +466,11 @@ exercise have gone, with a message on the screen ("Change over: ... takes the co
 3. Type each answer and press ANSWER beside it. A number is marked against the true value at the
    moment you press ANSWER; you can answer again, and the last answer counts.
 4. Press Finish. The result shows each item, your answer, the correct answer and the debrief
-   questions. Write your debrief notes and save them: the record goes to the instructor's station.
+   questions. Under each item, "Why" (or "Why, and what is right" where you were marked down) opens
+   the reason for the correct answer: where on the screen it is found, the rule behind it and the
+   working with the numbers that were on your screen when you answered (for an item you did not
+   answer, when you pressed Finish). In an examination this is shown to the assessor only. Write your
+   debrief notes and save them: the record goes to the instructor's station.
 
 For the manual plotting exercises the ARPA and the AIS display are off (the ships do transmit AIS,
 so the AIS key is locked off until you press Finish): take ranges and bearings with EBL 1 and
@@ -516,9 +545,10 @@ what it cost in the result.
   on a real one (since 18 Nov 2026), and interference from another radar disturbs tracking unless
   interference rejection is on. Mirror images in a quay or bridge and the echo of a power line are
   seen on the picture but still cannot be acquired.
-- There are no charts, depths, lights or buoys: the route, the separation scheme and the charted
-  coastline are lines drawn on the radar, as a radar map is.
+- There are no charts: the route, the separation scheme, the charted coastline and the area map are
+  lines drawn on the radar, as a radar map is. The ship never grounds.
 - Positions are not on a real chart. Four scenarios use a real coastline (OpenStreetMap data, about
-  250 m accuracy) and real land heights (Copernicus DEM, 90 m) with no depths, lights or buoys; the
-  others use invented coasts. How strongly land returns is set by one figure that an instructor
+  250 m accuracy), real land heights (Copernicus DEM, 90 m), approximate depths (ETOPO 2022, about
+  450 m cells, no tide) and the buoys, beacons and lights mapped in OpenStreetMap (none are mapped in
+  the Gulf of Kutch); the others use invented coasts. How strongly land returns is set by one figure that an instructor
   should check against a real set (see RADAR-PICTURE.md).

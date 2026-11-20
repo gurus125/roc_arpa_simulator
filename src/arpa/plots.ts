@@ -2,7 +2,7 @@ import { Vec2, add, angleDiffDeg, bearingOf, fromPolar, length, sub } from "../c
 import { rangeBearing } from "../core/nav";
 import {
   BAND_DATA, World, RadarControls, rcsForDetectionRange, shorelineDetectionNm, targetLengthM, detectionProbability, effectiveSignal, isLand, landHides, lineOfSightBlocked, rainClutterProbability,
-  relativeBearing, seaClutterProbability, maskedByClutter, SIDE_LOBES, THRESHOLD, INDIRECT_MIN_SIGNAL, INDIRECT_MAX_RANGE_NM, INDIRECT_STRENGTH,
+  relativeBearing, seaClutterSampler, maskedByClutter, SIDE_LOBES, THRESHOLD, INDIRECT_MIN_SIGNAL, INDIRECT_MAX_RANGE_NM, INDIRECT_STRENGTH,
 } from "../engine/index";
 import { ArpaConfig } from "./config";
 
@@ -144,12 +144,56 @@ export function paintedThisScan(t: object, paint: number): boolean {
   return Math.floor((k + 1) * paint + 1e-9) > Math.floor(k * paint + 1e-9);
 }
 
+/** A box relative to own ship, NM, true frame: west, south, east, north. */
+export type LandBox = [number, number, number, number];
+/** Side of the squares the coastline's samples are filed in, NM. */
+const COAST_SQUARE_NM = 1;
+const coastSquares = new WeakMap<object, Map<number, number[]>>();
+const squareKey = (i: number, j: number): number => (i + 4096) * 8192 + (j + 4096);
+/** The coastline's samples filed by square, worked out once for each coastline. */
+function coastIndex(samples: { pos: Vec2 }[]): Map<number, number[]> {
+  const hit = coastSquares.get(samples);
+  if (hit) return hit;
+  const m = new Map<number, number[]>();
+  samples.forEach((s, k) => {
+    const key = squareKey(Math.floor(s.pos.e / COAST_SQUARE_NM), Math.floor(s.pos.n / COAST_SQUARE_NM));
+    const l = m.get(key);
+    if (l) l.push(k);
+    else m.set(key, [k]);
+  });
+  coastSquares.set(samples, m);
+  return m;
+}
+/** The numbers of the samples in the squares that touch any of the boxes (relative to `own`), in their order in the coastline. */
+export function coastSamplesNear(samples: { pos: Vec2 }[], own: Vec2, boxes: LandBox[]): number[] {
+  const index = coastIndex(samples);
+  const seen = new Set<number>();
+  const out: number[] = [];
+  for (const [w0, s0, e0, n0] of boxes) {
+    const i0 = Math.floor((own.e + w0) / COAST_SQUARE_NM), i1 = Math.floor((own.e + e0) / COAST_SQUARE_NM);
+    const j0 = Math.floor((own.n + s0) / COAST_SQUARE_NM), j1 = Math.floor((own.n + n0) / COAST_SQUARE_NM);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const key = squareKey(i, j);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const l = index.get(key);
+      if (l) for (const k of l) out.push(k);
+    }
+  }
+  return out.sort((a, b) => a - b);
+}
+
 export function extractPlots(
   w: World,
   cfg: ArpaConfig,
   rng: () => number,
   wantLand: (relTrue: Vec2) => boolean = () => false,
   landContext: ((relTrue: Vec2) => boolean) | null = null,
+  /**
+   * Boxes round own ship that hold every point `wantLand` or `landContext` accepts: only the coastline in them is
+   * looked at. The same plots as without them, found sooner. Left out: the whole coastline is looked at.
+   */
+  landBoxes: LandBox[] | null = null,
 ): ArpaPlot[] {
   const heading = w.own.heading;
   const raw: RawPlot[] = [];
@@ -223,7 +267,15 @@ export function extractPlots(
   const landCells: LandCell[] = [];
   const landPlots: (RawPlot | null)[] = [];
   const maxR = cfg.maxRangeNm;
-  for (const s of w.coastSamples) {
+  // The boxes cut to the ARPA's range (nothing beyond it is looked at anyway); any box that cannot be worked out
+  // means the whole coastline is looked at, as without boxes.
+  const boxes = landBoxes
+    ? landBoxes.map(([a, b, c, d]): LandBox => [Math.max(a, -maxR), Math.max(b, -maxR), Math.min(c, maxR), Math.min(d, maxR)]).filter(([a, b, c, d]) => !(a > c || b > d))
+    : null;
+  const near = boxes && boxes.every((x) => x.every(Number.isFinite)) ? coastSamplesNear(w.coastSamples, w.own.pos, boxes) : null;
+  const count = near ? near.length : w.coastSamples.length;
+  for (let q = 0; q < count; q++) {
+    const s = w.coastSamples[near ? near[q]! : q]!;
     // Most samples are far from any track: the cheap tests first.
     const de = s.pos.e - w.own.pos.e;
     const dn = s.pos.n - w.own.pos.n;
@@ -259,10 +311,11 @@ export function extractPlots(
   // Sea clutter near own ship.
   if (w.env.seaState > 0) {
     const maxR = cfg.clutterRangeNm;
+    const clutterAt = seaClutterSampler(w, rx);
     for (let i = 0; i < cfg.clutterSamplesPerScan; i++) {
       const r = Math.max(0.05, maxR * Math.pow(rng(), 2));
       const rel = 360 * rng();
-      if (rng() < seaClutterProbability(w, r, rel, rx)) {
+      if (rng() < clutterAt(r, rel)) {
         const at = add(w.own.pos, fromPolar(rel + heading, r));
         if (isLand(w, at) || landHides(w, at, 1)) continue; // no sea clutter on land or in its shadow
         raw.push({ relTrue: fromPolar(rel + heading, r), kind: "clutter", truthIds: [], strength: 0.5 });

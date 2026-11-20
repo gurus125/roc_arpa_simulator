@@ -2,7 +2,7 @@ import { G, K, bgOuter, echoColour, landEchoColour, pic, ppiGradient } from "./p
 import { Vec2, bearingOf, fromPolar, normalizeDeg, sub } from "../core/vec";
 import { tssStrip } from "../core/tss";
 import { rangeBearing } from "../core/nav";
-import { pulseFor, radarPower, warmUpLeftSec, ringInterval, worldToDisplayNm, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead, radarSignalsLostText } from "../engine/index";
+import { pulseFor, radarPower, warmUpLeftSec, ringInterval, worldToDisplayNm, displayNmToWorld, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead, radarSignalsLostText, depthContours, depthGridById, seaMarksOf, SeaMark } from "../engine/index";
 import { AppState, ECHO_LIFETIME_S } from "./app";
 import { ShipType, shipTypeById } from "../core/shipmodel";
 
@@ -395,6 +395,63 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
       ctx.stroke();
     }
   }
+  // Approximate depth contours of a real area (engine/depth.ts), drawn as a radar map: a guide, not a chart. The
+  // shallower lines are solid, the deeper ones dashed, each labelled with its depth in metres here and there.
+  const dg = gfx && app.areaMap ? depthGridById(w.area) : null;
+  const marks = gfx && app.areaMap ? seaMarksOf(w.area) : [];
+  if (dg) {
+    const mid = displayNmToWorld(w, ds, 0, 0);
+    const reach = c.rangeNm * 1.45;
+    ctx.strokeStyle = G("#6fa8dc");
+    ctx.fillStyle = G("#6fa8dc");
+    ctx.lineWidth = 0.9;
+    ctx.font = "10px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const set of depthContours(dg)) {
+      ctx.setLineDash(set.levelM <= 10 ? [] : [5, 4]);
+      set.lines.forEach((line, li) => {
+        const [bw, bs, be, bn] = set.boxes[li]!;
+        if (bw > mid.e + reach || be < mid.e - reach || bs > mid.n + reach || bn < mid.n - reach) return;
+        ctx.beginPath();
+        line.forEach((q, i) => {
+          const s = px(worldToDisplayNm(w, ds, q));
+          if (i === 0) ctx.moveTo(s.x, s.y);
+          else ctx.lineTo(s.x, s.y);
+        });
+        ctx.stroke();
+        // A label every 60 points along the line (about 15 NM of contour), on the screen only.
+        for (let i = 20; i < line.length; i += 60) {
+          const s = px(worldToDisplayNm(w, ds, line[i]!));
+          if (Math.hypot(s.x - cx, s.y - cy) > R - 12) continue;
+          ctx.fillStyle = "rgba(0,0,0,0.4)";
+          ctx.fillRect(s.x - 9, s.y - 6, 18, 12);
+          ctx.fillStyle = G("#6fa8dc");
+          ctx.fillText(String(set.levelM), s.x, s.y);
+        }
+      });
+    }
+    ctx.setLineDash([]);
+    ctx.textBaseline = "alphabetic";
+  }
+  // The area's buoys, beacons and lights (engine/seamarks.ts) as small symbols; names and lights on the short ranges.
+  if (marks.length) {
+    const mid = displayNmToWorld(w, ds, 0, 0);
+    ctx.setLineDash([]);
+    ctx.lineWidth = 1;
+    ctx.font = "10px monospace";
+    ctx.textAlign = "left";
+    for (const m of marks) {
+      if (Math.hypot(m.pos.e - mid.e, m.pos.n - mid.n) > c.rangeNm * 1.45) continue;
+      const s = px(worldToDisplayNm(w, ds, m.pos));
+      drawSeaMark(ctx, s.x, s.y, m);
+      if (c.rangeNm <= 3 && m.shape !== "danger") {
+        ctx.fillStyle = K("#d8c8ff");
+        ctx.fillText(m.name, s.x + 9, s.y - 3);
+        if (m.light || m.racon) ctx.fillText([m.light, m.racon ? `Racon (${m.racon})` : ""].filter(Boolean).join("  "), s.x + 9, s.y + 9);
+      }
+    }
+  }
   // Own ship's route: legs dashed, waypoints as numbered circles, the next waypoint bold (IEC 62288 Annex A: waypoint and route).
   if (gfx && app.route.length > 0) {
     ctx.strokeStyle = G("#ffa24d");
@@ -647,3 +704,154 @@ export function readoutAt(app: AppState, world: { e: number; n: number }): { ran
 }
 
 export { fromPolar, toRef };
+
+/** Colours of the sea mark symbols on the area map: a simplified chart style (IALA region A, as off India). */
+const MARK = { red: "#e0453a", green: "#35b84a", yellow: "#f2c200", white: "#f2f2f2", magenta: "#d24bd2", dark: "#202020" };
+
+/**
+ * A sea mark's symbol at (x, y): a can (square) for a port-hand mark, a cone (triangle) for a starboard-hand mark, a
+ * yellow diamond with its letter for a cardinal mark, rings for isolated danger and safe water, a cross for a special
+ * mark; a beacon stands on a short stem; a light adds a magenta flare, a racon a magenta ring; a rock is a cross
+ * (dotted when it dries or is awash), a wreck a hull with masts. Simplified: not the symbols of any chart or maker.
+ */
+export function drawSeaMark(ctx: Ctx, x: number, y: number, m: SeaMark): void {
+  const fill = (c: string): void => {
+    ctx.fillStyle = K(c);
+    ctx.fill();
+  };
+  const line = (c: string): void => {
+    ctx.strokeStyle = K(c);
+    ctx.stroke();
+  };
+  ctx.save();
+  ctx.lineWidth = 1;
+  if (m.shape === "beacon") {
+    ctx.beginPath();
+    ctx.moveTo(x, y + 6);
+    ctx.lineTo(x, y + 1);
+    line(MARK.white);
+    y -= 2;
+  }
+  switch (m.category) {
+    case "rock":
+      // A cross; dotted round when the rock covers and uncovers or is awash.
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(x - 4, y);
+      ctx.lineTo(x + 4, y);
+      ctx.moveTo(x, y - 4);
+      ctx.lineTo(x, y + 4);
+      line(MARK.white);
+      if (!/^Underwater/.test(m.name)) {
+        ctx.fillStyle = K(MARK.white);
+        for (const [dx, dy] of [[3, 3], [-3, 3], [3, -3], [-3, -3]] as const) ctx.fillRect(x + dx - 0.6, y + dy - 0.6, 1.2, 1.2);
+      }
+      break;
+    case "wreck":
+      // A hull: a line with three masts.
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x - 6, y);
+      ctx.lineTo(x + 6, y);
+      for (const dx of [-3, 0, 3]) {
+        ctx.moveTo(x + dx, y - 3);
+        ctx.lineTo(x + dx, y + 3);
+      }
+      line(MARK.white);
+      break;
+    case "port":
+    case "preferred-port":
+      ctx.beginPath();
+      ctx.rect(x - 3.5, y - 3.5, 7, 7);
+      fill(MARK.red);
+      if (m.category === "preferred-port") {
+        ctx.fillStyle = K(MARK.green);
+        ctx.fillRect(x - 3.5, y - 1, 7, 2);
+      }
+      break;
+    case "starboard":
+    case "preferred-starboard":
+      ctx.beginPath();
+      ctx.moveTo(x, y - 4.5);
+      ctx.lineTo(x + 4, y + 3.5);
+      ctx.lineTo(x - 4, y + 3.5);
+      ctx.closePath();
+      fill(MARK.green);
+      if (m.category === "preferred-starboard") {
+        ctx.fillStyle = K(MARK.red);
+        ctx.fillRect(x - 2.5, y, 5, 1.6);
+      }
+      break;
+    case "north":
+    case "east":
+    case "south":
+    case "west":
+      ctx.beginPath();
+      ctx.moveTo(x, y - 5);
+      ctx.lineTo(x + 4, y);
+      ctx.lineTo(x, y + 5);
+      ctx.lineTo(x - 4, y);
+      ctx.closePath();
+      fill(MARK.yellow);
+      ctx.fillStyle = K(MARK.dark);
+      ctx.font = "bold 7px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(m.category[0]!.toUpperCase(), x, y + 2.5);
+      break;
+    case "isolated-danger":
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      fill(MARK.dark);
+      ctx.lineWidth = 2;
+      line(MARK.red);
+      break;
+    case "safe-water":
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      fill(MARK.white);
+      ctx.lineWidth = 2;
+      line(MARK.red);
+      break;
+    case "special":
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - 3.5, y - 3.5);
+      ctx.lineTo(x + 3.5, y + 3.5);
+      ctx.moveTo(x + 3.5, y - 3.5);
+      ctx.lineTo(x - 3.5, y + 3.5);
+      line(MARK.yellow);
+      break;
+    case "major-light":
+    case "minor-light":
+      // A light on its own: a magenta star.
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const r = k % 2 === 0 ? (m.category === "major-light" ? 6 : 4.5) : 2;
+        const a = (k * Math.PI) / 5 - Math.PI / 2;
+        if (k === 0) ctx.moveTo(x + r * Math.cos(a), y + r * Math.sin(a));
+        else ctx.lineTo(x + r * Math.cos(a), y + r * Math.sin(a));
+      }
+      ctx.closePath();
+      fill(MARK.magenta);
+      break;
+    default:
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      fill(MARK.white);
+  }
+  // A light on a buoy or beacon: a small flare leaning away from the symbol.
+  if (m.light && m.shape !== "light") {
+    ctx.beginPath();
+    ctx.moveTo(x + 2, y - 2);
+    ctx.quadraticCurveTo(x + 10, y - 7, x + 8, y - 11);
+    ctx.quadraticCurveTo(x + 5, y - 7, x + 2, y - 2);
+    fill(MARK.magenta);
+  }
+  if (m.racon) {
+    ctx.beginPath();
+    ctx.arc(x, y, 9, 0, Math.PI * 2);
+    ctx.lineWidth = 1;
+    line(MARK.magenta);
+  }
+  ctx.restore();
+}

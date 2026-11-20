@@ -18,3 +18,4 @@ export * from "./lookout";
 export * from "./accounts";
 export * from "./history";
 export * from "./robot-student";
+export * from "./explain";

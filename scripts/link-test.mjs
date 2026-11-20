@@ -5,7 +5,7 @@
 // server is stopped and started again. Run with `npm run test:link` after `npm run build`.
 // It runs on one machine: it does not replace a trial on the classroom's own PCs and network.
 import { createServer } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { handle, setDataDir, stationKey } from "../server/server.mjs";
@@ -165,6 +165,29 @@ await instr.click('#topTabs button[data-st="class"]');
   const state = await (await fetch(`http://localhost:${PORT}/api/store/state`, { headers: h })).json();
   check("the server's disk holds the record with its replay, and the batch", Array.isArray(list) && list.some((e) => /ARPA 1:/.test(e.light.title) && e.replay) && Array.isArray(state.batches) && state.batches.some((b) => b.name === "L1"), `${JSON.stringify(list).slice(0, 120)} ${JSON.stringify(state).slice(0, 120)}`);
   check("nothing of the store is given without the key", (await fetch(`http://localhost:${PORT}/api/store/history`)).status === 401);
+  // Backups, the first administrator's account, a login, the log and an export, from the station's screen.
+  await instr.click("#svMore summary");
+  await instr.click("#svBkNow");
+  check("the server is backed up from the station", await until(async () => (await instr.$$eval("#svBackups option", (o) => o.length)) > 0), String(await instr.$$eval("#svBackups option", (o) => o.length)));
+  await instr.fill("#svNewName", "Rao");
+  await instr.selectOption("#svNewRole", "admin");
+  await instr.fill("#svNewPass", "longenough1");
+  await instr.click("#svAddUser");
+  // Made: the station says so, and the accounts are then for an administrator to see (the key no longer is one).
+  check("with the key and no administrator yet, the station makes the first administrator's account", await until(async () => /Account added/.test(await text(instr, "#inMsg")) && !(await instr.isVisible("#svUsers"))), `${await text(instr, "#inMsg")} ${await instr.isVisible("#svUsers")}`);
+  await instr.fill("#svUser", "Rao");
+  await instr.fill("#svPass", "longenough1");
+  await instr.click("#svLogin");
+  check("the instructor logs in to the server with the account", await until(async () => /Logged in to the server as Rao/.test(await text(instr, "#svWho")) && /Working as Rao \(administrator\)/.test(await sv())), `${await text(instr, "#svWho")} | ${await sv()}`);
+  await instr.click("#svMore summary");
+  await instr.click("#svMore summary");
+  check("the server's log shows the login", await until(async () => /Rao: log in/.test(await text(instr, "#svAudit"))), (await text(instr, "#svAudit")).slice(0, 200));
+  check("logged in as the administrator, the station lists the accounts", await until(async () => /Rao\s*Administrator/.test(await text(instr, "#svUsers"))), await text(instr, "#svUsers"));
+  const [dl] = await Promise.all([instr.waitForEvent("download"), instr.click("#svExport")]);
+  const exported = JSON.parse(readFileSync(await dl.path(), "utf8"));
+  check("everything on the server is exported to one file", exported.kind === "radar-sim-classroom" && exported.history.length > 0, `${exported.kind} ${exported.history?.length}`);
+  await instr.click("#svLogout");
+  check("logged out, the station works with its key again", await until(async () => /Working as the station key/.test(await sv())), await sv());
   // An exercise of last month that only the server still holds (no browser has its replay any more).
   const frame = (t) => ({ t, own: { e: 0, n: t / 300, hdg: 0, spd: 12, ordC: 0, ordS: 12 }, tg: [], tracks: 0, alarms: [] });
   const old = { id: "2026-10-01T09:00:00.000Z-arpa-6", exerciseId: "arpa-6", title: "ARPA 6: Trial manoeuvre", kind: "arpa", students: ["Asha"], batch: "L1", startedIso: "2026-10-01T09:00:00.000Z", simSeconds: 60, names: {}, coasts: [], frames: [frame(0), frame(60)], events: [], result: null, summary: [] };
@@ -204,7 +227,6 @@ await instr.click("#inMsgSend");
 check("messages get through again", await until(async () => (await banners()).every((t) => t.includes("Back on line")), 30000), (await banners()).join(" | "));
 
 // A copy hosted on a web site (as on Vercel) serves the page only: no /api. The station says so plainly.
-const { readFileSync } = await import("node:fs");
 const pageHtml = readFileSync(new URL("../dist/radar-simulator.html", import.meta.url));
 const hosted = createServer((req, res) => {
   const path = new URL(req.url || "/", "http://x").pathname;

@@ -6,7 +6,7 @@ import { Vec2 } from "../core/vec";
 import { advanceLeg } from "../core/route";
 import {
   DisplayState, Hit, Scenario, TrailStore, World, createWorld, newDisplayState, scanWedge,
-  stepWorld, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading, radarTransmitting, settleDisplayModes, resetTrueMotionAhead, radarSignalsLostText,
+  stepWorld, stepTraffic, stepSpeedInput, logSpeed, updateTrueMotionOrigin, SCENARIOS, measuredHeading, radarTransmitting, settleDisplayModes, resetTrueMotionAhead, radarSignalsLostText,
 } from "../engine/index";
 
 /** Latitude and longitude of the scenarios' 0,0: the same point the real Mumbai coastline is laid out from. */
@@ -66,6 +66,8 @@ export interface AppState {
   mob: { pos: Vec2; time: number } | null;
   /** The charted coastline of the scenario drawn over the radar picture (a radar map), for comparing the two. */
   coastOutline: boolean;
+  /** The area map over the picture: a real area's approximate depth contours, buoys, beacons and lights. */
+  areaMap: boolean;
   /** Instructor: the track being programmed for a target (points clicked on the picture so far), or null. */
   routeEdit: { targetId: number; points: Vec2[] } | null;
   /** Instructor: draw the programmed tracks of the targets on this display. Never set on a student's display. */
@@ -188,6 +190,7 @@ export function createApp(scenario: Scenario = SCENARIOS[0]!, tuningOptimum?: nu
     routeLeg: 0,
     mob: null,
     coastOutline: false,
+    areaMap: false,
     routeEdit: null,
     showRoutes: false,
     snapshots: [],
@@ -236,6 +239,8 @@ export function advance(app: AppState, wallDt: number, rng: () => number = Math.
     for (let i = 0; i < steps; i++) {
       const e0 = w.own.pos.e, n0 = w.own.pos.n;
       stepWorld(w, simDt / steps);
+      // The other ships act on own ship when the instructor has asked them to (engine/traffic-rules.ts).
+      stepTraffic(w, simDt / steps);
       // A frozen picture stays where it was on the screen: the echoes are carried along with own ship.
       if (w.sensors.pictureFrozen) for (const h of app.hits) h.hit.pos = { e: h.hit.pos.e + w.own.pos.e - e0, n: h.hit.pos.n + w.own.pos.n - n0 };
       // Speed input of the display's sea stabilisation: the speed set by hand, else the log (nothing when the log has failed).

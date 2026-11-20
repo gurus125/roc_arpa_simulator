@@ -3,9 +3,9 @@ import { StationUi, initStationUi } from "./station-ui";
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
 import { aisFilterLabel } from "../ais/index";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
-import { BAND_DATA, currentVelocity, pulseFor, prfChoices, addTypedTarget, addRandomTraffic, RANDOM_TRAFFIC_DEFAULT, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setTargetRoute, clearTargetRoute, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, visibilityNm, MAX_VISIBILITY_NM, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN } from "../engine/index";
+import { BAND_DATA, BEHAVIOUR_LABELS, ShipBehaviour, setShipBehaviour, currentVelocity, pulseFor, prfChoices, addTypedTarget, addRandomTraffic, RANDOM_TRAFFIC_DEFAULT, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setTargetRoute, clearTargetRoute, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, visibilityNm, MAX_VISIBILITY_NM, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN, depthAt, echoSounderText, SEA_MARK_FIRST_ID, depthGridById, depthContours } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
-import { ARPA_EXERCISES, PLOTTING_EXERCISES, PLOT_RULES, RADAR_EXERCISES, ArpaExSession, ArpaExercise, Lookout, checkLogin, hasPin, traineeAttempts, progressHtml, AttemptRow, attentionFlags, progressReport, evidenceOf, criteriaSnapshot, rocCriteria, rocResult, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
+import { ARPA_EXERCISES, PLOTTING_EXERCISES, PLOT_RULES, RADAR_EXERCISES, ArpaExSession, ArpaExercise, Lookout, checkLogin, explainTask, hasPin, traineeAttempts, progressHtml, AttemptRow, attentionFlags, progressReport, evidenceOf, criteriaSnapshot, rocCriteria, rocResult, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
 import { initTrainUi, resultHtml } from "./train-ui";
 import { initInstructorUi } from "./instructor-ui";
 import { FAULT_IDS, Link } from "./link";
@@ -126,6 +126,11 @@ function timedChangeover(): void {
   ctlSlot = slot;
 }
 /** When each attention flag was last seen (exercise time): one is bookmarked in the record when it is raised. */
+byId<HTMLSelectElement>("shipRules")?.addEventListener("change", (ev) => {
+  const mode = (ev.target as HTMLSelectElement).value as ShipBehaviour;
+  setShipBehaviour(app.world, mode);
+  app.recorder?.note(app.world, `Other ships: ${BEHAVIOUR_LABELS[mode].toLowerCase()} (set at the display).`, true);
+});
 byId<HTMLInputElement>("visNm")?.addEventListener("change", (ev) => {
   const el = ev.target as HTMLInputElement;
   setVisibility(el.value === "" ? null : Number(el.value));
@@ -209,6 +214,8 @@ const trainUi = initTrainUi({
   },
   assigned: assignedIds,
   isInstructor: () => session.role === "instructor",
+  // In an examination the trainee sees the score only; the assessor sees the working in the records.
+  showWorking: () => session.role === "instructor" || exam === null,
 });
 
 function setRole(r: "student" | "instructor"): void {
@@ -571,6 +578,7 @@ function applyControls(): void {
   app.showNames = chk("names");
   app.sternLine = chk("sternLine");
   app.coastOutline = chk("coastOutline");
+  app.areaMap = chk("areaMap");
   app.antennaMark = chk("antMark");
   setText("gainV", String(c.gain));
   setText("tuningV", String(c.tuning));
@@ -750,6 +758,9 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
   arpaUi.onAppChanged(app);
   if (opts.arpa) {
     app.arpaEx = new ArpaExSession(opts.arpa, app.world, app.arpa, JSON.parse(JSON.stringify(store.data.scoring)) as typeof store.data.scoring);
+    // Each answer keeps the reason for the correct one, worked from this display as it is at that moment (the debrief shows it).
+    const def = opts.arpa;
+    app.arpaEx.explain = (t, c) => explainTask(def, t, c);
     if (opts.arpa.startsSwitchedOff) {
       // The exercise has left the radar off and badly set: show the controls as they are, with the automatic ones off.
       const c = app.world.radar.controls;
@@ -1012,6 +1023,12 @@ function setup(): void {
         app.world.targets = app.world.targets.filter((x) => x !== t);
         app.recorder?.note(app.world, `INSTRUCTOR (remote): ${t.name} removed.`, true);
       }
+      return;
+    }
+    if (c.cmd === "shipRules") {
+      if (!(c.mode in BEHAVIOUR_LABELS)) return;
+      setShipBehaviour(app.world, c.mode);
+      app.recorder?.note(app.world, `INSTRUCTOR (remote): other ships ${BEHAVIOUR_LABELS[c.mode].toLowerCase()}.`, true);
       return;
     }
     if (c.cmd === "traffic") {
@@ -1432,6 +1449,8 @@ function setup(): void {
   const ids = [
     "shipType", "helm", "windFrom", "windSpd", "autoSea", "autoRain", "autoTune", "gain", "tuning", "stc", "ftc", "brill", "sea", "duct", "refr", "interf", "pulse", "prf", "echoStretch", "echoAvg", "irOn", "pmOn", "curSet", "curDrift", "tideRate", "tideSet", "tideHrs", "ordCourse", "ordSpeed",
     "eblOn", "eblBrg", "vrmOn", "vrmRng", "trails", "trailMin", "shadow", "names", "rainInt",
+    // Picture overlays: they take effect at once, not at the next change of another control.
+    "coastOutline", "areaMap", "sternLine", "antMark",
   ];
   for (const id of ids) {
     $(id).addEventListener("input", applyControls);
@@ -1618,6 +1637,7 @@ function updateReadouts(): void {
     const rot = (w0.own.model?.motion.r ?? 0) * 60;
     setText("osRot", w0.own.model ? (Math.abs(rot) < 0.5 ? "0°/min" : `${Math.abs(rot).toFixed(0)}°/min to ${rot > 0 ? "starboard" : "port"}`) : "---");
     setText("osUtc", new Date(app.startUtcMs + w0.time * 1000).toISOString().slice(0, 19).replace("T", " "));
+    setText("osDepth", echoSounderText(depthAt(w0, w0.own.pos), store.data.ownShip.draughtM ?? type?.draughtM ?? null));
   }
   const w = app.world;
   const t = Math.floor(w.time + 1e-6);
@@ -1626,7 +1646,8 @@ function updateReadouts(): void {
   if (app.cursor) {
     const wp = displayNmToWorld(w, app.display, app.cursor.x, app.cursor.y);
     const r = readoutAt(app, wp);
-    setText("rCur", `${r.range.toFixed(2)} NM  T${pad3(r.trueBearing)}  R${pad3(r.relBearing)}`);
+    const dc = app.areaMap ? depthAt(w, wp) : null;
+    setText("rCur", `${r.range.toFixed(2)} NM  T${pad3(r.trueBearing)}  R${pad3(r.relBearing)}${dc === null ? "" : `  ≈${Math.round(dc)} m`}`);
   } else {
     setText("rCur", "---");
   }
@@ -1758,6 +1779,8 @@ function frame(now: number): void {
   step(now);
   requestAnimationFrame(frame);
 }
+/** How many of the other ships' manoeuvres have been written in the record. */
+let trafficNoted = 0;
 /** One step of the simulation and one drawing of the picture. */
 function step(now: number): void {
   const dt = (now - last) / 1000;
@@ -1778,6 +1801,14 @@ function step(now: number): void {
     const vis = byId<HTMLInputElement>("visNm");
     const want = visibilityNm(app.world) === null ? "" : String(visibilityNm(app.world));
     if (vis && document.activeElement !== vis && vis.value !== want) vis.value = want;
+    // How the other ships behave, and what they have done: written in the record for the instructor.
+    const tr = app.world.traffic;
+    const rules = byId<HTMLSelectElement>("shipRules");
+    if (rules && document.activeElement !== rules && rules.value !== (tr?.mode ?? "hold")) rules.value = tr?.mode ?? "hold";
+    if (tr && tr.log.length > trafficNoted) {
+      for (const e of tr.log.slice(trafficNoted)) app.recorder?.note(app.world, `Other ship: ${e.text}`, true);
+      trafficNoted = tr.log.length;
+    } else if (!tr || tr.log.length < trafficNoted) trafficNoted = tr?.log.length ?? 0;
   }
   drawPpi(ctx, cssSize, app);
   takePicture();
@@ -1852,6 +1883,13 @@ window.addEventListener("beforeunload", () => store.save());
 // Hook for the screen test (scripts/screen-test.mjs): where the first target's echo is on the picture, CSS pixels.
 (window as unknown as { __simTest: unknown }).__simTest = {
   targetCount: (): number => app.world.targets.length,
+  /** The targets that are buoys, beacons and lights of a real area (numbered from SEA_MARK_FIRST_ID). */
+  seaMarkCount: (): number => app.world.targets.filter((t) => t.id >= SEA_MARK_FIRST_ID).length,
+  /** The depth contours drawn by the area map: how many lines there are in the area. */
+  depthLines: (): number => {
+    const g = depthGridById(app.world.area);
+    return g ? depthContours(g).reduce((n, s) => n + s.lines.length, 0) : 0;
+  },
   /** Start an exercise by its id, as the instructor station would. */
   startExercise: (id: string): void => startExerciseById(id),
   /** The targets now: id, name, course and speed ordered. */

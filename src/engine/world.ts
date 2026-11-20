@@ -10,6 +10,12 @@ import { stepRadarPower } from "./power";
 import { TerrainGrid, landHeightAt, unpackTerrain } from "./terrain";
 import { REAL_TERRAIN } from "./real-terrain";
 import { MUMBAI_ORIGIN } from "./real-coasts";
+import { DepthGrid, depthOnGrid, unpackDepths } from "./depth";
+import { REAL_DEPTHS } from "./real-depths";
+import { SEA_MARK_FIRST_ID, SeaMark, seaMarkEchoes } from "./seamarks";
+import { REAL_SEAMARKS } from "./real-seamarks";
+import { isLandAt } from "./terrain";
+import { pointInPolygon } from "../core/nav";
 
 const terrainCache = new Map<string, TerrainGrid>();
 /** The terrain grid of a real area, unpacked once. Null when there is no data for it. */
@@ -22,6 +28,37 @@ export function terrainById(id: string | undefined): TerrainGrid | null {
   const g = unpackTerrain(packed);
   terrainCache.set(id, g);
   return g;
+}
+
+const depthCache = new Map<string, DepthGrid>();
+/** The approximate depths of a real area (engine/depth.ts), unpacked once. Null when there are none for it. */
+export function depthGridById(id: string | undefined): DepthGrid | null {
+  if (!id) return null;
+  const hit = depthCache.get(id);
+  if (hit) return hit;
+  const packed = REAL_DEPTHS[id];
+  if (!packed) return null;
+  const g = unpackDepths(packed);
+  depthCache.set(id, g);
+  return g;
+}
+
+/**
+ * The depth of water at a point, metres, as far as the simulator knows it: the real area's approximate depths, made
+ * no deeper than any shallow area the scenario draws (`World.depths`). Null where nothing is known (drawn scenarios
+ * away from their shallow areas, or outside the real area's grid). A guide for the echo sounder and the picture:
+ * it never grounds the ship.
+ */
+export function depthAt(w: World, p: Vec2): number | null {
+  const g = depthGridById(w.area);
+  let d = g ? depthOnGrid(g, p) : null;
+  for (const a of w.depths) if (pointInPolygon(p, a.points)) d = d === null ? a.depthM : Math.min(d, a.depthM);
+  return d;
+}
+
+/** The buoys, beacons and lights of a real area (engine/seamarks.ts); empty when there are none. */
+export function seaMarksOf(id: string | undefined): SeaMark[] {
+  return (id && REAL_SEAMARKS[id]) || [];
 }
 
 /**
@@ -204,6 +241,8 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
   }
   return {
     ...(terrain ? { terrain } : {}),
+    ...(sc.terrain ? { area: sc.terrain } : {}),
+    ...(sc.traffic && sc.traffic !== "hold" ? { traffic: { mode: sc.traffic, wrongId: null, ships: {}, log: [] } } : {}),
     origin: sc.origin ?? MUMBAI_ORIGIN,
     time: 0,
     own: {
@@ -215,7 +254,7 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
       turnRateDegPerSec: 2,
       accelKnPerSec: 0.1,
     },
-    targets: sc.targets.map((t) => {
+    targets: [...sc.targets, ...(sc.seaMarks && sc.terrain ? seaMarkEchoes(seaMarksOf(sc.terrain), SEA_MARK_FIRST_ID, (p) => (terrain ? isLandAt(terrain, p) : false)).filter((m) => !sc.targets.some((t) => t.id === m.id)) : [])].map((t) => {
       const { motion: _m, route, ...rest } = t as Target;
       const tgt: Target = { ...rest, pos: { ...t.pos }, events: [...t.events].sort((a, b) => a.atSeconds - b.atSeconds), nextEvent: 0 };
       initTargetMotion(tgt);

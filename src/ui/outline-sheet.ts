@@ -5,7 +5,7 @@ import { esc } from "./dom";
 /**
  * A printable outline of the scenario's area: the charted coastline, a latitude and longitude grid, a scale
  * and own ship's present position if wanted. It is for comparing the radar picture with charted information
- * and for plotting radar position lines by hand. It is NOT a chart: no depths, lights or buoys.
+ * and for plotting radar position lines by hand. It is NOT a chart: no depths, lights or buoys on it.
  */
 export function outlineSheetHtml(w: World, title: string): string {
   const pts = w.coasts.flatMap((c) => c.points);
@@ -44,7 +44,7 @@ export function outlineSheetHtml(w: World, title: string): string {
     .c path{fill:#f1ead2;stroke:#000;stroke-width:1.2} .nm{font-size:11px;text-anchor:middle} .tss{stroke:#b0b;stroke-width:1;stroke-dasharray:6 5}
     @media print{button{display:none}}</style></head><body>
     <h1>${esc(title)}: outline for comparing with the radar</h1>
-    <p><b>NOT A CHART.</b> Coastline only, as the simulator has it: no depths, lights, buoys or dangers. Training simulator, not for navigation.
+    <p><b>NOT A CHART.</b> Coastline only, as the simulator has it: no depths, lights, buoys or dangers on this sheet. Training simulator, not for navigation.
     One minute of latitude is one nautical mile. <button onclick="print()">Print</button></p>
     <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><g class="c">${coast}</g><g class="g">${grid}</g>${tss}${names}
     <line x1="20" y1="20" x2="${(20 + bar).toFixed(1)}" y2="20" stroke="#000" stroke-width="3"/><text x="20" y="36" font-size="12">5 NM</text></svg>

@@ -224,12 +224,43 @@ const unzig = (z: number): number => (z % 2 === 0 ? z / 2 : -(z + 1) / 2);
  * The mask is written per row as run lengths, 7 bits a byte.
  */
 export function packTerrain(g: TerrainGrid): PackedTerrain {
+  const m = maskSize(g);
+  const mb: number[] = [];
+  const varint = (x: number): void => {
+    while (x >= 0x80) {
+      mb.push((x & 0x7f) | 0x80);
+      x >>>= 7;
+    }
+    mb.push(x);
+  };
+  for (let j = 0; j < m.rows; j++) {
+    let cur = 0;
+    let run = 0;
+    for (let i = 0; i < m.cols; i++) {
+      const v = g.mask[j * m.cols + i] ? 1 : 0;
+      if (v === cur) run++;
+      else {
+        varint(run);
+        cur = v;
+        run = 1;
+      }
+    }
+    varint(run);
+  }
+  return { e0: g.e0, n0: g.n0, cellNm: g.cellNm, cols: g.cols, rows: g.rows, maskScale: g.maskScale, h: packRows(g.heights, g.cols, g.rows), m: toBase64(mb) };
+}
+
+/**
+ * A grid of whole numbers 0 to 8 191 (metres), row by row, packed into text as described at `packTerrain`. Used for
+ * the land heights and for the depths (engine/depth.ts).
+ */
+export function packRows(values: ArrayLike<number>, cols: number, rows: number): string {
   const hb: number[] = [];
-  for (let j = 0; j < g.rows; j++) {
+  for (let j = 0; j < rows; j++) {
     const d: number[] = [];
     let prev = 0;
-    for (let i = 0; i < g.cols; i++) {
-      const v = Math.max(0, Math.min(8191, Math.round(g.heights[j * g.cols + i]!)));
+    for (let i = 0; i < cols; i++) {
+      const v = Math.max(0, Math.min(8191, Math.round(values[j * cols + i]!)));
       d.push(v - prev);
       prev = v;
     }
@@ -257,58 +288,41 @@ export function packTerrain(g: TerrainGrid): PackedTerrain {
       }
     }
   }
-  const m = maskSize(g);
-  const mb: number[] = [];
-  const varint = (x: number): void => {
-    while (x >= 0x80) {
-      mb.push((x & 0x7f) | 0x80);
-      x >>>= 7;
-    }
-    mb.push(x);
-  };
-  for (let j = 0; j < m.rows; j++) {
-    let cur = 0;
-    let run = 0;
-    for (let i = 0; i < m.cols; i++) {
-      const v = g.mask[j * m.cols + i] ? 1 : 0;
-      if (v === cur) run++;
-      else {
-        varint(run);
-        cur = v;
-        run = 1;
-      }
-    }
-    varint(run);
-  }
-  return { e0: g.e0, n0: g.n0, cellNm: g.cellNm, cols: g.cols, rows: g.rows, maskScale: g.maskScale, h: toBase64(hb), m: toBase64(mb) };
+  return toBase64(hb);
 }
 
-export function unpackTerrain(p: PackedTerrain): TerrainGrid {
-  const heights = new Float32Array(p.cols * p.rows);
-  const hb = fromBase64(p.h);
+/** The reverse of `packRows`. */
+export function unpackRows(text: string, cols: number, rows: number): Float32Array {
+  const out = new Float32Array(cols * rows);
+  const hb = fromBase64(text);
   let k = 0;
-  for (let j = 0; j < p.rows; j++) {
+  for (let j = 0; j < rows; j++) {
     let prev = 0;
     let i = 0;
-    while (i < p.cols) {
+    while (i < cols) {
       const b = hb[k++]!;
       if ((b & 0xc0) === 0) {
         prev += unzig(b >> 3);
-        heights[j * p.cols + i++] = prev;
+        out[j * cols + i++] = prev;
         prev += unzig(b & 7);
-        heights[j * p.cols + i++] = prev;
+        out[j * cols + i++] = prev;
       } else if ((b & 0xc0) === 0x40) {
         prev += unzig(b & 0x3f);
-        heights[j * p.cols + i++] = prev;
+        out[j * cols + i++] = prev;
       } else if ((b & 0xc0) === 0x80) {
         const n = (b & 0x3f) + 1;
-        for (let q = 0; q < n; q++) heights[j * p.cols + i++] = prev;
+        for (let q = 0; q < n; q++) out[j * cols + i++] = prev;
       } else {
         prev += unzig(((b & 0x3f) << 8) | hb[k++]!);
-        heights[j * p.cols + i++] = prev;
+        out[j * cols + i++] = prev;
       }
     }
   }
+  return out;
+}
+
+export function unpackTerrain(p: PackedTerrain): TerrainGrid {
+  const heights = unpackRows(p.h, p.cols, p.rows);
   const g: TerrainGrid = { e0: p.e0, n0: p.n0, cellNm: p.cellNm, cols: p.cols, rows: p.rows, heights, mask: new Uint8Array(0), maskScale: p.maskScale };
   const m = maskSize(g);
   const mask = new Uint8Array(m.cols * m.rows);

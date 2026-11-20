@@ -7,7 +7,7 @@ import { fitLinearMotion, fitPositionAt } from "../core/track";
 import { expandZone, inSectorZone } from "../core/zones";
 import { World, logSpeed, measuredHeading, ownCogSog, ownGroundVelocity, ownTurnProfile, radarSignalsLostText } from "../engine/index";
 import { ARPA_PLACEHOLDERS, ArpaConfig, ArpaSettings, defaultArpaSettings } from "./config";
-import { ArpaPlot, extractPlots } from "./plots";
+import { ArpaPlot, LandBox, extractPlots } from "./plots";
 
 export type Stab = "sea" | "ground";
 export type TrackState = "tracking" | "lost";
@@ -528,8 +528,17 @@ export class ArpaSystem {
     const margin = this.cfg.landEchoMinM / 1852 + this.cfg.landCellNm;
     const wider = s.autoAcquire && guardOn ? s.guardZones.filter((z) => z.on).map((z) => expandZone(z, margin)) : [];
     const landContext = wider.length > 0 ? (relTrue: Vec2): boolean => wider.some((z) => inSectorZone(rotateVec(relTrue, g), heading, z)) : null;
+    // Where those two can say yes: round each predicted position (turned back from the gyro frame to the true one) and
+    // within the outer edge of each zone. Only the coastline there is looked at.
+    const landBoxes: LandBox[] = preds.map((p): LandBox => {
+      const e = p.e * gc - p.n * gs;
+      const n = p.e * gs + p.n * gc;
+      return [e - 0.6, n - 0.6, e + 0.6, n + 0.6];
+    });
+    for (const z of guardOn ? s.guardZones.filter((x) => x.on) : []) landBoxes.push([-z.outerNm, -z.outerNm, z.outerNm, z.outerNm]);
+    for (const z of wider) landBoxes.push([-z.outerNm, -z.outerNm, z.outerNm, z.outerNm]);
     // A failed radar signal (video, sync, azimuth, heading marker): no plots reach the tracker, so every track coasts and is lost.
-    const plots = radarSignalsLostText(w.sensors) ? [] : extractPlots(w, this.cfg, rng, wantLand, landContext);
+    const plots = radarSignalsLostText(w.sensors) ? [] : extractPlots(w, this.cfg, rng, wantLand, landContext, landBoxes);
     const uses = plots.map(() => 0);
     const capacity = (p: ArpaPlot): number => Math.max(1, p.truthIds.length);
     const toTrackPlot = (p: ArpaPlot): TrackPlot => ({

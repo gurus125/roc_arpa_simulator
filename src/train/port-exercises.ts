@@ -8,8 +8,9 @@ import { ArpaExercise, TaskCtx, judgeAction, judgeSafePassing, truthCpa } from "
 
 /**
  * Radar exercises in the four real areas (real coastline and land heights; see
- * docs/RADAR-PICTURE.md). The ships, wind, current and tidal stream are invented, and the areas have
- * no depths, lights or buoys apart from the one buoy laid for exercise 24: none of this is a chart.
+ * docs/RADAR-PICTURE.md), with approximate depths. The ships, wind, current and tidal stream are invented, and
+ * the exercises put no buoys or lights on the radar apart from the one buoy laid for exercise 24: none of this is
+ * a chart.
  * Every limit and tolerance is a placeholder for the institute to set (Instructor, Scoring settings).
  */
 
@@ -52,7 +53,7 @@ const EX23: ArpaExercise = {
     "Fix the position by radar. Malabar Point, the west tip of Malabar Hill (the high ground north of Back Bay), is at 18°56.9'N 072°47.5'E and gives a strong echo. Identify it on the picture, then measure its range with the VRM and its bearing with the EBL at the same moment.",
     "Plot the fix on the chart, or work it: latitude = 18°56.9' − range × cos(bearing) minutes; longitude = 072°47.5' − range × sin(bearing) ÷ cos(18.9°) minutes.",
     "Check the fix with a second position line that crosses the first well, for example the range of the land across the harbour entrance, to the east-south-east. Fix again at intervals: the ship is closing the land.",
-    "Keep the ship at least 1 NM off the land (a placeholder margin): alter course or stop before you close the coast. The simulator has no depths: off Colaba there are reefs.",
+    "Keep the ship at least 1 NM off the land (a placeholder margin): alter course or stop before you close the coast. The depths the simulator shows are approximate (cells of about 450 m) and not to be trusted near the reefs off Colaba.",
   ],
   tasks: [
     { id: "rng", kind: "number", prompt: "Range of Malabar Point now", unit: "NM", truth: (c) => length(sub(MALABAR_POINT, c.w.own.pos)), tol: (cfg) => cfg.tol.rangeNm },

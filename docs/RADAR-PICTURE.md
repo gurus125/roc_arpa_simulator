@@ -1,4 +1,4 @@
-# The radar picture: land, echo sizes and the real areas
+# The radar picture: land, depths, sea marks, clutter and the real areas
 
 Written 13 Nov 2026. How the simulator builds the land on the picture, where the data comes from,
 what is a placeholder, and what is still missing. No radar instructor has yet compared the picture
@@ -16,8 +16,10 @@ Four areas have their real coastline and real land heights:
 | Gulf of Kutch: Mundra and Kandla | 22.35-23.2 N, 69.2-70.45 E | 22°36'N 069°36'E | 429 m |
 
 Positions on the console (latitude and longitude) are worked from the scenario's own origin. The
-ships, wind, current and tidal stream in these scenarios are invented. There are no depths, lights,
-buoys or traffic separation schemes: none of this is a chart, and none of it is for navigation.
+ships, wind, current and tidal stream in these scenarios are invented. Since 20 Nov 2026 the areas
+also have approximate depths and the buoys, beacons, lights, rocks and wrecks mapped in OpenStreetMap
+(below). They have no traffic separation schemes. None of this is a chart, and none of it is for
+navigation.
 
 **Data and credit.**
 
@@ -34,6 +36,65 @@ how to run them; the download of the height tiles is in the instructor manual). 
 resampled to a grid of 0.1 NM, each node taking the highest ground within half a cell; land and water
 come from the coastline polygons on a grid of 0.05 NM. Packed, the four areas add about 460 KB to the
 simulator file.
+
+## Depths
+
+- **Data and credit.** ETOPO 2022 15 Arc-Second Global Relief Model, NOAA National Centers for
+  Environmental Information, doi:10.25921/fd45-gt74. Its ocean depths come largely from GEBCO. Free to
+  use with this credit, which is in each real-area scenario's description.
+- **What it is.** Cells of 15 seconds of arc, about 450 m. Heights are above the EGM2008 geoid, about
+  mean sea level: not chart datum, and there is no tide. Banks, reefs and dredged channels smaller than a
+  cell are not in it, and near the coast it is not reliable (Mumbai harbour shows 2 m where ships use a
+  dredged channel). It has oddities too: a depth of 169 m in the south-west corner of the Kochi area, far
+deeper than the shelf round it, is probably an error in the data.
+- **In the simulator.** `scripts/make-depths.mjs` resamples it (bilinear) to a grid of 0.25 NM in each
+  scenario frame, whole metres, 0 on land, packed as the land heights are: about 64 KB for the four
+  areas (`src/engine/real-depths.ts`). `engine/depth.ts` gives the depth at a point (bilinear between
+  the nodes) and the contours at 5, 10, 20, 30, 50 and 100 m (marching squares). A shallow area drawn
+  in a scenario file (`"depths"`) makes the water no deeper than it. The depth is shown, never used:
+  the echo sounder's reading in OWN SHIP DATA, the contours on the area map and the depth under the
+  cursor. The ship never grounds.
+
+## Buoys, beacons, lights, rocks and wrecks
+
+- **Data and credit.** The sea marks mapped in OpenStreetMap, © OpenStreetMap contributors, Open
+  Database License (ODbL) 1.0, exported from overpass-turbo on 20 Nov 2026. As volunteers mapped them:
+  some are missing and some may have been moved or changed since. None are mapped in the Gulf of Kutch.
+  In the other three areas: 85 marks off Mumbai (6 buoys, 16 beacons, 13 lights, the rest rocks and
+  wrecks), 22 off Goa and 18 off Kochi, with racons on Prongs Reef (G), Chaul (O), Aguada (O), Periyar
+  River (D) and Cochin (K).
+- **In the simulator.** `scripts/make-seamarks.mjs` reads the export with `engine/seamarks.ts` (the
+  kind of mark, its light as a chart writes it, its racon) into `src/engine/real-seamarks.ts`. The area
+  map draws them in simplified symbols (not those of any chart or maker). In the four area scenarios
+  (`"seaMarks": true`) the marks standing in the water give echoes: buoys as IMO table 2 has them (4.9
+  NM with a corner reflector, 4.6 NM without), beacons, lights in the water and light vessels with
+  placeholder ranges and heights. A light ashore is part of the land's echo; its racon answers from the
+  light's height. Rocks and wrecks are on the map only. The marked exercises 23 to 26 leave the marks
+  out, so their marking is unchanged.
+
+## Clutter and fading
+
+`engine/texture.ts` gives the picture its texture without changing the averages it is calibrated to.
+Everything is worked from the position and the time (a hash), so it is the same however the simulation
+is stepped.
+
+- **Sea clutter** is made of patches 0.03 NM long in the direction the sea comes from and 0.12 NM
+  along the crests. Each patch has its own strength on each turn of the antenna, an exponential number
+  to the power 1.5 (mean 1, above three times the mean on 8% of patches): spikes, in streaks along the
+  crests, new on every scan. The chance of a speckle is that of `seaClutterProbability` times
+  1 + (1 - p)(strength - 1), so where the clutter is solid, next to own ship, it stays solid, and the
+  mean density is unchanged (checked against the calibrated probability integrated over the picture).
+- **Rain** has a ragged edge (between 72% and all of its set radius, changing shape over about a
+  minute and a half), a heavier core (1.25 at the middle to 0.75 at the edge) and lumps 0.4 NM across
+  that drift with the wind at 60% of its speed. Over the rain's ragged area the mean is 1. The loss of
+  echo through rain is still worked from the rain's set circle.
+- **Fading.** In a sea of state 2 or more, whether a buoy or small craft is painted on a scan is
+  decided by a draw that is evenly spread like a random number, so it is painted on the same share of
+  scans as before, but alike over about 5 seconds, so it fades for two or three scans together. Ships,
+  and every target in a calmer sea, are drawn at random on each scan as before. The ARPA's tracking is
+  not changed.
+- All these figures are placeholders that give the look the Radar and ARPA Manual describes (3.6 and
+  3.7). They are not measured values.
 
 ## How the land is painted
 
@@ -103,7 +164,8 @@ shoreline at the coast's stated height, with land behind them hiding what lies f
   90 m cells tall single buildings are averaged down. There is no separate land-cover data.
 - Only four real areas. Others need their coastline and height tiles and a run of the two scripts.
 - Beyond the edge of an area's box there is no land.
-- The real areas have no buoys, lights, racons, port structures or charted depths.
+- The real areas have approximate depths and the sea marks mapped in OpenStreetMap, not charted depths
+  or a complete set of marks; port structures are not modelled.
 - Multipath (the lobing of the beam over the sea) is in the Table 2 calibration only, not modelled
   as such.
 - Placeholders: `LAND_REFLECTIVITY` (10), the beam of untyped vessels (a seventh of the length), the
