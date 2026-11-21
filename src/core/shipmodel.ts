@@ -42,6 +42,8 @@ export interface ShipType {
   leeway: number;
   /** Speed effect of a head wind, 1/m (small). */
   windDrag: number;
+  /** Block coefficient, for the displacement that sets the speed lost in waves (core/waves.ts). KCS published; the others PLACEHOLDERS. */
+  blockCoeff: number;
   maxRudderDeg: number;
   rudderRateDegPerSec: number;
   /** Where the handling figures come from: a published source, or an estimate. Shown to the user. */
@@ -75,7 +77,7 @@ export const HARD_OVER_SECONDS: Record<1 | 2, number> = { 1: 28, 2: 18 };
 /** Rudder rate in degrees per second with one or two power units running. */
 export const rudderRate = (units: 1 | 2): number => 70 / HARD_OVER_SECONDS[units];
 
-const BASE = { asternPower: 0.6, driftFactor: 0.3, turnLoss: 4, windDrag: 0.000005, maxRudderDeg: 35, rudderRateDegPerSec: rudderRate(1), basis: ESTIMATE_BASIS };
+const BASE = { blockCoeff: 0.78, asternPower: 0.6, driftFactor: 0.3, turnLoss: 4, windDrag: 0.000005, maxRudderDeg: 35, rudderRateDegPerSec: rudderRate(1), basis: ESTIMATE_BASIS };
 
 /**
  * Published figures that three of the ship types are fitted to (see tests/shipmodel.test.ts).
@@ -99,26 +101,26 @@ export const PUBLISHED = {
 
 export const SHIP_TYPES: ShipType[] = [
   {
-    ...BASE, id: "container", name: "Container ship, 230 m (KCS benchmark hull)", lengthM: 230, beamM: 32.2, draughtM: 10.8, maxSpeedKn: 24,
+    ...BASE, id: "container", name: "Container ship, 230 m (KCS benchmark hull)", lengthM: 230, beamM: 32.2, draughtM: 10.8, maxSpeedKn: 24, blockCoeff: 0.651,
     kPrime: 0.965, tPrime: 1.038, driftFactor: 0.349, turnLoss: 8.19, speedTimeS: 399, engineTimeS: 40, asternPower: 0.79, leeway: 0.035,
     basis: "Turning circle fitted to free-running model tests of the KCS benchmark container ship (Yasukawa and others 2021, as given by Kim and others, Ocean Engineering 2021): advance 3.04, transfer 1.36 and tactical diameter 3.16 ship lengths at 14.5 kn. Model tests, not sea trials. Stopping distance set inside the range IMO gives as typical for a cargo ship (MSC/Circ.644). Wind and sea response are estimates.",
   },
-  { ...BASE, id: "bulk", name: "Bulk carrier, loaded, 225 m", lengthM: 225, beamM: 32.3, draughtM: 14.2, maxSpeedKn: 14.5, kPrime: 1.05, tPrime: 2.1, speedTimeS: 1000, engineTimeS: 60, leeway: 0.015 },
+  { ...BASE, id: "bulk", name: "Bulk carrier, loaded, 225 m", blockCoeff: 0.83, lengthM: 225, beamM: 32.3, draughtM: 14.2, maxSpeedKn: 14.5, kPrime: 1.05, tPrime: 2.1, speedTimeS: 1000, engineTimeS: 60, leeway: 0.015 },
   {
-    ...BASE, id: "tanker", name: "Product tanker, 180 m", lengthM: 180, beamM: 32, draughtM: 11, maxSpeedKn: 15, kPrime: 1.0, tPrime: 1.8, speedTimeS: 800, engineTimeS: 50, asternPower: 0.75, leeway: 0.02,
+    ...BASE, id: "tanker", name: "Product tanker, 180 m", blockCoeff: 0.8, lengthM: 180, beamM: 32, draughtM: 11, maxSpeedKn: 15, kPrime: 1.0, tPrime: 1.8, speedTimeS: 800, engineTimeS: 50, asternPower: 0.75, leeway: 0.02,
     basis: "Estimate: turning figures chosen to pass the IMO manoeuvrability criteria, not from any ship's data. Stopping distance set inside the range IMO gives as typical for a products tanker (MSC/Circ.644).",
   },
   {
-    ...BASE, id: "coaster", name: "Coaster, 90 m", lengthM: 90, beamM: 14, draughtM: 5.5, maxSpeedKn: 13, kPrime: 1.0, tPrime: 1.0, speedTimeS: 300, engineTimeS: 25, leeway: 0.03,
+    ...BASE, id: "coaster", name: "Coaster, 90 m", blockCoeff: 0.72, lengthM: 90, beamM: 14, draughtM: 5.5, maxSpeedKn: 13, kPrime: 1.0, tPrime: 1.0, speedTimeS: 300, engineTimeS: 25, leeway: 0.03,
     basis: "Estimate: turning figures chosen to pass the IMO manoeuvrability criteria, not from any ship's data. Stopping distance lies inside the range IMO gives as typical for a cargo ship of 100 m (MSC/Circ.644).",
   },
   {
-    ...BASE, id: "vlcc", name: "VLCC, loaded, 350 m (published sample ship)", lengthM: 349.8, beamM: 58.3, draughtM: 19.4, maxSpeedKn: 15,
+    ...BASE, id: "vlcc", name: "VLCC, loaded, 350 m (published sample ship)", blockCoeff: 0.81, lengthM: 349.8, beamM: 58.3, draughtM: 19.4, maxSpeedKn: 15,
     kPrime: 1.1, tPrime: 0.971, driftFactor: 0.306, turnLoss: 15.2, speedTimeS: 2326, engineTimeS: 60, asternPower: 0.53, leeway: 0.01,
     basis: "Fitted to the sample VLCC in the ABS Guide for Vessel Maneuverability (2017), Appendix 1: turning circle, initial turning and track reach from that guide's simulation and prediction (a worked example, not sea trials). Wind and sea response are estimates.",
   },
   {
-    ...BASE, id: "yukun", name: "Training ship, 105 m (sea-trial turning circle)", lengthM: 105, beamM: 18, draughtM: 5.4, maxSpeedKn: 16,
+    ...BASE, id: "yukun", name: "Training ship, 105 m (sea-trial turning circle)", blockCoeff: 0.68, lengthM: 105, beamM: 18, draughtM: 5.4, maxSpeedKn: 16,
     kPrime: 1.157, tPrime: 1.34, speedTimeS: 300, engineTimeS: 25, leeway: 0.03, rudderRateDegPerSec: 2.8,
     basis: "Turning circle fitted to the full-scale sea trial of MV Yukun, 2012 (Mei, Sun and Shi, Sensors 20 (2020) 3963): advance 3.21 and tactical diameter 2.98 ship lengths. Full speed, stopping, speed loss, wind and sea response are estimates.",
   },
@@ -156,12 +158,19 @@ const KN = 0.514444; // m/s per knot
 const RAD = Math.PI / 180;
 const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, x));
 
+/** What the waves do to the ship's way (core/waves.ts): the fraction of her speed she loses, and her sideways speed, knots, + to starboard. */
+export interface SeaEffect {
+  loss: number;
+  driftKn: number;
+}
+
 /**
  * Advance the ship's motion by dt seconds. `relWind` is the relative wind in ship axes, knots:
  * `head` positive when it blows from ahead, `beam` positive when it blows from the port side
- * (pushing the ship to starboard). Null: no wind.
+ * (pushing the ship to starboard). Null: no wind. `sea`: the waves' effect; left out, calm water.
+ * The speed loss is added hull resistance, chosen so that the steady speed is (1 - loss) of the calm-water speed.
  */
-export function stepShip(type: ShipType, m: ShipMotion, orders: ShipOrders, relWind: { head: number; beam: number } | null, dt: number): ShipMotion {
+export function stepShip(type: ShipType, m: ShipMotion, orders: ShipOrders, relWind: { head: number; beam: number } | null, dt: number, sea?: SeaEffect): ShipMotion {
   const L = type.lengthM;
   const uMax = type.maxSpeedKn * KN;
   // Rudder and engine follow their orders at limited rates.
@@ -185,13 +194,14 @@ export function stepShip(type: ShipType, m: ShipMotion, orders: ShipOrders, relW
   const e = engine * KN;
   // Astern, full gives `asternPower` of the full-ahead thrust; hull resistance astern is raised in the same ratio so that the steady astern speed is the telegraph speed.
   const thrust = e >= 0 ? k * e * e : -k * e * e * (type.asternPower / ASTERN_FULL ** 2);
-  const turn = 1 + type.turnLoss * ((r * L) / U) ** 2;
+  const loss = Math.min(0.95, Math.max(0, sea?.loss ?? 0));
+  const turn = (1 + type.turnLoss * ((r * L) / U) ** 2) / ((1 - loss) * (1 - loss));
   let du = thrust - k * u * Math.abs(u) * turn * (u < 0 ? type.asternPower / ASTERN_FULL ** 2 : 1);
   if (relWind) du -= type.windDrag * relWind.head * KN * Math.abs(relWind.head * KN);
   const u2 = u + du * dt;
 
   // Sway: outward slide in the turn, plus leeway from the beam wind.
-  const v = -type.driftFactor * r * L + (relWind ? type.leeway * relWind.beam * KN : 0);
+  const v = -type.driftFactor * r * L + (relWind ? type.leeway * relWind.beam * KN : 0) + (sea?.driftKn ?? 0) * KN;
   return { u: u2 / KN, v: v / KN, r: r / RAD, rudder, engine };
 }
 

@@ -5,7 +5,10 @@ import { CoastEdge, CoastSample, Coast, Scenario, Target, World } from "./types"
 import { targetTypeById } from "./targets";
 import { courseToSteer, tidalStreamRate } from "../core/current";
 import { autopilotRudder, rudderRate, shipTypeById, stepShip } from "../core/shipmodel";
-import { seawayResponse } from "../core/seaway";
+import { DEFAULT_SWELL_PERIOD_S, combineResponses, seawayResponse, seawayResponseH, waveHeightM } from "../core/seaway";
+import { SeaComponent, WAVE_LOSS_MIN_LENGTH_M, displacementFromLength, displacementM3, lossAfterSeaMargin, seasSpeedLoss, waveDriftKn } from "../core/waves";
+import { TidalDiamond, TideHeights, streamAt, tideHeightM } from "../core/tide";
+import { AREA_TIDES } from "./area-tides";
 import { stepRadarPower } from "./power";
 import { TerrainGrid, landHeightAt, unpackTerrain } from "./terrain";
 import { REAL_TERRAIN } from "./real-terrain";
@@ -80,13 +83,65 @@ export const COAST_SAMPLE_SPACING_NM = 0.025;
 
 const clamp = (x: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, x));
 
-/** Movement of the water over the ground now: the steady current plus the tidal stream. */
-export function currentVelocity(w: World): Vec2 {
-  const steady = velocityOf({ course: w.env.current.set, speed: w.env.current.drift });
+/**
+ * Movement of the water over the ground now at a point (own ship's position when left out): the steady current, plus
+ * the simple tidal stream, plus the tidal streams of the diamonds when the tide is set.
+ */
+export function currentVelocity(w: World, p?: Vec2): Vec2 {
+  let v = velocityOf({ course: w.env.current.set, speed: w.env.current.drift });
   const t = w.env.tidal;
-  if (!t || t.maxRateKn === 0) return steady;
-  const rate = tidalStreamRate(t.maxRateKn, t.hoursAfterSlackAtStart + w.time / 3600);
-  return add(steady, scale(velocityOf({ course: t.floodSet, speed: 1 }), rate));
+  if (t && t.maxRateKn !== 0) v = add(v, scale(velocityOf({ course: t.floodSet, speed: 1 }), tidalStreamRate(t.maxRateKn, t.hoursAfterSlackAtStart + w.time / 3600)));
+  const tide = w.env.tide;
+  if (tide && tide.streams !== false) {
+    const d = tidalDiamondsOf(w);
+    if (d.length) v = add(v, streamAt(d, p ?? w.own.pos, tideClockH(w), tide.springs));
+  }
+  return v;
+}
+
+/** Hours from high water at the reference port now (the tide's clock); 0 when no tide is set. */
+export function tideClockH(w: World): number {
+  return w.env.tide ? w.env.tide.hwAtStartH + w.time / 3600 : 0;
+}
+
+/** The tidal diamonds in use: the scenario's own, else the real area's (invented); none without a tide. */
+export function tidalDiamondsOf(w: World): TidalDiamond[] {
+  const t = w.env.tide;
+  if (!t) return [];
+  return t.diamonds ?? (w.area ? AREA_TIDES[w.area]?.diamonds : undefined) ?? [];
+}
+
+/** The tide heights in use: the scenario's own, else the real area's (invented); null without a tide. */
+export function tideHeightsOf(w: World): TideHeights | null {
+  const t = w.env.tide;
+  if (!t) return null;
+  return t.heights ?? (w.area ? AREA_TIDES[w.area]?.heights : undefined) ?? null;
+}
+
+/** Height of the tide above chart datum now, metres; null when no tide is set or no heights are known. */
+export function tideHeightNow(w: World): number | null {
+  const h = tideHeightsOf(w);
+  return h && w.env.tide ? tideHeightM(h, tideClockH(w), w.env.tide.springs) : null;
+}
+
+/**
+ * Depth of water now at a point: the charted depth (depthAt) plus the height of the tide. The real areas' depths are
+ * taken as charted depths below chart datum (they are approximate and relative to mean sea level: PLACEHOLDER).
+ */
+export function waterDepthAt(w: World, p: Vec2): number | null {
+  const d = depthAt(w, p);
+  if (d === null) return null;
+  return d + (tideHeightNow(w) ?? 0);
+}
+
+/** The seas running: the wind sea (from the sea state and the wind's direction) and the swell. */
+export function seasOf(w: World): SeaComponent[] {
+  const out: SeaComponent[] = [];
+  const h = waveHeightM(w.env.seaState);
+  if (h > 0) out.push({ fromDeg: seaFromDeg(w), heightM: h });
+  const sw = w.env.swell;
+  if (sw && sw.heightM > 0) out.push({ fromDeg: sw.from, heightM: sw.heightM });
+  return out;
 }
 
 /** Own ship velocity over the ground: water velocity plus current. */
@@ -274,6 +329,8 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
       rain: sc.env.rain ? sc.env.rain.map((r) => ({ ...r })) : [],
       interference: sc.env.interference ?? false,
       ...(sc.env.tidal ? { tidal: { ...sc.env.tidal } } : {}),
+      ...(sc.env.swell ? { swell: { ...sc.env.swell } } : {}),
+      ...(sc.env.tide ? { tide: copyTide(sc.env.tide) } : {}),
       ...(sc.env.wind ? { wind: { ...sc.env.wind } } : {}),
       ...(sc.env.visibilityNm !== undefined && sc.env.visibilityNm > 0 ? { visibilityNm: sc.env.visibilityNm } : {}),
     },
@@ -294,6 +351,15 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
   };
 }
 
+/** A deep copy of a tide setting (its diamonds and heights are not shared with the scenario). */
+export function copyTide(t: NonNullable<Scenario["env"]["tide"]>): NonNullable<Scenario["env"]["tide"]> {
+  return {
+    ...t,
+    ...(t.diamonds ? { diamonds: t.diamonds.map((d) => ({ ...d, pos: { ...d.pos }, hours: d.hours.map((h) => ({ ...h })) })) } : {}),
+    ...(t.heights ? { heights: { ...t.heights } } : {}),
+  };
+}
+
 /** Advance the simulation by dtSec seconds. */
 export function stepWorld(w: World, dtSec: number): void {
   stepRadarPower(w);
@@ -307,7 +373,11 @@ export function stepWorld(w: World, dtSec: number): void {
     const type = shipTypeById(o.model.typeId);
     const m0 = o.model.motion;
     const rudder = o.model.steering === "auto" ? autopilotRudder(type, angleDiffDeg(o.ordered.course, o.heading), m0.r, m0.u) : o.model.rudderOrder;
-    const m = stepShip(type, m0, { rudder, speed: o.ordered.speed, rudderRateDegPerSec: rudderRate(o.model.steeringUnits ?? 1) }, relativeWind(w), dtSec);
+    const seas = seasOf(w);
+    const sea = seas.length
+      ? { loss: lossAfterSeaMargin(seasSpeedLoss(seas, o.heading, displacementM3(type.lengthM, type.beamM, type.draughtM, type.blockCoeff))), driftKn: waveDriftKn(seas, o.heading, type.lengthM) }
+      : undefined;
+    const m = stepShip(type, m0, { rudder, speed: o.ordered.speed, rudderRateDegPerSec: rudderRate(o.model.steeringUnits ?? 1) }, relativeWind(w), dtSec, sea);
     o.model.motion = m;
     o.heading = normalizeDeg(o.heading + m.r * dtSec);
     o.speedThroughWater = m.u;
@@ -354,8 +424,13 @@ export function stepWorld(w: World, dtSec: number): void {
       const turn = type.turnDegPerSec * dtSec;
       m.heading = normalizeDeg(m.heading + clamp(angleDiffDeg(m.orderedCourse, m.heading), -turn, turn));
       const dv = type.accelKnPerSec * dtSec;
-      m.stw = Math.max(0, m.stw + clamp(m.orderedSpeed - m.stw, -dv, dv));
-      let ground = add(velocityOf({ course: m.heading, speed: m.stw }), currentVelocity(w));
+      // In waves she cannot make her ordered speed (core/waves.ts), and a beam sea pushes her sideways.
+      const seas = seasOf(w);
+      // Ships only: the method is not for small craft (core/waves.ts).
+      const loss = seas.length && type.kind === "ship" && type.lengthM >= WAVE_LOSS_MIN_LENGTH_M ? lossAfterSeaMargin(seasSpeedLoss(seas, m.heading, displacementFromLength(type.lengthM))) : 0;
+      m.stw = Math.max(0, m.stw + clamp(m.orderedSpeed * (1 - loss) - m.stw, -dv, dv));
+      let ground = add(velocityOf({ course: m.heading, speed: m.stw }), currentVelocity(w, t.pos));
+      if (seas.length && m.stw > 0) ground = add(ground, velocityOf({ course: m.heading + 90, speed: waveDriftKn(seas, m.heading, type.lengthM) }));
       const aw = apparentWind(w, m.heading, ground);
       if (aw) ground = add(ground, velocityOf({ course: m.heading + 90, speed: type.leeway * aw.beam }));
       m.drift = sub(ground, velocityOf({ course: m.heading, speed: m.stw }));
@@ -401,7 +476,8 @@ export function seaFromDeg(w: World): number {
  */
 function stepSeaway(w: World, dtSec: number): void {
   const o = w.own;
-  if (!o.model || w.env.seaState <= 0) {
+  const swell = w.env.swell && w.env.swell.heightM > 0 ? w.env.swell : null;
+  if (!o.model || (w.env.seaState <= 0 && !swell)) {
     if (o.seaway) {
       o.heading = normalizeDeg(o.heading - o.seaway.yawDeg);
       delete o.seaway;
@@ -409,7 +485,11 @@ function stepSeaway(w: World, dtSec: number): void {
     return;
   }
   const sw = o.seaway ?? (o.seaway = { rollDeg: 0, pitchDeg: 0, yawDeg: 0, heaveM: 0, rollPhase: 0, encounterPhase: 0 });
-  const r = seawayResponse(w.env.seaState, normalizeDeg(seaFromDeg(w) - o.heading), o.speedThroughWater, shipTypeById(o.model.typeId).lengthM);
+  const L = shipTypeById(o.model.typeId).lengthM;
+  const r = combineResponses(
+    seawayResponse(w.env.seaState, normalizeDeg(seaFromDeg(w) - o.heading), o.speedThroughWater, L),
+    swell ? seawayResponseH(swell.heightM, swell.periodS ?? DEFAULT_SWELL_PERIOD_S, normalizeDeg(swell.from - o.heading), o.speedThroughWater, L) : null,
+  );
   sw.rollPhase += (2 * Math.PI * dtSec) / r.rollPeriodS;
   if (r.encounterPeriodS > 0) sw.encounterPhase += (2 * Math.PI * dtSec) / r.encounterPeriodS;
   sw.rollDeg = r.rollDeg * Math.sin(sw.rollPhase);
@@ -505,7 +585,7 @@ export function initTargetMotion(t: Target): void {
 export function targetHeading(w: World, t: Target): number {
   if (t.motion) return t.motion.heading;
   if (t.atAnchor || t.speed === 0) return t.course;
-  const water = sub(velocityOf({ course: t.course, speed: t.speed }), currentVelocity(w));
+  const water = sub(velocityOf({ course: t.course, speed: t.speed }), currentVelocity(w, t.pos));
   return length(water) < 0.1 ? t.course : bearingOf(water);
 }
 

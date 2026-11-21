@@ -263,10 +263,13 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div class="grid2"><div><label for="inWxRainPct">Rain intensity (% of heavy)</label><input type="number" id="inWxRainPct" min="5" max="100" step="5" value="50"></div>
         <div><label for="inWxWindF">Wind from (°) and speed (kn)</label><span style="display:flex;gap:4px"><input type="number" id="inWxWindF" min="0" max="359" placeholder="from"><input type="number" id="inWxWindS" min="0" max="70" placeholder="kn"></span></div>
         <div><label for="inWxCurS">Current set (°) and drift (kn)</label><span style="display:flex;gap:4px"><input type="number" id="inWxCurS" min="0" max="359" placeholder="set"><input type="number" id="inWxCurD" min="0" max="6" step="0.1" placeholder="kn"></span></div>
+        <div><label for="inWxSwF">Swell from (°) and height (m)</label><span style="display:flex;gap:4px"><input type="number" id="inWxSwF" min="0" max="359" placeholder="from"><input type="number" id="inWxSwH" min="0" max="15" step="0.5" placeholder="m"></span></div>
+        <div><label for="inWxTide">Tide (diamonds and height)</label><select id="inWxTide"><option value="">no change</option><option value="off">Off</option><option value="on">On: streams and height</option><option value="height">Height only</option></select></div>
+        <div><label for="inWxTideHw">Hours from HW at start, neaps → springs (%)</label><span style="display:flex;gap:4px"><input type="number" id="inWxTideHw" min="-6" max="6" step="0.5" placeholder="HW±h"><input type="number" id="inWxTideSp" min="0" max="100" step="10" placeholder="%"></span></div>
         <div><label for="inWxVis">Visibility</label><select id="inWxVis"><option value="">no change</option><option value="good">good</option>${VISIBILITY_STEPS_NM.map((v) => `<option value="${v}">${v} NM</option>`).join("")}</select></div>
         <div><label for="inWxTo">Send the weather to</label><select id="inWxTo"><option value="all">All displays</option></select></div></div>
       <div class="btns"><button id="inWxSend">Set this weather</button></div>
-      <p class="hint">Wind and current are sent only when filled in; left blank, each display keeps its own. Visibility does not change the radar picture: the simulator has no view from the windows, so the trainees are told the visibility, a look-out reports each vessel that comes into sight (taken as: her range is not more than the visibility, a placeholder), and Rule 19(d) is applied in the marking to a vessel that was not in sight when the action was taken.</p>
+      <p class="hint">Wind, current, swell and the tide are sent only when filled in; left blank, each display keeps its own. The tide uses the scenario's tidal diamonds, or the real area's (invented for training). Visibility does not change the radar picture: the simulator has no view from the windows, so the trainees are told the visibility, a look-out reports each vessel that comes into sight (taken as: her range is not more than the visibility, a placeholder), and Rule 19(d) is applied in the marking to a vessel that was not in sight when the action was taken.</p>
       <h2 style="margin-top:12px">Targets on a display, while the exercise runs</h2>
       <div class="grid2"><div><label for="rtSt">Display</label><select id="rtSt"><option value="all">All displays</option></select></div><div><label for="rtTg">Target</label><select id="rtTg"></select></div>
         <div><label for="rtC">New course (°), blank: no change</label><input type="number" id="rtC" min="0" max="359"></div><div><label for="rtS">New speed (kn), blank: no change</label><input type="number" id="rtS" min="0" max="60" step="0.5"></div></div>
@@ -626,11 +629,13 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
   $("inWxSend").addEventListener("click", () => {
     const chk = (id: string): boolean => ($(id) as HTMLInputElement).checked;
     const opt = (id: string): number | undefined => (inputValue(id) === "" ? undefined : Number(inputValue(id)));
-    const w = { windFrom: opt("inWxWindF"), windKn: opt("inWxWindS"), curSet: opt("inWxCurS"), curDrift: opt("inWxCurD") };
+    const w = { windFrom: opt("inWxWindF"), windKn: opt("inWxWindS"), curSet: opt("inWxCurS"), curDrift: opt("inWxCurD"), swellFrom: opt("inWxSwF"), swellM: opt("inWxSwH"), tideHw: opt("inWxTideHw"), springsPct: opt("inWxTideSp") };
+    const tide = inputValue("inWxTide");
     api.link.sendCommand({
       to: inputValue("inWxTo") || "all", cmd: "weather", seaState: Math.min(9, Math.max(0, Number(inputValue("inWxSea")) || 0)), rain: chk("inWxRain"), ducting: chk("inWxDuct"), interference: chk("inWxInt"),
       rainPct: Math.min(100, Math.max(5, Number(inputValue("inWxRainPct")) || 50)),
       ...(inputValue("inWxVis") === "" ? {} : { visNm: inputValue("inWxVis") === "good" ? null : Number(inputValue("inWxVis")) }),
+      ...(tide === "off" || tide === "on" || tide === "height" ? { tide } : {}),
       ...Object.fromEntries(Object.entries(w).filter(([, v]) => v !== undefined && Number.isFinite(v))),
     });
     msg(`Weather sent to ${inputValue("inWxTo") === "all" ? "all displays" : `display ${inputValue("inWxTo")}`}.`);

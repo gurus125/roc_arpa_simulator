@@ -380,7 +380,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await stTab("ex");
     await st.click("#stRun");
     await st.waitForFunction(() => /PASSED|FAILED/.test(document.querySelector("#stMsg").textContent), null, { timeout: 180000 });
-    check(`${tag} self-test of the exercises passes (instructor station)`, /ALL 32 EXERCISES PASSED/.test(await stText("#stMsg")), await stText("#stMsg"));
+    check(`${tag} self-test of the exercises passes (instructor station)`, /ALL 33 EXERCISES PASSED/.test(await stText("#stMsg")), await stText("#stMsg"));
 
     // 100 ships at once on programmed tracks: the scenario loads and the picture keeps moving.
     await key("scen");
@@ -767,7 +767,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     await st.click("#inBatchDel");
     // Marking sheets: one choice per exercise, and "all" (instructor station, EXERCISES).
     const sheets = await st.$$eval("#msEx option", (os) => os.length);
-    check(`${tag} marking sheets: all exercises listed`, sheets === 33, String(sheets));
+    check(`${tag} marking sheets: all exercises listed`, sheets === 34, String(sheets));
     // ---- Added 18 Nov 2026: PRF, routes, lanes, man overboard, live control from the station, examinations.
     {
       const T = (fn, ...a) => p.evaluate(([f, args]) => window.__simTest[f](...args), [fn, a]);
@@ -962,7 +962,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
       };
       const sheet = await readPopup("#xsPrint");
       check(`${tag} exercise sheets: 32 exercises and six ROC, each with the marked items, the limits and the checklist standards`,
-        nSheets === 39 && /Exercise 1\./.test(sheet) && /what the simulator measures/i.test(sheet) && /CPA of Ship A/.test(sheet) && /Radar set up before use/.test(sheet) && /not type approved/.test(sheet), `${nSheets} ${sheet.slice(0, 300)}`);
+        nSheets === 40 && /Exercise 1\./.test(sheet) && /what the simulator measures/i.test(sheet) && /CPA of Ship A/.test(sheet) && /Radar set up before use/.test(sheet) && /not type approved/.test(sheet), `${nSheets} ${sheet.slice(0, 300)}`);
       await st.selectOption("#xsEx", "roc-plot");
       const rocSheet = await readPopup("#xsPrint");
       check(`${tag} exercise sheet of a ROC exercise: points, and the first check counts`, /ROC: Manual plotting/.test(rocSheet) && /first check/.test(rocSheet) && /Total 90/.test(rocSheet), rocSheet.slice(0, 300));
@@ -1210,7 +1210,7 @@ for (const [W, H] of [[1366, 768], [1280, 600], [1920, 1080]]) {
     text: document.getElementById("robotBar")?.innerText ?? "",
     who: document.getElementById("who").textContent,
   }));
-  check(`${tag} no login box; the robot bar lists the 32 exercises (and all of them in turn) and five levels`, !bar.login && bar.ex === 33 && bar.levels === 5, JSON.stringify({ ...bar, text: "" }));
+  check(`${tag} no login box; the robot bar lists the 33 exercises (and all of them in turn) and five levels`, !bar.login && bar.ex === 34 && bar.levels === 5, JSON.stringify({ ...bar, text: "" }));
   check(`${tag} the bar says it is a training simulator, not for navigation`, /not for navigation/.test(bar.text) && /robot student/i.test(bar.who), bar.text.slice(0, 200));
   await p.selectOption("#rbEx", "arpa-1");
   await p.selectOption("#rbLevel", "5");

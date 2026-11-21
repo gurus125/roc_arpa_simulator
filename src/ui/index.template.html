@@ -73,6 +73,9 @@
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; }
   .grid2 label { display:block; color:var(--muted); font-size:12px; }
   .small { font-size:12px; color:var(--muted); }
+  .tideTable { border-collapse:collapse; font:11px/1.25 Consolas, "DejaVu Sans Mono", ui-monospace, monospace; }
+  .tideTable th, .tideTable td { border:1px solid var(--line, #3a4654); padding:1px 4px; text-align:center; white-space:nowrap; }
+  .tideTable tr.now { background:rgba(224,112,224,0.18); font-weight:bold; }
   #rocResult p { margin:6px 0; font-size:13px; }
   table.trk { width:100%; border-collapse:collapse; font:11px ui-monospace, Consolas, monospace; margin-top:6px; }
   table.trk th { text-align:right; color:var(--muted); font-weight:500; padding:2px 3px; border-bottom:1px solid var(--line); }
@@ -942,9 +945,16 @@
         <div class="row two"><label for="tideRate">Tidal stream, max rate (kn)</label><input type="number" id="tideRate" min="0" max="6" step="0.1" value="0"></div>
         <div class="row two"><label for="tideSet">Flood runs towards (°)</label><input type="number" id="tideSet" min="0" max="359" value="0"></div>
         <div class="row two"><label for="tideHrs">Hours after slack at start</label><input type="number" id="tideHrs" min="0" max="12.4" step="0.1" value="0"></div>
+        <div class="row two"><label for="swellFrom" title="A swell: waves from far away, on their own direction beside the wind sea">Swell from (°)</label><input type="number" id="swellFrom" min="0" max="359" value="0"></div>
+        <div class="row two"><label for="swellH">Swell height (m; 0 = none)</label><input type="number" id="swellH" min="0" max="15" step="0.5" value="0"></div>
+        <div class="row two"><label for="tideMode" title="Tidal streams from the tidal diamonds and the height of the tide">Tide (diamonds and height)</label><select id="tideMode"><option value="off">Off</option><option value="on">On: streams and height</option><option value="height">Height only (no streams)</option></select></div>
+        <div class="row two"><label for="tideHw" title="Negative: before high water at the reference port">Hours from HW at start</label><input type="number" id="tideHw" min="-6" max="6" step="0.5" value="-3"></div>
+        <div class="row"><label for="tideSprings" title="0 = neaps, 100 = springs">Neaps → springs (%)</label><input type="range" id="tideSprings" min="0" max="100" value="100"><span class="val" id="tideSpringsV">100</span></div>
         <p class="small" id="tideNow"></p>
+        <details id="tideTableBox"><summary>Tidal stream table (tidal diamonds)</summary><div id="tideTable" class="small"></div></details>
         <p class="hint">The sea comes from the direction of the wind (from the west if no wind is set). A ship with a manoeuvring model rolls, pitches and yaws in it: most roll in a beam sea, most yaw with the sea on the bow or quarter. Heavy rolling tips the radar beam and weakens echoes abeam; yawing smears a head-up picture. The exercise ship is not moved by the sea.</p>
         <p class="hint">The tidal stream is added to the steady current. It is zero at slack water, strongest about 3.1 hours later, slack again at 6.2 hours and then runs the other way (ebb).</p>
+        <p class="hint">Waves slow a ship with a manoeuvring model and the larger target ships, most in a head sea, once the loss is more than her sea margin (about 5% of her speed); a beam sea pushes her sideways a little. A swell rolls and slows her as a wind sea does, but makes no sea clutter. Tide on: the tidal streams of the tidal diamonds (by the hour from high water, between springs and neaps, and between the diamonds) are added to the current, and the echo sounder reads the charted depth plus the height of the tide (rule of twelfths). The real areas' tables are INVENTED for training, not from any chart or tide table.</p>
       </section>
       <section>
         <h2>Study aids</h2>

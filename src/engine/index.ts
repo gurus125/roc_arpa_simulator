@@ -15,6 +15,7 @@ export * from "./depth";
 export * from "./real-depths";
 export * from "./seamarks";
 export * from "./real-seamarks";
+export * from "./area-tides";
 export * from "./power";
 export * from "./traffic";
 export * from "./visibility";

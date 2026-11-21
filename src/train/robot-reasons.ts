@@ -6,7 +6,10 @@ import { courseToSteer, setAndDrift } from "../core/current";
 import { markFixWorking, rangeBearing } from "../core/nav";
 import { CourseSpeed, Vec2, angleDiffDeg, courseSpeedOf, normalizeDeg, velocityOf } from "../core/vec";
 import { World, logSpeed, measuredHeading, ownCogSog } from "../engine/index";
-import { offRoute, ROUTE_27 } from "./nav-exercises";
+import { offRoute, ROUTE_27, STREAM_A_33, TIDE_33, TRACK_33 } from "./nav-exercises";
+import { AREA_TIDES } from "../engine/index";
+import { TWELFTHS, tideHeightM } from "../core/tide";
+import { TIDAL_PERIOD_HOURS } from "../core/current";
 import { PLOT_RULES } from "./plotting-exercises";
 import { GOA_ANCHOR, MORMUGAO_POINT } from "./port-exercises";
 import type { ArpaExercise, ChoiceTask, NumberTask } from "./session";
@@ -352,6 +355,55 @@ const NUM: Record<string, NumReader> = {
     return ctsReading(c, o.track, `the track of leg ${o.leg + 1} (${deg3(o.track)})`);
   },
   "radar-28:cpa": (c) => readCpa(c, 1, " This is the CPA if nobody acts: read it before any action is taken."),
+  "radar-33:aSet": () => ({
+    value: STREAM_A_33.course,
+    why: { title: "", reason: "Read from the tidal stream table: diamond A, the row for three hours before high water (HW−3).", look: "WEATHER: Tidal stream table, column A.", working: [`HW−3, diamond A: ${deg3(STREAM_A_33.course)}°, the direction the stream runs towards.`] },
+  }),
+  "radar-33:aRate": () => ({
+    value: STREAM_A_33.speed,
+    why: { title: "", reason: "It is springs, so the spring rate is taken (the first of the two rates).", look: "WEATHER: Tidal stream table, column A, row HW−3.", working: [`Spring rate ${f1(STREAM_A_33.speed)} kn (at neaps the second figure would be used; between the two, in proportion to the day's range).`] },
+  }),
+  "radar-33:cts": () => {
+    const cts = courseToSteer(TRACK_33, TIDE_33.stw, { set: STREAM_A_33.course, drift: STREAM_A_33.speed });
+    if (!cts) return null;
+    const across = STREAM_A_33.speed * Math.sin(((STREAM_A_33.course - TRACK_33) * Math.PI) / 180);
+    return {
+      value: cts.heading,
+      why: {
+        title: "",
+        reason: "To make good the track the ship heads a little into the stream, so that its push across the track is cancelled by her own motion through the water.",
+        look: "The track to the buoy (the planned track on the radar) and the stream at diamond A from the table.",
+        rule: "Current triangle: ground vector = water vector + stream.",
+        working: [
+          `Track ${deg3(TRACK_33)}°; stream ${deg3(STREAM_A_33.course)}° at ${f1(STREAM_A_33.speed)} kn; speed through the water ${TIDE_33.stw} kn.`,
+          `Stream across the track: ${f1(STREAM_A_33.speed)} × sin(${deg3(STREAM_A_33.course)} − ${deg3(TRACK_33)}) = ${f2(Math.abs(across))} kn to ${across >= 0 ? "starboard" : "port"}.`,
+          `Allowance = asin(${f2(Math.abs(across))} ÷ ${TIDE_33.stw}) = ${f1(Math.abs(cts.allowance))}° to ${cts.allowance < 0 ? "port" : "starboard"}, into the stream.`,
+          `Course to steer = ${deg1(cts.heading)}; speed made good along the track ${f1(cts.speedOverGround)} kn.`,
+        ],
+      },
+    };
+  },
+  "radar-33:height": () => {
+    const h = AREA_TIDES["mumbai"]!.heights;
+    const value = tideHeightM(h, TIDE_33.hwAtStartH, TIDE_33.springs);
+    const half = TIDAL_PERIOD_HOURS / 2;
+    const x = ((TIDE_33.hwAtStartH + half) / half) * 6;
+    return {
+      value,
+      why: {
+        title: "",
+        reason: "Rule of twelfths: in the six hours of the rise the tide makes 1, 2, 3, 3, 2 and 1 twelfths of its range. Three hours before HW is about half way up.",
+        look: "WEATHER: Tidal stream table, the heights below it (springs: MHWS and MLWS).",
+        working: [
+          `Range at springs = ${f1(h.mhws)} − ${f1(h.mlws)} = ${f1(h.mhws - h.mlws)} m.`,
+          `HW−3 is ${f1(x)} "hours" (of ${f1(half * 60 / 6)} minutes each) after low water: about ${TWELFTHS[3]} twelfths, a half, of the range risen.`,
+          `Height = ${f1(h.mlws)} + ${f1(h.mhws - h.mlws)} × ${f2((value - h.mlws) / (h.mhws - h.mlws))} = ${f1(value)} m above chart datum.`,
+        ],
+      },
+    };
+  },
+  "radar-33:nowSet": (c) => setReading(c, "the stream has changed since the start: own ship's heading and speed through the water against her course and speed over the ground give it here and now"),
+  "radar-33:nowRate": (c) => driftReading(c),
   "radar-29:recip": () => ({
     value: 170,
     why: {
@@ -630,6 +682,12 @@ const CHO: Record<string, ChoiceReason> = {
   "radar-27:xtdmean": () => ({
     reason: "XTD is the cross-track distance: how far the ship is off the leg. S means to starboard of it. To come back, steer to port of the track for a while.",
   }),
+  "radar-33:strong": () => ({
+    reason: "A tidal stream turns at about high and low water (slack water) and runs hardest about half way between, three hours either side of high water, as the table shows.",
+  }),
+  "radar-33:springs": () => ({
+    reason: "At springs the tide rises and falls further in the same time, so more water has to move in and out: the streams run harder. At neaps the range is small and so are the rates.",
+  }),
   "radar-28:lane": () => ({
     reason: "Traffic in a scheme keeps to the lane for its direction and goes with the flow. Bound north here, that is the lane east of the separation zone, with the zone on the port side, as the arrows show.",
     rule: "Rule 10: proceed in the right lane in the general direction of traffic flow, keeping clear of the separation zone.",
@@ -716,6 +774,7 @@ const PLANS: Record<string, string[]> = {
   "radar-25": ["Restricted visibility: Rule 19.", "Acquire every ship; appraise CPA and TCPA.", "A substantial alteration to starboard, in good time, checked with the trial.", "Watch until every vessel is past and clear."],
   "radar-26": ["Acquire the tanker at anchor, the container ship and the VLCC.", "Make the tanker the ground reference; read the stream.", "Appraise the meeting container ship; act early to starboard.", "Watch until all are past and clear."],
   "radar-27": ["Find the current from own ship's data.", "Course to steer for each leg; keep the XTD small.", "Alter in good time at each waypoint.", "Finish when the last waypoint is passed."],
+  "radar-33": ["Read diamond A at HW−3 (springs) from the tidal stream table.", "Work the course to steer for the track to the buoy; steer it.", "Height of tide by the rule of twelfths.", "After about 25 minutes find the stream from own ship's data; correct the course.", "Finish at the buoy."],
   "radar-28": ["Keep in the northbound lane, with the flow.", "Acquire the crossing ferry and the slow ship ahead.", "The ferry is on our starboard side: we give way. Slowing down keeps us in our lane.", "Resume speed when the ferry is past and clear."],
   "radar-29": ["Keep a look-out.", "At the report: MOB key at once.", "Williamson turn: hard a-starboard; at 60° hard a-port; steady on 170°.", "Reduce speed; lay an expanding square from the MOB mark; close the mark slowly."],
   "radar-30": ["Answer the questions on safe speed.", "When the visibility closes: reduce to a safe speed at once.", "Keep watching the boats on the radar; Finish when they are past and clear."],

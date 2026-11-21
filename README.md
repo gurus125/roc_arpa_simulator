@@ -9,7 +9,7 @@ student display: free practice, the radar and ARPA, and the exercises (EXERCISE 
 in the menu, or the ship control window). The six ROC exercises are manual plotting, position fixing,
 set and drift, clearing range, blind pilotage and heavy-traffic collision avoidance; ARPA is switched
 off during them. The instructor station is the same file opened as `radar-simulator.html#instructor`. Opened as
-`radar-simulator.html#demo` it is a display on which a robot student, of a level from 1 to 5, works any of the 32 exercises
+`radar-simulator.html#demo` it is a display on which a robot student, of a level from 1 to 5, works any of the 33 exercises
 with the display's own controls while the class watches (see the instructor's manual, 10a).
 
 Hosted on a web site (Vercel: `vercel.json` builds it and serves it at `/`, and at `/instructor` for the
@@ -59,10 +59,10 @@ Three robots (careful, wrong, idle) work all 26 ARPA, radar and plotting exercis
 compared with what should happen. It checks that the exercises run and are marked properly, not that
 the answer key is good seamanship. ROC exercises are not included.
 Robot student (`src/train/robot-student.ts`, on the screen `src/ui/robot-ui.ts`): `radar-simulator.html#demo`. A robot of
-level 1 to 5 works any of the 32 exercises with the display's own controls (pointer, caption, log); levels below 5 make
+level 1 to 5 works any of the 33 exercises with the display's own controls (pointer, caption, log); levels below 5 make
 mistakes on purpose, each one logged; the chances are chosen for the demonstration (`ROBOT_LEVELS`). Its records are
-marked and left out of every trainee's file and progress. Tests: `tests/robot-student.test.ts` (all 32 at level 5, worked
-directly) and `node scripts/robot-demo-test.mjs` (all 32 through the screen, in a headless browser, after `npm run build`).
+marked and left out of every trainee's file and progress. Tests: `tests/robot-student.test.ts` (all 33 at level 5, worked
+directly) and `node scripts/robot-demo-test.mjs` (all 33 through the screen, in a headless browser, after `npm run build`).
 SETTINGS key: DAY / NIGHT display palettes (`src/ui/palette.ts`; day is deep navy with amber echoes,
 night is black and dimmed) and Own ship data (name, call sign, IMO, MMSI, size, type; live position,
 COG, SOG, heading, ROT, UTC; draught, hazardous cargo, destination, ETA). Typed-in values start as
@@ -204,6 +204,12 @@ Then a ship that keeps coming: an instructor's choice of a "careless" ship (no p
 towards own ship after she has given way, or a "hunting" ship (a drill), and a marked exercise 32 on the careless
 ship: act again when she comes back, with five short blasts recorded and marked (`KEEPS_COMING` in
 `src/engine/traffic-rules.ts`, every figure a placeholder). Tests: `tests/b48-keeps-coming.test.ts`.
+Then waves and tides: ships slow down in waves (the Townsin and Kwon / Kwon speed loss, after a sea margin) and a
+beam sea pushes them sideways; a swell from its own direction; tidal streams from tidal diamonds (by the hour from
+high water, springs to neaps, between diamonds) and the height of the tide by the rule of twelfths on the echo
+sounder; a tidal stream table and the diamonds on the area map; marked exercise 33 on them. The real areas' streams
+and heights are INVENTED for training (`src/engine/area-tides.ts`); the outside view and ECDIS are out of scope on
+purpose (a radar/ARPA has neither). Code: `src/core/waves.ts`, `src/core/tide.ts`. Tests: `tests/b49-*.test.ts`.
 Hardware control panel: keys for every radar function, changeable, and knob-box (game controller) inputs
 (`src/ui/panel-map.ts`, `src/ui/panel.ts`; SETTINGS > Control panel). No real panel has been tried.
 `npm run test:link` starts the classroom server and checks the instructor station and four student displays in separate
@@ -235,7 +241,7 @@ See `PLAN.md` for the full build plan.
 
 ## Added in phases 5 to 8
 
-- **Exercises** (EXERCISE tab, ARPA EX, or the ship control window): 32 exercises with automatic checking and
+- **Exercises** (EXERCISE tab, ARPA EX, or the ship control window): 33 exercises with automatic checking and
   debrief questions: ten ARPA, eleven radar (four of them in the real areas) and ten manual plotting.
 - **Instructor station** (`radar-simulator.html#instructor`, or `/instructor` from the classroom server; PIN 0000
   at first; `src/ui/station-ui.ts`): CLASSROOM (every display reporting, with pause and run, an exercise to start,

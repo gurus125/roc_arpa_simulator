@@ -358,8 +358,16 @@ Press **SHIP** (or use the ship control window).
   its alarm.
 - **Depth** (OWN SHIP DATA, in the four real areas): the echo sounder's reading, the approximate depth
   of water where the ship is and, when the draught is known, the water under the keel. It comes from
-  the same relief model as the area map's contours (cells of about 450 m, below mean sea level, no
-  tide): a guide only. The ship never touches bottom in this simulator.
+  the same relief model as the area map's contours (cells of about 450 m, taken as charted depths): a
+  guide only. When the instructor has the tide on, the height of the tide is added. The ship never
+  touches bottom in this simulator.
+- **Tide** (WEATHER): with the tide on, the water moves with the tidal streams of the tidal diamonds,
+  changing by the hour and from place to place. "Tidal stream table" shows the diamonds hour by hour
+  from high water (set, then the rates at springs and at neaps) and the tide heights; the row for now is
+  marked. With the area map on, the diamonds appear on the picture as lettered diamonds, with an arrow
+  for the stream now. The real areas' tables are invented for training, not taken from a chart.
+- **Waves**: a ship slows down in a heavy sea, most when heading into it, and a sea on the beam pushes her
+  sideways a little. Watch SOG and COG against STW and HDG.
 - **If the GNSS (EPFS) fails** there is no position anywhere: the position reads NO FIX, the cursor
   gives no latitude and longitude, COG and SOG are blank, and the ARPA warns EPFS INPUT ABSENT. Fix
   the position by radar (exercise 23).
@@ -527,6 +535,12 @@ when the second charted object has been observed, so choose your objects before 
 **The exercise sheet.** Your instructor can give you a sheet for each exercise: its objective, the
 briefing, every item the simulator marks with its limit and points, what the instructor will look
 for and the standard for each item. It is the same list as "How you will be assessed" on the screen.
+
+**Exercise 33, tidal streams.** Read diamond A from the tidal stream table for the hour (HW−3) and for
+springs, work the course to steer that makes good the track to the fairway buoy across the stream, and
+the height of tide by the rule of twelfths (1, 2, 3, 3, 2, 1 twelfths of the range in the six hours of the
+rise). The stream changes as you go: after about 25 minutes find it again from own ship's data (HDG and
+STW against COG and SOG) and correct the course.
 
 **Exercise 32, a ship that keeps coming.** Ship K crosses from starboard and you give way. Her officer
 is not keeping a proper look-out: after your action she edges back towards you. Keep watching her CPA

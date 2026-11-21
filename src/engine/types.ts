@@ -1,6 +1,7 @@
 import { ShipMotion } from "../core/shipmodel";
 import { Vec2 } from "../core/vec";
 import { SetDrift } from "../core/current";
+import { TidalDiamond, TideHeights } from "../core/tide";
 import type { TssScheme } from "../core/tss";
 import type { TerrainGrid } from "./terrain";
 import type { ShipBehaviour, TrafficState } from "./traffic-rules";
@@ -152,6 +153,14 @@ export interface DepthArea {
   depthM: number;
 }
 
+export interface TideSetting {
+  hwAtStartH: number;
+  springs: number;
+  streams?: boolean;
+  diamonds?: TidalDiamond[];
+  heights?: TideHeights;
+}
+
 export interface Environment {
   current: SetDrift;
   /** 0 (calm) to 9 */
@@ -171,6 +180,18 @@ export interface Environment {
   /** True wind: the direction it blows FROM (degrees true) and its speed, knots. */
   wind?: { from: number; speedKn: number };
   tidal?: { floodSet: number; maxRateKn: number; hoursAfterSlackAtStart: number };
+  /**
+   * A swell: waves from far away, running on their own direction (degrees true, FROM) beside the wind sea. Height
+   * metres; period seconds (left out: core/seaway.ts DEFAULT_SWELL_PERIOD_S). It rolls and slows the ships; the sea
+   * clutter on the picture comes from the wind sea alone.
+   */
+  swell?: { from: number; heightM: number; periodS?: number };
+  /**
+   * The tide: tidal streams from tidal diamonds and the height of the tide (core/tide.ts). `hwAtStartH`: hours from
+   * high water at the reference port when the exercise starts (negative: before HW). `springs`: 0 neaps to 1 springs.
+   * `streams` false: heights only. `diamonds` and `heights` left out: the real area's own (engine/area-tides.ts, invented).
+   */
+  tide?: TideSetting;
   /** Another ship's radar on the same band is causing interference on the picture. */
   interference?: boolean;
   /**

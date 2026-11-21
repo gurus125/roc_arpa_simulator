@@ -1,12 +1,12 @@
 import { ANCHOR_WATCH_DEFAULT_NM, ArpaSystem } from "../arpa/index";
 import { courseToSteer } from "../core/current";
-import { bearingOf, length, normalizeDeg, rotateVec, sub } from "../core/vec";
-import { World, cameBackAt, createWorld, letGoAnchor, ownGroundVelocity, setShipModel, stepTraffic, stepWorld, RADAR_WARM_UP_SEC, setRadarTransmit, switchRadarOn } from "../engine/index";
+import { bearingOf, courseSpeedOf, length, normalizeDeg, rotateVec, sub } from "../core/vec";
+import { World, cameBackAt, currentVelocity, createWorld, letGoAnchor, ownGroundVelocity, setShipModel, stepTraffic, stepWorld, RADAR_WARM_UP_SEC, setRadarTransmit, switchRadarOn } from "../engine/index";
 import { ARPA_EXERCISES } from "./arpa-exercises";
 import { PLOTTING_EXERCISES } from "./plotting-exercises";
 import { GOA_ANCHOR, GOA_PI_NM } from "./port-exercises";
 import { RADAR_EXERCISES } from "./radar-exercises";
-import { MOB_AT_SEC, FOG_AT_SEC, ROUTE_27 } from "./nav-exercises";
+import { MOB_AT_SEC, FOG_AT_SEC, ROUTE_27, TIDE_33, TRACK_33 } from "./nav-exercises";
 import { advanceLeg } from "../core/route";
 import { crossTrackError } from "../core/nav";
 import { ArpaExSession, ArpaExercise, ExerciseResult } from "./session";
@@ -150,6 +150,18 @@ const PLANS: Record<string, Plan> = {
       const track = bearingOf(sub(ROUTE_27[leg + 1]!, ROUTE_27[leg]!));
       const xtd = crossTrackError(k.w.own.pos, ROUTE_27[leg]!, ROUTE_27[leg + 1]!);
       const cts = courseToSteer(track, Math.max(1, k.w.own.speedThroughWater), k.w.env.current)?.heading ?? track;
+      k.w.own.ordered.course = normalizeDeg(cts - Math.max(-25, Math.min(25, xtd * 150)));
+    },
+    finishAt: 3600,
+    done: (k) => k.s.obs.trackDone,
+  },
+  "radar-33": {
+    // Steer the course that makes good the track across the stream as it is now (own ship's data), corrected for the distance off it.
+    steps: [],
+    every: (k) => {
+      const xtd = crossTrackError(k.w.own.pos, TIDE_33.start, TIDE_33.buoy);
+      const cur = courseSpeedOf(currentVelocity(k.w));
+      const cts = courseToSteer(TRACK_33, Math.max(1, k.w.own.speedThroughWater), { set: cur.course, drift: cur.speed })?.heading ?? TRACK_33;
       k.w.own.ordered.course = normalizeDeg(cts - Math.max(-25, Math.min(25, xtd * 150)));
     },
     finishAt: 3600,

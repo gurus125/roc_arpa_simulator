@@ -32,6 +32,29 @@ export const SCENARIO_SCHEMA = {
         ducting: { type: "boolean" },
         refraction: { enum: ["standard", "sub", "super"] },
         visibilityNm: { type: "number", exclusiveMinimum: 0, maximum: 20 },
+        swell: { type: "object", required: ["from", "heightM"], properties: { from: { type: "number" }, heightM: { type: "number", minimum: 0, maximum: 15 }, periodS: { type: "number", minimum: 4, maximum: 25 } } },
+        tide: {
+          type: "object",
+          required: ["hwAtStartH", "springs"],
+          properties: {
+            hwAtStartH: { type: "number", minimum: -12.42, maximum: 12.42 },
+            springs: { type: "number", minimum: 0, maximum: 1.2 },
+            streams: { type: "boolean" },
+            diamonds: {
+              type: "array",
+              items: {
+                type: "object",
+                required: ["id", "pos", "hours"],
+                properties: {
+                  id: { type: "string", minLength: 1 },
+                  pos: vec,
+                  hours: { type: "array", minItems: 13, maxItems: 13, items: { type: "object", required: ["set", "spring", "neap"], properties: { set: { type: "number" }, spring: { type: "number", minimum: 0 }, neap: { type: "number", minimum: 0 } } } },
+                },
+              },
+            },
+            heights: { type: "object", required: ["mhws", "mhwn", "mlwn", "mlws"], properties: { mhws: { type: "number" }, mhwn: { type: "number" }, mlwn: { type: "number" }, mlws: { type: "number" } } },
+          },
+        },
         rain: {
           type: "array",
           items: { type: "object", required: ["center", "radius", "intensity"], properties: { center: vec, radius: { type: "number", exclusiveMinimum: 0 }, intensity: { type: "number", minimum: 0, maximum: 1 } } },
@@ -116,6 +139,25 @@ export function validateScenario(x: unknown): string[] {
       need(env["visibilityNm"] === undefined || (isNum(env["visibilityNm"]) && env["visibilityNm"] > 0 && env["visibilityNm"] <= 20), "Visibility must be above 0 and not more than 20 NM (leave it out for good visibility).");
       const td = env["tidal"];
       need(td === undefined || (isObj(td) && isNum(td["floodSet"]) && isNum(td["maxRateKn"]) && td["maxRateKn"] >= 0 && isNum(td["hoursAfterSlackAtStart"])), "Tidal stream needs floodSet (degrees), maxRateKn (not negative) and hoursAfterSlackAtStart.");
+      const sw = env["swell"];
+      need(sw === undefined || (isObj(sw) && isNum(sw["from"]) && isNum(sw["heightM"]) && sw["heightM"] >= 0 && sw["heightM"] <= 15 && (sw["periodS"] === undefined || (isNum(sw["periodS"]) && sw["periodS"] >= 4 && sw["periodS"] <= 25))), "Swell needs from (degrees) and heightM (0 to 15 m); periodS, if given, 4 to 25 s.");
+      const tide = env["tide"];
+      if (tide !== undefined) {
+        if (!isObj(tide)) errs.push('"tide" must be an object.');
+        else {
+          need(isNum(tide["hwAtStartH"]) && Math.abs(tide["hwAtStartH"]) <= 12.42, "Tide: hwAtStartH (hours from high water at the start) must be -12.42 to 12.42.");
+          need(isNum(tide["springs"]) && tide["springs"] >= 0 && tide["springs"] <= 1.2, "Tide: springs must be 0 (neaps) to 1 (springs), at most 1.2.");
+          need(tide["streams"] === undefined || typeof tide["streams"] === "boolean", "Tide: streams must be true or false.");
+          const ds = tide["diamonds"];
+          need(
+            ds === undefined ||
+              (Array.isArray(ds) && ds.every((d) => isObj(d) && typeof d["id"] === "string" && d["id"].length > 0 && vecOk(d["pos"]) && Array.isArray(d["hours"]) && d["hours"].length === 13 && d["hours"].every((h) => isObj(h) && isNum(h["set"]) && isNum(h["spring"]) && h["spring"] >= 0 && isNum(h["neap"]) && h["neap"] >= 0))),
+            "Each tidal diamond needs an id, a position and 13 hours (HW-6 to HW+6), each with set (degrees), spring and neap rates (kn, not negative).",
+          );
+          const hs = tide["heights"];
+          need(hs === undefined || (isObj(hs) && ["mhws", "mhwn", "mlwn", "mlws"].every((k) => isNum(hs[k]))), "Tide heights need mhws, mhwn, mlwn and mlws (metres above chart datum).");
+        }
+      }
       need(env["seaState"] === undefined || (isNum(env["seaState"]) && env["seaState"] >= 0 && env["seaState"] <= 9), "Sea state must be 0 to 9.");
       const rain = env["rain"];
       need(

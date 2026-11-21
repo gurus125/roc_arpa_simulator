@@ -2,7 +2,8 @@ import { G, K, bgOuter, echoColour, landEchoColour, pic, ppiGradient } from "./p
 import { Vec2, bearingOf, fromPolar, normalizeDeg, sub } from "../core/vec";
 import { tssStrip } from "../core/tss";
 import { rangeBearing } from "../core/nav";
-import { pulseFor, radarPower, warmUpLeftSec, ringInterval, worldToDisplayNm, displayNmToWorld, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead, radarSignalsLostText, depthContours, depthGridById, seaMarksOf, SeaMark } from "../engine/index";
+import { pulseFor, radarPower, warmUpLeftSec, ringInterval, worldToDisplayNm, displayNmToWorld, toScreenNm, centreRef, toRef, screenRotation, measuredRotation, measuredHeading, logSpeed, routeAhead, radarSignalsLostText, depthContours, depthGridById, seaMarksOf, SeaMark, AREA_TIDES, tideClockH } from "../engine/index";
+import { diamondStream } from "../core/tide";
 import { AppState, ECHO_LIFETIME_S } from "./app";
 import { ShipType, shipTypeById } from "../core/shipmodel";
 
@@ -451,6 +452,51 @@ export function drawPpi(ctx: Ctx, size: number, app: AppState): void {
         if (m.light || m.racon) ctx.fillText([m.light, m.racon ? `Racon (${m.racon})` : ""].filter(Boolean).join("  "), s.x + 9, s.y + 9);
       }
     }
+  }
+  // Tidal diamonds of the scenario or the real area (core/tide.ts), as a chart shows them: a lettered diamond; with the
+  // tide on, an arrow for the stream running there now (its length 12 px a knot).
+  const tideDiamonds = gfx && app.areaMap ? (w.env.tide?.diamonds ?? (w.area ? AREA_TIDES[w.area]?.diamonds : undefined) ?? []) : [];
+  if (tideDiamonds.length) {
+    ctx.setLineDash([]);
+    ctx.lineWidth = 1.2;
+    ctx.font = "bold 11px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const col = K("#e070e0");
+    for (const d of tideDiamonds) {
+      const s = px(worldToDisplayNm(w, ds, d.pos));
+      if (Math.hypot(s.x - cx, s.y - cy) > R - 8) continue;
+      ctx.strokeStyle = col;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y - 8);
+      ctx.lineTo(s.x + 7, s.y);
+      ctx.lineTo(s.x, s.y + 8);
+      ctx.lineTo(s.x - 7, s.y);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillText(d.id, s.x, s.y + 0.5);
+      if (w.env.tide && w.env.tide.streams !== false) {
+        const v = diamondStream(d, tideClockH(w), w.env.tide.springs);
+        const len = Math.hypot(v.e, v.n) * 12;
+        if (len > 2) {
+          // The arrow in the display's frame: turn the stream as the picture is turned (heading or course up).
+          const tip = px(worldToDisplayNm(w, ds, { e: d.pos.e + v.e, n: d.pos.n + v.n }));
+          const dx = tip.x - s.x, dy = tip.y - s.y;
+          const k = len / Math.max(1e-6, Math.hypot(dx, dy));
+          const ux = dx * k / len, uy = dy * k / len;
+          const x2 = s.x + ux * len, y2 = s.y + uy * len;
+          ctx.beginPath();
+          ctx.moveTo(s.x, s.y);
+          ctx.lineTo(x2, y2);
+          ctx.lineTo(x2 - 5 * ux + 3 * uy, y2 - 5 * uy - 3 * ux);
+          ctx.moveTo(x2, y2);
+          ctx.lineTo(x2 - 5 * ux - 3 * uy, y2 - 5 * uy + 3 * ux);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.textBaseline = "alphabetic";
   }
   // Own ship's route: legs dashed, waypoints as numbered circles, the next waypoint bold (IEC 62288 Annex A: waypoint and route).
   if (gfx && app.route.length > 0) {

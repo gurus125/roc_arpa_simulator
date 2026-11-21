@@ -1,9 +1,10 @@
-import { Vec2, angleDiffDeg, bearingOf, fromPolar, length, sub } from "../core/vec";
+import { Vec2, angleDiffDeg, bearingOf, courseSpeedOf, fromPolar, length, sub } from "../core/vec";
 import { courseToSteer } from "../core/current";
+import { diamondStream, tideHeightM } from "../core/tide";
 import { advanceLeg, routeLegs } from "../core/route";
 import { crossTrackError } from "../core/nav";
 import { TssScheme } from "../core/tss";
-import { Scenario, TARGET_TYPES, cameBackAt, targetFromType } from "../engine/index";
+import { AREA_TIDES, AREA_TIDE_NOTE, MUMBAI_APPROACH, Scenario, TARGET_TYPES, cameBackAt, currentVelocity, targetFromType } from "../engine/index";
 import { ArpaExercise, OutcomeJudge, TaskCtx, judgeAction, judgeSafePassing, truthCpa } from "./session";
 
 /**
@@ -38,6 +39,11 @@ export const NAV_LIMITS = {
   againTurnDeg: 20,
   againSpeedShare: 0.6,
   againWithinMin: 6,
+  /** Exercise 33: greatest distance off the track to the fairway buoy, NM; the height of tide to within this, metres;
+   * the stream on the radar is asked after this many seconds of the passage. */
+  tideXteNm: 0.4,
+  tideHeightTolM: 0.3,
+  streamCheckSec: 1500,
 };
 
 type Tgt = Scenario["targets"][number];
@@ -375,5 +381,84 @@ const EX31: ArpaExercise = {
   ],
 };
 
-export const NAV_RADAR_EXERCISES: ArpaExercise[] = [EX27, EX28, EX29, EX30];
+// ---------------------------------------------------------------- 33: tidal streams from the tidal diamonds
+
+/** Exercise 33: the start (HW-3 at Mumbai, springs), own ship's speed, and the fairway buoy she makes for. */
+export const TIDE_33 = { hwAtStartH: -3, springs: 1, stw: 12, start: { e: 0, n: 0 } as Vec2, buoy: { e: 10, n: -1 } as Vec2 };
+/** The track to the fairway buoy, and the stream at diamond A at the start as the table gives it. */
+export const TRACK_33 = bearingOf(sub(TIDE_33.buoy, TIDE_33.start));
+const DIAMOND_A = AREA_TIDES["mumbai"]!.diamonds[0]!;
+export const STREAM_A_33 = courseSpeedOf(diamondStream(DIAMOND_A, TIDE_33.hwAtStartH, TIDE_33.springs));
+/** The rows of diamond A around the start, as the briefing quotes them. */
+const rowA = (h: number): string => {
+  const x = DIAMOND_A.hours[h + 6]!;
+  return `${h === 0 ? "HW" : `HW${h > 0 ? "+" : "−"}${Math.abs(h)}`}: ${String(x.set).padStart(3, "0")}° ${x.spring.toFixed(1)} / ${x.neap.toFixed(1)} kn`;
+};
+
+const EX33: ArpaExercise = {
+  id: "radar-33", number: 33, group: "Radar", title: "Tidal streams: course to steer from the tidal diamonds", rangeNm: 12, safeNm: 0.5,
+  aim: "Work the tidal stream from the tidal diamonds and the height of the tide by the rule of twelfths, steer the course that makes good the track across the stream, and check the stream on the radar as the passage goes on.",
+  scenario: {
+    ...MUMBAI_APPROACH,
+    id: "radar-33", name: "Radar 33: tidal streams off Mumbai",
+    description: "Off Mumbai, three hours before high water at springs, making for the fairway buoy across the flood stream. Real coastline and land; the tidal streams and heights are INVENTED for training.",
+    own: { heading: 96, speed: TIDE_33.stw, pos: TIDE_33.start },
+    env: { seaState: 2, wind: { from: 250, speedKn: 10 }, current: { set: 0, drift: 0 }, tide: { hwAtStartH: TIDE_33.hwAtStartH, springs: TIDE_33.springs } },
+    targets: [
+      buoy(1, "Fairway buoy", TIDE_33.buoy),
+      vessel(2, "Bulk carrier at anchor", "bulk-handy", { e: 6, n: -4 }, 240, 0, { atAnchor: true }),
+      vessel(3, "Trawler", "trawler", { e: 5, n: 5 }, 200, 5),
+    ],
+  },
+  route: [TIDE_33.start, TIDE_33.buoy],
+  briefing: [
+    `Own ship is off Mumbai at ${TIDE_33.stw} knots, making for the fairway buoy, which is on the radar and drawn as the end of the planned track (${String(Math.round(TRACK_33)).padStart(3, "0")}°, ${length(sub(TIDE_33.buoy, TIDE_33.start)).toFixed(1)} NM). It is three hours before high water at Mumbai (HW−3), at springs.`,
+    `The tidal stream table is under WEATHER, "Tidal stream table", and diamond A is on the area map (switch the area map on). Diamond A, the one nearest the start of the track: ${[-4, -3, -2, -1].map(rowA).join("; ")} (set, springs / neaps). ${AREA_TIDE_NOTE}`,
+    "Find the stream at diamond A now, work the course to steer that makes good the track to the buoy, and steer it. Work the height of the tide at the start by the rule of twelfths from the heights below the table.",
+    `As the passage goes on the stream changes, by the hour and from diamond to diamond. After about ${Math.round(NAV_LIMITS.streamCheckSec / 60)} minutes, find the set and rate of the stream from own ship's data (heading and speed through the water against course and speed over the ground), or from the bulk carrier at anchor, and correct the course to steer.`,
+    `Keep within ${NAV_LIMITS.tideXteNm} NM of the track (a placeholder) and pass every vessel at 0.5 NM or more. Press Finish when the buoy is reached.`,
+  ],
+  tasks: [
+    { id: "aSet", kind: "number", prompt: "Diamond A at HW−3, springs: set of the stream (from the table)", unit: "°", circular: true, truth: () => STREAM_A_33.course, tol: (cfg) => cfg.tol.setDeg },
+    { id: "aRate", kind: "number", prompt: "Diamond A at HW−3, springs: rate of the stream (from the table)", unit: "kn", truth: () => STREAM_A_33.speed, tol: (cfg) => cfg.tol.errorKn },
+    {
+      id: "cts", kind: "number", prompt: `Course to steer at ${TIDE_33.stw} kn to make good the track to the buoy, allowing for the stream at diamond A`, unit: "°", circular: true,
+      truth: () => courseToSteer(TRACK_33, TIDE_33.stw, { set: STREAM_A_33.course, drift: STREAM_A_33.speed })?.heading ?? null, tol: (cfg) => cfg.tol.bearingDeg,
+    },
+    {
+      id: "height", kind: "number", prompt: "Height of tide at the start, above chart datum (rule of twelfths)", unit: "m",
+      truth: () => tideHeightM(AREA_TIDES["mumbai"]!.heights, TIDE_33.hwAtStartH, TIDE_33.springs), tol: () => NAV_LIMITS.tideHeightTolM,
+    },
+    {
+      id: "strong", kind: "choice", prompt: "In a tide like this one, when does the stream run hardest?",
+      choices: ["About three hours before and three hours after high water", "At high water and at low water", "One hour after high water only", "At the same rate all through the tide"],
+      correct: () => 0,
+    },
+    {
+      id: "springs", kind: "choice", prompt: "Why are the rates at springs larger than at neaps?",
+      choices: ["At springs the range of the tide is larger, so more water must move in the same time", "At springs the wind is stronger", "Neap tides happen only in the monsoon", "The two columns are for summer and winter"],
+      correct: () => 0,
+    },
+    {
+      id: "nowSet", kind: "number", prompt: "Later in the passage: set of the stream now (from own ship's data or the ship at anchor)", unit: "°", circular: true,
+      truth: (c) => (c.w.time < NAV_LIMITS.streamCheckSec ? null : courseSpeedOf(currentVelocity(c.w)).course), tol: (cfg) => cfg.tol.setDeg,
+    },
+    {
+      id: "nowRate", kind: "number", prompt: "Later in the passage: rate of the stream now", unit: "kn",
+      truth: (c) => (c.w.time < NAV_LIMITS.streamCheckSec ? null : courseSpeedOf(currentVelocity(c.w)).speed), tol: (cfg) => cfg.tol.errorKn,
+    },
+    { id: "kept", kind: "outcome", prompt: `Kept within ${NAV_LIMITS.tideXteNm} NM of the track`, rule: () => `never more than ${NAV_LIMITS.tideXteNm} NM off the track to the buoy`, judge: (c) => ({ ok: c.obs.maxXte <= NAV_LIMITS.tideXteNm, detail: `greatest distance off the track ${c.obs.maxXte.toFixed(2)} NM` }) },
+    { id: "done", kind: "outcome", prompt: "The fairway buoy reached", rule: () => "the end of the track passed", judge: (c) => ({ ok: c.obs.trackDone, detail: c.obs.trackDone ? "the buoy was reached" : "the buoy was not reached" }) },
+    { id: "safe", kind: "outcome", prompt: "Every vessel passed at 0.5 NM or more", judge: judgeSafePassing({ safeNm: 0.5 }) },
+  ],
+  script: [],
+  debrief: [
+    "How did the stream you found on the radar differ from the table at diamond A, and why (the hour, the other diamonds, the springs rate)?",
+    "What would steering the track itself (096°) without allowing for the stream have done?",
+    "When would you use the bulk carrier at anchor to find the stream, and when own ship's data?",
+    "How much water would there have been over a 10 m charted depth at the start? And at low water?",
+  ],
+};
+
+export const NAV_RADAR_EXERCISES: ArpaExercise[] = [EX27, EX28, EX29, EX30, EX33];
 export const NAV_ARPA_EXERCISES: ArpaExercise[] = [EX31, EX32];

@@ -74,6 +74,11 @@ export function rollPeriodS(lengthM: number): number {
  */
 export function seawayResponse(seaState: number, seaOffBowDeg: number, shipSpeedKn: number, lengthM: number): SeawayResponse {
   const h = waveHeightM(seaState);
+  return seawayResponseH(h, wavePeriodS(h), seaOffBowDeg, shipSpeedKn, lengthM);
+}
+
+/** The same for a train of waves given by its height (metres) and period (seconds): a swell as well as a wind sea. */
+export function seawayResponseH(h: number, periodS: number, seaOffBowDeg: number, shipSpeedKn: number, lengthM: number): SeawayResponse {
   const mu = (seaOffBowDeg * Math.PI) / 180;
   const size = Math.min(RESPONSE.sizeMax, Math.max(RESPONSE.sizeMin, 120 / Math.max(1, lengthM)));
   return {
@@ -82,7 +87,7 @@ export function seawayResponse(seaState: number, seaOffBowDeg: number, shipSpeed
     yawDeg: Math.min(RESPONSE.yawMaxDeg, RESPONSE.yawDegPerM * h * size * Math.abs(Math.sin(2 * mu))),
     heaveM: RESPONSE.heaveMPerM * h,
     rollPeriodS: rollPeriodS(lengthM),
-    encounterPeriodS: encounterPeriodS(wavePeriodS(h), shipSpeedKn, seaOffBowDeg),
+    encounterPeriodS: encounterPeriodS(periodS, shipSpeedKn, seaOffBowDeg),
   };
 }
 
@@ -90,6 +95,27 @@ export function seawayResponse(seaState: number, seaOffBowDeg: number, shipSpeed
  * How far the radar beam is tipped off the horizon towards a relative bearing (degrees from the
  * bow) when the ship is rolled and pitched: all of the roll abeam, all of the pitch ahead and astern.
  */
+/** Period of a swell when none is given, seconds. PLACEHOLDER (a typical ocean swell). */
+export const DEFAULT_SWELL_PERIOD_S = 11;
+
+/**
+ * A ship's motions in two seas at once (a wind sea and a swell): the amplitudes add as squares (their energies add);
+ * the periods are those of the larger sea.
+ */
+export function combineResponses(a: SeawayResponse, b: SeawayResponse | null): SeawayResponse {
+  if (!b) return a;
+  const rss = (x: number, y: number): number => Math.sqrt(x * x + y * y);
+  const big = b.pitchDeg + b.rollDeg + b.heaveM > a.pitchDeg + a.rollDeg + a.heaveM ? b : a;
+  return {
+    rollDeg: Math.min(RESPONSE.rollMaxDeg, rss(a.rollDeg, b.rollDeg)),
+    pitchDeg: Math.min(RESPONSE.pitchMaxDeg, rss(a.pitchDeg, b.pitchDeg)),
+    yawDeg: Math.min(RESPONSE.yawMaxDeg, rss(a.yawDeg, b.yawDeg)),
+    heaveM: rss(a.heaveM, b.heaveM),
+    rollPeriodS: a.rollPeriodS,
+    encounterPeriodS: big.encounterPeriodS,
+  };
+}
+
 export function beamTiltDeg(rollDeg: number, pitchDeg: number, relBearingDeg: number): number {
   const b = (relBearingDeg * Math.PI) / 180;
   return rollDeg * Math.sin(b) + pitchDeg * Math.cos(b);

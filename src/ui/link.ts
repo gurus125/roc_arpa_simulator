@@ -91,7 +91,7 @@ export type Command =
   | { to: string; cmd: "pause" | "run" }
   | { to: string; cmd: "message"; text: string }
   | { to: string; cmd: "radio"; station: string; from: string; text: string }
-  | { to: string; cmd: "weather"; seaState: number; rain: boolean; ducting: boolean; interference: boolean; rainPct?: number; windFrom?: number; windKn?: number; curSet?: number; curDrift?: number; /** Visibility, NM; null: good again; left out: no change. */ visNm?: number | null }
+  | { to: string; cmd: "weather"; seaState: number; rain: boolean; ducting: boolean; interference: boolean; rainPct?: number; windFrom?: number; windKn?: number; curSet?: number; curDrift?: number; /** Visibility, NM; null: good again; left out: no change. */ visNm?: number | null; /** Swell: from (degrees) and height (m, 0 none). */ swellFrom?: number; swellM?: number; /** Tide: off, streams and height, or height only; hours from HW at the start; neaps 0 to springs 100. */ tide?: "off" | "on" | "height"; tideHw?: number; springsPct?: number }
   /** A vessel of a catalogue type put on the display's picture, at a true bearing and range from its own ship. */
   | { to: string; cmd: "addTarget"; name: string; typeId: string; bearing: number; rangeNm: number; course: number; speed: number }
   | { to: string; cmd: "removeTarget"; id: number }

@@ -3,7 +3,7 @@ import { StationUi, initStationUi } from "./station-ui";
 import { fromPolar, normalizeDeg, rotateVec, sub } from "../core/vec";
 import { aisFilterLabel } from "../ais/index";
 import { HARD_OVER_SECONDS, SHIP_TYPES, TELEGRAPH, shipTypeById } from "../core/shipmodel";
-import { BAND_DATA, BEHAVIOUR_LABELS, ShipBehaviour, setShipBehaviour, currentVelocity, pulseFor, prfChoices, addTypedTarget, addRandomTraffic, RANDOM_TRAFFIC_DEFAULT, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setTargetRoute, clearTargetRoute, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, visibilityNm, MAX_VISIBILITY_NM, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN, depthAt, echoSounderText, SEA_MARK_FIRST_ID, depthGridById, depthContours } from "../engine/index";
+import { BAND_DATA, BEHAVIOUR_LABELS, ShipBehaviour, setShipBehaviour, currentVelocity, pulseFor, prfChoices, addTypedTarget, addRandomTraffic, RANDOM_TRAFFIC_DEFAULT, RADAR_RANGES, SCENARIOS, Scenario, orderTarget, setTargetRoute, clearTargetRoute, setShipModel, autoRainFtc, autoSeaStc, displayNmToWorld, worldToDisplayNm, measuredHeading, ownCogSog, tuningFactor, radarPower, radarTransmitting, visibilityNm, MAX_VISIBILITY_NM, setRadarTransmit, switchRadarOff, switchRadarOn, letGoAnchor, weighAnchor, ANCHOR_MAX_SOG_KN, depthAt, waterDepthAt, tideHeightNow, tideClockH, echoSounderText, SEA_MARK_FIRST_ID, depthGridById, depthContours } from "../engine/index";
 import { ExerciseDef, ExerciseKind, RocSession, exerciseById } from "../roc/index";
 import { ARPA_EXERCISES, PLOTTING_EXERCISES, PLOT_RULES, RADAR_EXERCISES, ArpaExSession, ArpaExercise, Lookout, checkLogin, explainTask, hasPin, traineeAttempts, progressHtml, AttemptRow, attentionFlags, progressReport, evidenceOf, criteriaSnapshot, rocCriteria, rocResult, Recorder, RemoteShip, Store, applyRemoteShips, remoteId, scenarioFromJson } from "../train/index";
 import { initTrainUi, resultHtml } from "./train-ui";
@@ -18,6 +18,7 @@ import { initRobotUi } from "./robot-ui";
 import { drawPpi, radarGeometry, readoutAt } from "./view";
 import { setDisplayPalette } from "./palette";
 import { soundWhistle } from "./whistle";
+import { hwText, tideTableHtml } from "./tide-ui";
 import { FOG_SIGNAL_INTERVAL_S, SignalId, WHISTLE_SIGNALS, fogSignalFor, whistleFrequencyHz, whistleSignal } from "../core/signals";
 import { formatLatLon, latLonOf } from "../core/nav";
 import { MAX_ROUTE_WAYPOINTS, monitorRoute } from "../core/route";
@@ -520,6 +521,12 @@ function applyControls(): void {
   w.env.current = { set: num("curSet"), drift: num("curDrift") };
   if (num("tideRate") > 0) w.env.tidal = { floodSet: normalizeDeg(num("tideSet") || 0), maxRateKn: num("tideRate"), hoursAfterSlackAtStart: num("tideHrs") || 0 };
   else delete w.env.tidal;
+  // Swell and tide (diamonds and height). The scenario's own diamonds, heights and swell period are kept.
+  if (num("swellH") > 0) w.env.swell = { ...(w.env.swell ?? {}), from: normalizeDeg(num("swellFrom") || 0), heightM: Math.min(15, num("swellH")) };
+  else delete w.env.swell;
+  const tideMode = sel("tideMode");
+  if (tideMode === "off") delete w.env.tide;
+  else w.env.tide = { ...(w.env.tide ?? {}), hwAtStartH: Math.max(-6, Math.min(6, num("tideHw") || 0)), springs: num("tideSprings") / 100, streams: tideMode === "on" };
   // Own ship: type, steering mode (autopilot course or helm by hand), engine order, wind.
   const simple = sel("shipType") === "simple";
   if (simple) {
@@ -591,6 +598,7 @@ function applyControls(): void {
   setText("eblBrgV", brg1(app.ebl.bearing));
   setText("vrmRngV", app.vrm.range.toFixed(2));
   setText("rainIntV", String(num("rainInt")));
+  setText("tideSpringsV", String(num("tideSprings")));
   if (chk("rain")) {
     if (w.env.rain.length === 0) w.env.rain = [{ center: { e: 0, n: 0 }, radius: 2.5, intensity: 0.8 }];
     w.env.rain[0]!.intensity = num("rainInt") / 100;
@@ -616,6 +624,22 @@ function setVisibility(v: number | null): void {
   const el = byId<HTMLInputElement>("visNm");
   if (el) el.value = visibilityNm(app.world) === null ? "" : String(visibilityNm(app.world));
 }
+/** The tidal stream table drawn last (redrawn only when it changes: its scenario, its tide or the hour). */
+let tideTableShown = "";
+byId("tideTableBox")?.addEventListener("toggle", () => {
+  tideTableShown = "";
+  renderTideTable(app.world);
+});
+function renderTideTable(w: AppState["world"]): void {
+  const box = byId("tideTableBox") as HTMLDetailsElement | null;
+  if (!box || !box.open) return;
+  const html = tideTableHtml(w);
+  if (html === tideTableShown) return;
+  tideTableShown = html;
+  const el = byId("tideTable");
+  if (el) el.innerHTML = html;
+}
+
 function setSlider(id: string, v: number): void {
   (byId(id) as HTMLInputElement).value = String(v);
 }
@@ -675,6 +699,12 @@ function loadScenario(sc: Scenario, opts: { roc?: ExerciseDef; arpa?: ArpaExerci
   setSlider("tideRate", sc.env.tidal?.maxRateKn ?? 0);
   setSlider("tideSet", sc.env.tidal?.floodSet ?? 0);
   setSlider("tideHrs", sc.env.tidal?.hoursAfterSlackAtStart ?? 0);
+  setSlider("swellFrom", sc.env.swell?.from ?? 0);
+  setSlider("swellH", sc.env.swell?.heightM ?? 0);
+  setSelect("tideMode", sc.env.tide ? (sc.env.tide.streams === false ? "height" : "on") : "off");
+  setSlider("tideHw", sc.env.tide?.hwAtStartH ?? -3);
+  setSlider("tideSprings", Math.round((sc.env.tide?.springs ?? 1) * 100));
+  tideTableShown = "";
   setSlider("gain", 50);
   setSlider("stc", 0);
   setSlider("ftc", 0);
@@ -1001,7 +1031,8 @@ function setup(): void {
       setCheck("duct", c.ducting);
       setCheck("interf", c.interference);
       if (c.rainPct !== undefined) setSlider("rainInt", c.rainPct);
-      for (const [id, v] of [["windFrom", c.windFrom], ["windSpd", c.windKn], ["curSet", c.curSet], ["curDrift", c.curDrift]] as const) {
+      if (c.tide !== undefined) setSelect("tideMode", c.tide);
+      for (const [id, v] of [["windFrom", c.windFrom], ["windSpd", c.windKn], ["curSet", c.curSet], ["curDrift", c.curDrift], ["swellFrom", c.swellFrom], ["swellH", c.swellM], ["tideHw", c.tideHw], ["tideSprings", c.springsPct]] as const) {
         const el = byId<HTMLInputElement>(id);
         if (el && v !== undefined && Number.isFinite(v)) el.value = String(v);
       }
@@ -1450,7 +1481,7 @@ function setup(): void {
   });
 
   const ids = [
-    "shipType", "helm", "windFrom", "windSpd", "autoSea", "autoRain", "autoTune", "gain", "tuning", "stc", "ftc", "brill", "sea", "duct", "refr", "interf", "pulse", "prf", "echoStretch", "echoAvg", "irOn", "pmOn", "curSet", "curDrift", "tideRate", "tideSet", "tideHrs", "ordCourse", "ordSpeed",
+    "shipType", "helm", "windFrom", "windSpd", "autoSea", "autoRain", "autoTune", "gain", "tuning", "stc", "ftc", "brill", "sea", "duct", "refr", "interf", "pulse", "prf", "echoStretch", "echoAvg", "irOn", "pmOn", "curSet", "curDrift", "tideRate", "tideSet", "tideHrs", "swellFrom", "swellH", "tideMode", "tideHw", "tideSprings", "ordCourse", "ordSpeed",
     "eblOn", "eblBrg", "vrmOn", "vrmRng", "trails", "trailMin", "shadow", "names", "rainInt",
     // Picture overlays: they take effect at once, not at the next change of another control.
     "coastOutline", "areaMap", "sternLine", "antMark",
@@ -1640,7 +1671,7 @@ function updateReadouts(): void {
     const rot = (w0.own.model?.motion.r ?? 0) * 60;
     setText("osRot", w0.own.model ? (Math.abs(rot) < 0.5 ? "0°/min" : `${Math.abs(rot).toFixed(0)}°/min to ${rot > 0 ? "starboard" : "port"}`) : "---");
     setText("osUtc", new Date(app.startUtcMs + w0.time * 1000).toISOString().slice(0, 19).replace("T", " "));
-    setText("osDepth", echoSounderText(depthAt(w0, w0.own.pos), store.data.ownShip.draughtM ?? type?.draughtM ?? null));
+    setText("osDepth", echoSounderText(waterDepthAt(w0, w0.own.pos), store.data.ownShip.draughtM ?? type?.draughtM ?? null));
   }
   const w = app.world;
   const t = Math.floor(w.time + 1e-6);
@@ -1660,7 +1691,10 @@ function updateReadouts(): void {
   {
     const cv = currentVelocity(w);
     const sp = Math.hypot(cv.e, cv.n);
-    setText("tideNow", sp < 0.05 ? "Water movement now: none." : `Water movement now (current and tidal stream): ${pad3((Math.atan2(cv.e, cv.n) * 180) / Math.PI)}° at ${sp.toFixed(1)} kn.`);
+    const th = tideHeightNow(w);
+    const tideText = w.env.tide ? ` Tide: ${hwText(tideClockH(w))}${th === null ? "" : `, height ${th.toFixed(1)} m above chart datum`}.` : "";
+    setText("tideNow", (sp < 0.05 ? "Water movement now: none." : `Water movement now (current and tidal stream): ${pad3((Math.atan2(cv.e, cv.n) * 180) / Math.PI)}° at ${sp.toFixed(1)} kn.`) + tideText);
+    renderTideTable(w);
   }
   rocUi.tick(app);
   arpaUi.tick(app);

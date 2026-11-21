@@ -26,7 +26,7 @@ describe("target ship catalogue", () => {
     expect(targetFromType(targetTypeById("fishing-boat")!).rcs).toBeLessThan(targetFromType(targetTypeById("coaster")!).rcs);
   });
   it("a catalogue ship comes round gradually; a plain target alters at once", () => {
-    const w = createWorld({ ...base, env: {}, targets: [tgt("vlcc", 0, 14)] });
+    const w = createWorld({ ...base, env: { seaState: 0 }, targets: [tgt("vlcc", 0, 14)] }); // calm: no wave drift
     orderTarget(w.targets[0]!, { course: 90 });
     run(w, 10);
     // VLCC: 0.4 deg/s, so 4 degrees after 10 s.
@@ -38,7 +38,7 @@ describe("target ship catalogue", () => {
     expect(p.targets[0]!.course).toBe(90);
   });
   it("a catalogue ship is set by the current: steering 000 at 10 kn in a 2 kn easterly set makes good 011.3 at 10.2 kn", () => {
-    const w = createWorld({ ...base, env: { current: { set: 90, drift: 2 } }, targets: [tgt("coaster", 0, 10)] });
+    const w = createWorld({ ...base, env: { current: { set: 90, drift: 2 }, seaState: 0 }, targets: [tgt("coaster", 0, 10)] }); // calm: no wave drift
     run(w, 3600);
     const t = w.targets[0]!;
     expect(t.course).toBeCloseTo((Math.atan2(2, 10) * 180) / Math.PI, 6); // 11.31

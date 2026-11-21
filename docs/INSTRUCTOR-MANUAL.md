@@ -153,6 +153,26 @@ chosen above in "Targets on a display", or the one that would come closest. The 
 course and speed. Every correction is written in the display's record. The figures are placeholders
 (`KEEPS_COMING` in `src/engine/traffic-rules.ts`). Exercise 32 is built on the careless ship.
 
+**Waves and swell** (WEATHER, Environment; station, "Swell from (°) and height (m)"). The sea comes from
+the wind's direction; a swell can be added from any direction. A ship with a manoeuvring model and the
+target ships of 50 m and more slow down in waves, most in a head sea, by the speed-loss method of Townsin
+and Kwon as Kwon extended it, once the loss is more than the ship's sea margin (about 5% of her speed). A
+beam sea pushes a ship sideways a little, small ships more. The swell rolls and slows the ship as a wind
+sea does, but makes no sea clutter. The exercise ship (fixed rates, for plotting) is not affected. Every
+coefficient is a placeholder (`src/core/waves.ts`); the direction factors have not yet been checked against
+Kwon's paper.
+
+**Tide** (WEATHER, "Tide (diamonds and height)"; station, "Tide"). On: the tidal streams of the tidal
+diamonds are added to the current, read by the hour from high water at the reference port, between springs
+and neaps (the slider) and between the diamonds (weighted by distance); the echo sounder reads the charted
+depth plus the height of the tide by the rule of twelfths. "Height only" leaves the water still. "Hours from
+HW at start" sets the tide's clock. WEATHER, "Tidal stream table" shows the table as a chart does (the hour
+now marked) and the heights; with the area map on, the diamonds are drawn on the picture with an arrow for
+the stream now. The four real areas have tables INVENTED for training: they are not from any chart or tide
+table and must not be used for navigation. A scenario file can carry the academy's own diamonds and
+heights (`env.tide` in the scenario format). Turning the tide on changes the water under the ships, so the
+exercises' answers about the current follow what the ships actually do.
+
 ## 4. Targets
 
 All of this is on the station, OWN RADAR, MENU, INSTR, "Inject events (this display)": it acts on the
@@ -454,7 +474,7 @@ how many found competent, the mean score of those and of the ones found not yet 
 many decisions went against the record. Like figures mean like marking. A difference is a reason to
 talk, not a proof: the classes may have differed.
 
-**One sheet for every exercise** (station, EXERCISES, Exercise sheets): the same form for all 32
+**One sheet for every exercise** (station, EXERCISES, Exercise sheets): the same form for all 33
 exercises and the six ROC exercises: the objective, the briefing, every item the simulator marks
 with the limit it uses and its points, the instructor's checklist with the standard for each item,
 the time allowed, the pass standard and the debrief questions. It is made from the data that does
@@ -505,7 +525,7 @@ The ships, current and stream are invented, the buoy in exercise 24 is laid for 
 the reference points' positions come from the coastline data (about 250 m accuracy), not a chart.
 Every limit is a placeholder.
 
-## 9b. Exercises 27 to 32 (added 18 and 20 Nov 2026)
+## 9b. Exercises 27 to 33 (added 18, 20 and 21 Nov 2026)
 
 | No. | Exercise | What happens | What is marked |
 |-----|----------|--------------|----------------|
@@ -515,6 +535,7 @@ Every limit is a placeholder.
 | 30 | Safe speed in restricted visibility | 16 kn towards a rain area with three fishing boats in it; three minutes after the start the visibility closes (a message) | Three questions on rules 6 and 19, speed over the ground down to 8 kn within 8 minutes, every vessel passed at 0.5 NM or more |
 | 31 | Timed test: acquire, assess and report | Six ships; 8 minutes of exercise time | All six tracked, the one with the smallest CPA, CPA and TCPA of ship A, bearing and range of ship F, finished within the time |
 | 32 | A ship that keeps coming | Good visibility; Ship K crosses from starboard on a collision course, with no proper look-out ("careless", see section 3): once own ship has given way she edges back towards her, up to three times | Ships tracked, who gives way, the first action large enough, acted again within 6 minutes of her first coming back (a further 20° or more, or the speed down to 60%; not needed if she never came within 2 NM), five short blasts sounded after she came back, two questions, every vessel passed at 1 NM or more |
+| 33 | Tidal streams: course to steer from the tidal diamonds | Off Mumbai, HW−3 at springs, tide on (invented streams and heights); a fairway buoy 10 NM away across the flood; a ship at anchor and a trawler | Diamond A's set and rate read from the table, the course to steer for the track, the height of tide by the rule of twelfths, two questions, the set and rate found on the radar after 25 minutes, kept within 0.4 NM of the track, the buoy reached, every vessel passed at 0.5 NM or more |
 
 Every figure in the last column is a placeholder (`NAV_LIMITS` in `src/train/nav-exercises.ts`): none
 comes from a rule or a syllabus. In exercise 30 the "safe speed" of 8 kn is only a figure to mark
@@ -565,7 +586,7 @@ after any change of scoring settings.
 
 Open the simulator with `#demo` after its address (from the classroom server: its address followed by
 `/#demo`). The display opens with no login and a bar at the foot of the screen in place of the legend. Choose
-an exercise of the ARPA EX list (1 to 32, or all of them one after another), a level from 1 (Beginner) to 5
+an exercise of the ARPA EX list (1 to 33, or all of them one after another), a level from 1 (Beginner) to 5
 (Excellent), a seed and how fast the clock runs while the robot waits (1x to 20x; its actions are always at
 normal speed), then press START.
 
@@ -577,7 +598,7 @@ turn, plots by hand with EBL and VRM in exercises 12 to 21, switches on and sets
 types its answers, presses Finish, and writes and saves its debrief notes. The caption in the middle of the bar
 says what it is doing and why; the log on the right keeps every step, every value it read and every mistake.
 
-- Level 5 does everything the briefing asks, in good time, and every item is credited (checked for all 32 by
+- Level 5 does everything the briefing asks, in good time, and every item is credited (checked for all 33 by
   the unit tests and through the screen by `scripts/robot-demo-test.mjs`).
 - Levels 4 to 1 make mistakes on purpose, by chance: misread values, wrong choices, steps forgotten, avoiding
   action too small, late or to port, alarms left unacknowledged, sloppy steering, the gain or tuning left wrong,
@@ -689,8 +710,10 @@ mode (which screen it opens on) has not been tried either.
   ship figures, the ship's response to the sea, automatic clutter settings, echo shapes, the
   strength of false echoes, scoring tolerances. Radar beamwidths and pulse lengths are those of one
   maker's published specification.
-- Radar and ARPA only: no chart display, no outside view, no voice radio. The echo sounder's depth
-  and the area map's contours are approximate (about 450 m cells, no tide), and the buoys and lights
+- Radar and ARPA only: no chart display, no outside view, no voice radio (a radar/ARPA has neither an
+  outside view nor ECDIS; ECDIS is a separate course). The echo sounder's depth and the area map's
+  contours are approximate (about 450 m cells; the height of tide is added only when the tide is on, from
+  invented heights), and the buoys and lights
   are as volunteers mapped them in OpenStreetMap: a guide, not a chart. The ship never grounds.
 - Other ships that keep the collision regulations act on the true situation, as if their look-out
   were perfect, and only towards own ship, not towards each other.
@@ -721,7 +744,7 @@ mode (which screen it opens on) has not been tried either.
   worked the answer out. The observations about each trainee are the instructor's own.
 - The check of a decision against the record is a help to weigh the same evidence every time, not a
   rule of competence. Its four tests are a proposal. The measured facts beside the checklist come
-  only in the 32 marked exercises, not in the ROC exercises or free practice.
+  only in the 33 marked exercises, not in the ROC exercises or free practice.
 - The debrief questions are written by fixed rules from what was recorded. They do not know what
   the trainees said or meant: the instructor chooses among them.
 - The trainee file and the comparisons hold what is in this station's browser: at most the newest

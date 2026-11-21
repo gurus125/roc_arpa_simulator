@@ -3,9 +3,9 @@ import { crossTrackError } from "../core/nav";
 import { advanceLeg } from "../core/route";
 import { williamsonHeadings } from "../core/search";
 import { trialManoeuvre } from "../core/trial";
-import { angleDiffDeg, bearingOf, length, normalizeDeg, sub } from "../core/vec";
-import { World, cameBackAt, measuredHeading, noiseSpeckle, ownGroundVelocity, ownTurnProfile, radarPower } from "../engine/index";
-import { FOG_AT_SEC, MOB_AT_SEC, NAV_LIMITS, ROUTE_27 } from "./nav-exercises";
+import { angleDiffDeg, bearingOf, courseSpeedOf, length, normalizeDeg, sub } from "../core/vec";
+import { World, cameBackAt, currentVelocity, measuredHeading, noiseSpeckle, ownGroundVelocity, ownTurnProfile, radarPower } from "../engine/index";
+import { FOG_AT_SEC, MOB_AT_SEC, NAV_LIMITS, ROUTE_27, STREAM_A_33, TIDE_33, TRACK_33 } from "./nav-exercises";
 import { PLOTTING_EXERCISES, PLOT_RULES } from "./plotting-exercises";
 import { GOA_ANCHOR, GOA_PI_NM, MALABAR_POINT } from "./port-exercises";
 import { ArpaExercise, distanceToLandNm, truthCpa } from "./session";
@@ -573,6 +573,27 @@ export const SCRIPTS: Record<string, Script> = {
     });
     await b.idle(60);
     await b.answer("cts");
+    await b.until(() => b.s.obs.trackDone, 3600, 10);
+    b.steer(null);
+    await b.finish();
+  },
+  "radar-33": async (b) => {
+    await b.begin();
+    await b.run();
+    await b.answerAll(["aSet", "aRate", "cts", "height", "strong", "springs"]);
+    b.explain({
+      title: "How I make good the track across the stream",
+      reason: `I steer the course worked from diamond A (${f1(STREAM_A_33.speed)} kn towards ${pad3(STREAM_A_33.course)}°). The stream changes by the hour and from diamond to diamond, so every ${Math.min(30, b.lv.steerEvery)} s I find it again from own ship's data, work the course to steer again, and steer a little towards the track when off it.`,
+      look: "OWN SHIP DATA: HDG and STW against COG and SOG give the stream here and now; EBL / CURSOR: the XTD.",
+    });
+    b.steer(Math.min(30, b.lv.steerEvery), async () => {
+      const x = b.w;
+      const xtd = crossTrackError(x.own.pos, TIDE_33.start, TIDE_33.buoy);
+      const cur = courseSpeedOf(currentVelocity(x));
+      const cts = courseToSteer(TRACK_33, Math.max(1, x.own.speedThroughWater), { set: cur.course, drift: cur.speed })?.heading ?? TRACK_33;
+      await b.order(normalizeDeg(cts - Math.max(-25, Math.min(25, xtd * 150 * b.lv.steerGain))), null, "");
+    });
+    await b.answerWhenReady(["nowSet", "nowRate"], 3000);
     await b.until(() => b.s.obs.trackDone, 3600, 10);
     b.steer(null);
     await b.finish();
