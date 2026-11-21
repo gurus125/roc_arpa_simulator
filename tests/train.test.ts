@@ -112,8 +112,8 @@ describe("scenario files", () => {
 });
 
 describe("ARPA exercises: structure", () => {
-  it("nine exercises, numbered 1 to 9, and the timed test 31, with unique task ids, briefing and debrief", () => {
-    expect(ARPA_EXERCISES.map((e) => e.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 31]);
+  it("nine exercises, numbered 1 to 9, the timed test 31 and the ship that keeps coming 32, with unique task ids, briefing and debrief", () => {
+    expect(ARPA_EXERCISES.map((e) => e.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 31, 32]);
     for (const ex of ARPA_EXERCISES) {
       expect(new Set(ex.tasks.map((t) => t.id)).size).toBe(ex.tasks.length);
       expect(ex.briefing.length).toBeGreaterThan(1);

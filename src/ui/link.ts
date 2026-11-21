@@ -97,7 +97,7 @@ export type Command =
   | { to: string; cmd: "removeTarget"; id: number }
   /** Random traffic round the display's own ship: the same seed gives every display the same ships. */
   | { to: string; cmd: "traffic"; seed: number; count: number; minNm: number; maxNm: number; threats: number; replace: boolean }
-  | { to: string; cmd: "shipRules"; mode: ShipBehaviour }
+  | { to: string; cmd: "shipRules"; mode: ShipBehaviour; ship?: number | null }
   /** Load this scenario (JSON text), join the linked exercise and start, on every display at the same moment. */
   | { to: string; cmd: "startLinked"; scenarioJson: string }
   | { to: string; cmd: "fault"; gyroDeg: number; logKn: number }

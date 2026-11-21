@@ -559,6 +559,12 @@ export function initRobotUi(api: RobotUiApi): void {
       case "mob":
         await openMenu("own");
         return press($("mobKey"));
+      case "whistle": {
+        await openMenu("comm");
+        const key = document.querySelector<HTMLElement>(`#whistleKeys button[data-s="${a.id}"]`);
+        if (key) await press(key);
+        return;
+      }
       case "search":
         await setControl(input<HTMLSelectElement>("spKind"), "square", "meas");
         await setControl(input<HTMLSelectElement>("spDatum"), "mob", "meas");

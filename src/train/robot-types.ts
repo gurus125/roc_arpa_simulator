@@ -81,6 +81,7 @@ export type RobotAction =
   | { k: "pm"; on: boolean }
   | { k: "letGo" }
   | { k: "mob" }
+  | { k: "whistle"; id: "doubt" | "starboard" | "port" | "astern" }
   | { k: "search"; size: number; course: number }
   | { k: "answer"; task: string; value: number }
   | { k: "finish" }

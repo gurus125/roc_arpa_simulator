@@ -4,8 +4,8 @@ import { advanceLeg } from "../core/route";
 import { williamsonHeadings } from "../core/search";
 import { trialManoeuvre } from "../core/trial";
 import { angleDiffDeg, bearingOf, length, normalizeDeg, sub } from "../core/vec";
-import { World, measuredHeading, noiseSpeckle, ownGroundVelocity, ownTurnProfile, radarPower } from "../engine/index";
-import { FOG_AT_SEC, MOB_AT_SEC, ROUTE_27 } from "./nav-exercises";
+import { World, cameBackAt, measuredHeading, noiseSpeckle, ownGroundVelocity, ownTurnProfile, radarPower } from "../engine/index";
+import { FOG_AT_SEC, MOB_AT_SEC, NAV_LIMITS, ROUTE_27 } from "./nav-exercises";
 import { PLOTTING_EXERCISES, PLOT_RULES } from "./plotting-exercises";
 import { GOA_ANCHOR, GOA_PI_NM, MALABAR_POINT } from "./port-exercises";
 import { ArpaExercise, distanceToLandNm, truthCpa } from "./session";
@@ -698,6 +698,52 @@ export const SCRIPTS: Record<string, Script> = {
     } else await b.hesitate();
     await b.order(null, 5, "safe speed in restricted visibility (rule 6)");
     await b.until(() => b.w.own.pos.n > 7.5 || (b.now() >= FOG_AT_SEC + 900 && b.clearOfAll(0.5) && b.allPast()), 4200, 10);
+    await b.finish();
+  },
+  "arpa-32": async (b) => {
+    const safe = NAV_LIMITS.keepsComingSafeNm;
+    await b.begin();
+    await b.run();
+    await b.acquire([1, 2, 3]);
+    await b.waitSteady([1, 2, 3]);
+    await b.answer("who");
+    await b.avoid({ safeNm: safe, restricted: false });
+    b.explain({
+      title: "My action is not the end of it: keep watching Ship K",
+      reason: "The briefing warns that her officer is not keeping a proper look-out. Until she is past and clear I watch her vector, her CPA and TCPA and her bearing. If she comes back towards us, the CPA starts to fall again and her vector swings towards us.",
+      look: "TARGET DATA for Ship K: CPA and TCPA; her true vector on the picture.",
+      rule: "Rule 8(d): the effectiveness of the action is checked until the other vessel is finally past and clear.",
+    });
+    // First the ARPA shows the action working (her CPA opens once own ship's turn is in the data); then, if she comes
+    // back, the CPA falls again once her track has settled on her new course (a minute or two).
+    let opened = 0;
+    await b.until(() => {
+      const c = b.track(1)?.est?.cpa;
+      if (c && c.cpa >= safe) opened = Math.max(opened, c.cpa);
+      return !c || opened > 0 || (c.tcpaMinutes ?? 0) <= 0;
+    }, 600, 10);
+    if (opened > 0) b.think(`The action is working: Ship K's CPA has opened to ${f1(opened)} NM. Still watching her.`);
+    // Coming back: her CPA falls well below the best it reached (0.3 NM, more than the data's own wander).
+    const falling = (): { cpa: number; tcpa: number } | null => {
+      const c = b.track(1)?.est?.cpa;
+      if (!c || c.tcpaMinutes === null || c.tcpaMinutes <= 0) return null;
+      opened = Math.max(opened, c.cpa);
+      return c.cpa <= opened - 0.3 ? { cpa: c.cpa, tcpa: c.tcpaMinutes } : null;
+    };
+    const seen = opened > 0 && (await b.until(() => cameBackAt(b.w) !== null && falling() !== null, 1500, 10));
+    if (seen) {
+      const r = falling() ?? { cpa: b.track(1)?.est?.cpa.cpa ?? 0, tcpa: b.track(1)?.est?.cpa.tcpaMinutes ?? 0 };
+      b.explain({
+        title: "Ship K is coming back towards us",
+        reason: `After our action her CPA opened to ${f1(opened)} NM; now it has fallen again to ${f1(r.cpa)} NM in ${Math.round(r.tcpa)} minutes. She is not doing what we expected, so I am in doubt about her intentions: five short blasts tell her so. Then a bold second action, not a small correction: 50° more to starboard and half speed, which keeps us turning away from her and gives both ships more time.`,
+        look: "Ship K's CPA in the target list, falling again; her vector turning towards us.",
+        rule: "Rule 34(d): at least five short and rapid blasts when in doubt. Rule 8(b) and (e): a large action, not a succession of small ones; slacken speed or stop if need be. Rule 2: the danger of collision allows a departure from the usual if needed.",
+      });
+      if (b.maybe("sound five short blasts", "The doubt signal is how a ship tells another, in sight, that she does not understand what the other is doing (Rule 34(d)). Without it Ship K's officer has nothing to wake him.")) await b.act({ k: "whistle", id: "doubt" }, "five short blasts (doubt)");
+      await b.order(normalizeDeg(b.w.own.ordered.course + 50), Math.round(b.w.own.ordered.speed / 2), "a bold second action: 50° more to starboard and half speed");
+    } else b.think("Ship K never came back towards us.");
+    await b.answerAll(["rule", "sig"]);
+    await b.monitor({ safeNm: safe, maxSec: 1800 });
     await b.finish();
   },
   "arpa-31": async (b) => {

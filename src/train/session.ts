@@ -119,6 +119,10 @@ export interface Observed {
   routePoints: number;
   /** Own ship's speed over the ground every 10 seconds: [exercise time s, knots]. */
   speedLog: [number, number][];
+  /** Own ship's ordered course every 10 seconds: [exercise time s, degrees]. */
+  courseLog: [number, number][];
+  /** Whistle signals sounded (COLREG rules 34 and 35): exercise time, s, and which. */
+  signals: { t: number; id: string }[];
   /** When each real target first had a settled track (exercise time, s), and its range then, NM. */
   trackedAt: Record<number, { t: number; rangeNm: number }>;
   /** The range scales used, in the order they were first chosen, and how often the scale was changed. */
@@ -389,7 +393,7 @@ export class ArpaExSession {
       tcpaLimit: a.settings.tcpaLimitMin, minRange: {}, manoeuvre: null, maxTurnDeg: 0, minSpeedRatio: 1,
       pi: [], navLines: 0, pmUsed: false, maxXte: 0, trackDone: false, closeSpeed: {},
       minLandNm: distanceToLandNm(w), anchorPos: null,
-      tss: { withFlow: 0, crossing: 0, against: 0, zone: 0 }, mobKeyAt: null, routePoints: 0, speedLog: [], returnRange: {}, returnSpeed: {},
+      tss: { withFlow: 0, crossing: 0, against: 0, zone: 0 }, mobKeyAt: null, routePoints: 0, speedLog: [], courseLog: [], signals: [], returnRange: {}, returnSpeed: {},
       trackedAt: {}, rangesUsed: [], rangeChanges: 0, alertsRaised: 0, maxUnackedSec: 0,
     };
     this.lastTime = w.time;
@@ -434,6 +438,7 @@ export class ArpaExSession {
     const sog = length(og);
     if (w.time >= this.nextSpeedAt) {
       this.obs.speedLog.push([Math.round(w.time), Math.round(sog * 10) / 10]);
+      this.obs.courseLog.push([Math.round(w.time), Math.round(normalizeDeg(w.own.ordered.course) * 10) / 10]);
       this.nextSpeedAt = w.time + 10;
     }
     if (sog > 1 && dt > 0) {
@@ -566,6 +571,12 @@ export class ArpaExSession {
       // A reason is a help, never a reason for an answer or a result to fail.
       return {};
     }
+  }
+
+  /** A whistle signal sounded on the display (rules 34 and 35). */
+  signal(w: World, id: string): void {
+    if (this.finished) return;
+    this.obs.signals.push({ t: w.time, id });
   }
 
   answer(w: World, a: ArpaSystem, taskId: string, value: number): boolean {

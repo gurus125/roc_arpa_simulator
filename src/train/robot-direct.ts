@@ -1,7 +1,7 @@
 import { ArpaSystem, alertPriority, nextToAcknowledge } from "../arpa/index";
 import { expandingSquare } from "../core/search";
 import { Vec2, bearingOf, length, normalizeDeg, rotateVec, sub } from "../core/vec";
-import { World, createWorld, letGoAnchor, radarPower, radarTransmitting, setRadarTransmit, setShipModel, stepWorld, switchRadarOn } from "../engine/index";
+import { World, createWorld, letGoAnchor, radarPower, radarTransmitting, setRadarTransmit, setShipModel, stepTraffic, stepWorld, switchRadarOn } from "../engine/index";
 import { ArpaExSession, ArpaExercise } from "./session";
 import { RobotAction, RobotHost, RobotLogEntry, RobotRun, RobotView, lcg } from "./robot-types";
 import { runRobotStudent } from "./robot-scripts";
@@ -45,6 +45,7 @@ export class DirectHost implements RobotHost {
     const n = Math.max(1, Math.round(sec));
     for (let i = 0; i < n; i++) {
       stepWorld(this.w, 1);
+      stepTraffic(this.w, 1);
       if (!radarTransmitting(this.w)) this.a.settings.standby = true;
       this.a.step(this.w, this.rng);
       this.s.step(this.w, this.a, this.ui);
@@ -177,6 +178,9 @@ export class DirectHost implements RobotHost {
         break;
       case "letGo":
         if (letGoAnchor(w)) w.own.ordered.speed = 0;
+        break;
+      case "whistle":
+        this.s.signal(w, x.id);
         break;
       case "mob":
         this.mob = { pos: { ...w.own.pos }, time: w.time };

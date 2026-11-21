@@ -76,7 +76,8 @@ export const SCENARIO_SCHEMA = {
     hazards: { type: "array", items: { type: "object", required: ["name", "center", "radius"], properties: { name: { type: "string" }, center: vec, radius: { type: "number", exclusiveMinimum: 0 } } } },
     route: { type: "array", items: vec },
     depths: { type: "array", items: { type: "object", required: ["name", "points", "depthM"], properties: { name: { type: "string" }, points: { type: "array", items: vec, minItems: 3 }, depthM: { type: "number", minimum: 0 } } } },
-    traffic: { enum: ["hold", "rules", "wrong"], description: "How the other ships behave towards own ship: keep their course and speed (default), keep the collision regulations, or keep them with one ship getting it wrong." },
+    traffic: { enum: ["hold", "rules", "wrong", "careless", "hunting"], description: "How the other ships behave towards own ship: keep their course and speed (default), keep the collision regulations, keep them with one ship getting it wrong, or one ship keeps coming (careless, or hunting as a drill)." },
+    trafficShip: { type: "integer", description: "With \"careless\" or \"hunting\": the id of the ship that keeps coming. Left out: the one that would come closest." },
     seaMarks: { type: "boolean", description: "With \"terrain\": put the area's buoys, beacons and lights standing in the water on the radar (from OpenStreetMap; numbered from 9001)." },
   },
 } as const;
@@ -212,7 +213,9 @@ export function validateScenario(x: unknown): string[] {
     "Each depth area needs a name, a depth in metres and at least three points.",
   );
   const tb = x["traffic"];
-  need(tb === undefined || tb === "hold" || tb === "rules" || tb === "wrong", '"traffic" must be "hold", "rules" or "wrong".');
+  need(tb === undefined || ["hold", "rules", "wrong", "careless", "hunting"].includes(tb as string), '"traffic" must be "hold", "rules", "wrong", "careless" or "hunting".');
+  const tsh = x["trafficShip"];
+  need(tsh === undefined || (Number.isInteger(tsh) && Array.isArray(x["targets"]) && (x["targets"] as unknown[]).some((t) => isObj(t) && t["id"] === tsh)), '"trafficShip" must be the id of one of the scenario\'s targets.');
   const sm = x["seaMarks"];
   need(sm === undefined || typeof sm === "boolean", '"seaMarks" must be true or false.');
   const stx = x["structures"];

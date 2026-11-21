@@ -126,8 +126,8 @@ give the look the Radar and ARPA Manual describes (see `RADAR-PICTURE.md`).
 
 **How the other ships behave** (station, CLASSROOM, "How the other ships behave"; on a display or the
 station's own radar, WEATHER, "Other ships"): "Keep their course and speed (as the exercise is
-written)", the normal setting; "Keep the collision regulations"; or "Keep the regulations, but one gets
-it wrong". With the regulations kept, a ship that must give way to own ship alters to starboard in good
+written)", the normal setting; "Keep the collision regulations"; "Keep the regulations, but one gets
+it wrong"; or "One ship keeps coming", careless or hunting (below). With the regulations kept, a ship that must give way to own ship alters to starboard in good
 time (Rules 15 and 16; Rule 13 when she is overtaking; Rule 14 head-on); a stand-on ship holds her
 course and speed and acts herself, to starboard, only when own ship has not and they are about to come
 too close (Rule 17); in restricted visibility a ship that has own ship forward of her beam alters to
@@ -140,6 +140,18 @@ record as an instructor's note; the trainees are not told. The exercises are mar
 their course and speed: their answer keys follow the ships as they actually move, but the passing
 distances may differ from the written exercise. Every figure (when a ship acts, how far she turns) is a
 placeholder.
+
+**One ship keeps coming.** One ship holds on while own ship comes close, and once own ship has acted she
+comes back towards her, so that one good alteration is not enough: the trainee must keep watching, see
+her CPA fall again, sound five short blasts and act again, boldly. "Careless" is the realistic case, a
+ship with no proper look-out: every two and a half minutes she turns up to 15° back towards own ship,
+three times at most. "Hunting" is a drill: every minute up to 20°, six times at most. Either one comes
+back only while own ship would pass wider than 0.5 NM and the TCPA is between 4 and 30 minutes (never a
+surprise at the last moment), and gives up when own ship has nearly stopped (under 3 kn) or is past and
+clear. A bold action, or stopping, always gets clear. "Ship that keeps coming" chooses her: the target
+chosen above in "Targets on a display", or the one that would come closest. The other ships keep their
+course and speed. Every correction is written in the display's record. The figures are placeholders
+(`KEEPS_COMING` in `src/engine/traffic-rules.ts`). Exercise 32 is built on the careless ship.
 
 ## 4. Targets
 
@@ -442,7 +454,7 @@ how many found competent, the mean score of those and of the ones found not yet 
 many decisions went against the record. Like figures mean like marking. A difference is a reason to
 talk, not a proof: the classes may have differed.
 
-**One sheet for every exercise** (station, EXERCISES, Exercise sheets): the same form for all 31
+**One sheet for every exercise** (station, EXERCISES, Exercise sheets): the same form for all 32
 exercises and the six ROC exercises: the objective, the briefing, every item the simulator marks
 with the limit it uses and its points, the instructor's checklist with the standard for each item,
 the time allowed, the pass standard and the debrief questions. It is made from the data that does
@@ -493,7 +505,7 @@ The ships, current and stream are invented, the buoy in exercise 24 is laid for 
 the reference points' positions come from the coastline data (about 250 m accuracy), not a chart.
 Every limit is a placeholder.
 
-## 9b. Exercises 27 to 31 (added 18 Nov 2026)
+## 9b. Exercises 27 to 32 (added 18 and 20 Nov 2026)
 
 | No. | Exercise | What happens | What is marked |
 |-----|----------|--------------|----------------|
@@ -502,6 +514,7 @@ Every limit is a placeholder.
 | 29 | Man overboard | Two minutes after the start the look-out reports a man overboard (a message on the display); the person gives no radar echo | MOB key within 30 s, three questions, the reciprocal course, back to within 0.1 NM of the person at 5 kn or less, a search pattern laid on the radar |
 | 30 | Safe speed in restricted visibility | 16 kn towards a rain area with three fishing boats in it; three minutes after the start the visibility closes (a message) | Three questions on rules 6 and 19, speed over the ground down to 8 kn within 8 minutes, every vessel passed at 0.5 NM or more |
 | 31 | Timed test: acquire, assess and report | Six ships; 8 minutes of exercise time | All six tracked, the one with the smallest CPA, CPA and TCPA of ship A, bearing and range of ship F, finished within the time |
+| 32 | A ship that keeps coming | Good visibility; Ship K crosses from starboard on a collision course, with no proper look-out ("careless", see section 3): once own ship has given way she edges back towards her, up to three times | Ships tracked, who gives way, the first action large enough, acted again within 6 minutes of her first coming back (a further 20° or more, or the speed down to 60%; not needed if she never came within 2 NM), five short blasts sounded after she came back, two questions, every vessel passed at 1 NM or more |
 
 Every figure in the last column is a placeholder (`NAV_LIMITS` in `src/train/nav-exercises.ts`): none
 comes from a rule or a syllabus. In exercise 30 the "safe speed" of 8 kn is only a figure to mark
@@ -552,7 +565,7 @@ after any change of scoring settings.
 
 Open the simulator with `#demo` after its address (from the classroom server: its address followed by
 `/#demo`). The display opens with no login and a bar at the foot of the screen in place of the legend. Choose
-an exercise of the ARPA EX list (1 to 31, or all of them one after another), a level from 1 (Beginner) to 5
+an exercise of the ARPA EX list (1 to 32, or all of them one after another), a level from 1 (Beginner) to 5
 (Excellent), a seed and how fast the clock runs while the robot waits (1x to 20x; its actions are always at
 normal speed), then press START.
 
@@ -564,7 +577,7 @@ turn, plots by hand with EBL and VRM in exercises 12 to 21, switches on and sets
 types its answers, presses Finish, and writes and saves its debrief notes. The caption in the middle of the bar
 says what it is doing and why; the log on the right keeps every step, every value it read and every mistake.
 
-- Level 5 does everything the briefing asks, in good time, and every item is credited (checked for all 31 by
+- Level 5 does everything the briefing asks, in good time, and every item is credited (checked for all 32 by
   the unit tests and through the screen by `scripts/robot-demo-test.mjs`).
 - Levels 4 to 1 make mistakes on purpose, by chance: misread values, wrong choices, steps forgotten, avoiding
   action too small, late or to port, alarms left unacknowledged, sloppy steering, the gain or tuning left wrong,
@@ -708,7 +721,7 @@ mode (which screen it opens on) has not been tried either.
   worked the answer out. The observations about each trainee are the instructor's own.
 - The check of a decision against the record is a help to weigh the same evidence every time, not a
   rule of competence. Its four tests are a proposal. The measured facts beside the checklist come
-  only in the 31 marked exercises, not in the ROC exercises or free practice.
+  only in the 32 marked exercises, not in the ROC exercises or free practice.
 - The debrief questions are written by fixed rules from what was recorded. They do not know what
   the trainees said or meant: the instructor chooses among them.
 - The trainee file and the comparisons hold what is in this station's browser: at most the newest

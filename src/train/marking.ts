@@ -41,6 +41,7 @@ export const SYLLABUS_REFS: Record<string, SyllabusRefs> = {
   "radar-29": { stcw: "Radar: position; search and rescue", mc107: "3.2", dgs: "-" },
   "radar-30": { stcw: "Radar: performance factors; collision regulations", mc107: "1.5, 7.2", dgs: "Collision regulations" },
   "arpa-31": { stcw: "ARPA: acquisition; performance and processing delays", mc107: "5.5, 6.1, 6.3", dgs: "Operating ARPA; target information" },
+  "arpa-32": { stcw: "Radar: collision regulations; ARPA: risks of over-reliance", mc107: "6.7, 7.1, 7.4", dgs: "Collision regulations" },
 };
 const PLOTTING_REFS: SyllabusRefs = { stcw: "Radar: plotting; CPA and TCPA; collision regulations", mc107: "4.1-4.5, 7.4", dgs: "Manual plotting test" };
 

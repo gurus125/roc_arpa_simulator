@@ -528,6 +528,11 @@ when the second charted object has been observed, so choose your objects before 
 briefing, every item the simulator marks with its limit and points, what the instructor will look
 for and the standard for each item. It is the same list as "How you will be assessed" on the screen.
 
+**Exercise 32, a ship that keeps coming.** Ship K crosses from starboard and you give way. Her officer
+is not keeping a proper look-out: after your action she edges back towards you. Keep watching her CPA
+and vector after you act. When she comes back, sound five short blasts (VHF/SIGNAL, 5 SHORT) and act
+again, boldly: a larger alteration, or slow down or stop.
+
 **The robot student.** Your instructor may show an exercise worked by a robot student on a display
 opened as `radar-simulator.html#demo`: a yellow pointer marked ROBOT works the controls, and the bar at
 the foot of the screen says what it is doing and why. At level 5 it does everything the briefing asks;

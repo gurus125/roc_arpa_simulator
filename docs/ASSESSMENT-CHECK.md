@@ -25,7 +25,7 @@ and none has been tried with trainees.
 |------------|------------------------------|
 | 1 Individuals in a group | Every answer, every action and the first alteration of course or speed carries the name of the trainee at the controls. Each trainee has a result in the group's record and a file across all recorded exercises. The controls can change over by the clock, so that each gets a like share |
 | 2 Subjective evaluation | Each of the twelve checklist items has a written standard for Yes and for No. Eight of them show what the display has measured beside them. The record sets out the evidence before the decision, keeps the criteria that were in force, and asks for a written reason when a decision goes against the evidence. Assessors can be compared |
-| 3 Inconsistent sheets | One exercise sheet of a fixed form for all 31 exercises and the six ROC exercises, made from the same data that does the marking. The six ROC exercises now have marked items and points |
+| 3 Inconsistent sheets | One exercise sheet of a fixed form for all 32 exercises and the six ROC exercises, made from the same data that does the marking. The six ROC exercises now have marked items and points |
 | 4 Debrief depends on the instructor | A debrief in five fixed steps laid out from the record, with the key moments, the facts against the criteria and questions written from what happened; a printed debrief pack; a comparison of the class on one exercise |
 
 ## What stays a human judgement
@@ -77,7 +77,7 @@ and none has been tried with trainees.
 
 ## Limits
 
-- The measured facts beside the checklist come only in the 31 marked exercises, not in the ROC
+- The measured facts beside the checklist come only in the 32 marked exercises, not in the ROC
   exercises or in free practice.
 - The trainee file and the comparisons hold what is in the station's browser: the newest 60
   exercises in full and up to 300 older ones without their replay. Export the records to keep more.

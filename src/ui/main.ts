@@ -1027,8 +1027,10 @@ function setup(): void {
     }
     if (c.cmd === "shipRules") {
       if (!(c.mode in BEHAVIOUR_LABELS)) return;
-      setShipBehaviour(app.world, c.mode);
-      app.recorder?.note(app.world, `INSTRUCTOR (remote): other ships ${BEHAVIOUR_LABELS[c.mode].toLowerCase()}.`, true);
+      const ship = typeof c.ship === "number" && app.world.targets.some((t) => t.id === c.ship) ? c.ship : null;
+      setShipBehaviour(app.world, c.mode, ship);
+      const named = ship === null ? "" : ` (${app.world.targets.find((t) => t.id === ship)!.name})`;
+      app.recorder?.note(app.world, `INSTRUCTOR (remote): other ships ${BEHAVIOUR_LABELS[c.mode].toLowerCase()}${named}.`, true);
       return;
     }
     if (c.cmd === "traffic") {
@@ -1173,6 +1175,7 @@ function setup(): void {
     }
     setText("whistleMsg", `${auto ? "Automatic: " : ""}${sig.label.toLowerCase()} blast${sig.blasts.length > 1 ? "s" : ""}. ${sig.meaning}.`);
     app.recorder?.note(app.world, `Sound signal${auto ? " (automatic)" : ""}: ${sig.label.toLowerCase()}. ${sig.meaning}.`, false);
+    app.arpaEx?.signal(app.world, id);
   };
   $("whistleKeys").innerHTML = WHISTLE_SIGNALS.map((x) => `<button data-s="${x.id}">${x.label}<small>${x.meaning.replace(/ \(Rule \d+\)/, "")}</small></button>`).join("");
   $("whistleKeys").addEventListener("click", (ev) => {

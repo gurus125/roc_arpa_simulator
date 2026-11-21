@@ -102,6 +102,7 @@ const ACTION_WHY: Record<string, Omit<RobotWhy, "title">> = {
   range: { reason: "A medium range scale (12 NM) shows the coast, the ships and the noise together, so the set-up can be judged." },
   pm: { reason: "The performance monitor proves the radar is working at full performance, which an empty picture in open water cannot." },
   pattern: { reason: "A search pattern laid from the MOB mark is ready if the person is not found on the way back." },
+  doubt: { reason: "When the other ship came back towards own ship after own ship had given way, her intentions were in doubt. Five short and rapid blasts tell her so at once, while own ship acts again.", rule: "Rule 34(d): at least five short and rapid blasts when in doubt whether the other ship is taking sufficient action." },
 };
 
 /** Reasons for what is judged from the whole exercise (outcome items), by task id. */
@@ -125,6 +126,7 @@ const OUTCOME_WHY: Record<string, Omit<RobotWhy, "title">> = {
   clear: { reason: "With no GNSS, the position comes from radar fixes, so a wide margin is kept from the land." },
   final: { reason: "At the end the radar must be transmitting with the gain giving a light speckle and the tuning right: a radar badly set up loses weak echoes." },
   held: { reason: "Every target must still be tracked when the report is made; a lost track means no data for that ship." },
+  again: { reason: "An action is checked until the other ship is past and clear. When she comes back, the first action is no longer working: more action is taken, boldly (a large alteration, or slowing down or stopping), not a series of small corrections.", rule: "Rule 8(b), (d) and (e); Rule 2." },
 };
 
 /**

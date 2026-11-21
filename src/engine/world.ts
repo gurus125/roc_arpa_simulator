@@ -242,7 +242,9 @@ export function createWorld(sc: Scenario, tuningOptimum = 62): World {
   return {
     ...(terrain ? { terrain } : {}),
     ...(sc.terrain ? { area: sc.terrain } : {}),
-    ...(sc.traffic && sc.traffic !== "hold" ? { traffic: { mode: sc.traffic, wrongId: null, ships: {}, log: [] } } : {}),
+    ...(sc.traffic && sc.traffic !== "hold"
+      ? { traffic: { mode: sc.traffic, wrongId: null, ships: {}, log: [], ...(sc.traffic === "careless" || sc.traffic === "hunting" ? { chase: { id: sc.trafficShip ?? null, corrections: 0, nextLook: 0, over: false } } : {}) } }
+      : {}),
     origin: sc.origin ?? MUMBAI_ORIGIN,
     time: 0,
     own: {

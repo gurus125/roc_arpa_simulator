@@ -1,7 +1,7 @@
 import { ANCHOR_WATCH_DEFAULT_NM, ArpaSystem } from "../arpa/index";
 import { courseToSteer } from "../core/current";
 import { bearingOf, length, normalizeDeg, rotateVec, sub } from "../core/vec";
-import { World, createWorld, letGoAnchor, ownGroundVelocity, setShipModel, stepWorld, RADAR_WARM_UP_SEC, setRadarTransmit, switchRadarOn } from "../engine/index";
+import { World, cameBackAt, createWorld, letGoAnchor, ownGroundVelocity, setShipModel, stepTraffic, stepWorld, RADAR_WARM_UP_SEC, setRadarTransmit, switchRadarOn } from "../engine/index";
 import { ARPA_EXERCISES } from "./arpa-exercises";
 import { PLOTTING_EXERCISES } from "./plotting-exercises";
 import { GOA_ANCHOR, GOA_PI_NM } from "./port-exercises";
@@ -182,6 +182,18 @@ const PLANS: Record<string, Plan> = {
     done: (k) => k.w.own.pos.n > 7.5,
   },
   "arpa-31": { steps: [all], finishAt: 420 },
+  "arpa-32": {
+    // Give way early, 50° to starboard; when Ship K comes back, five short blasts and a bold second action.
+    steps: [all, { at: 240, run: (k) => void (k.w.own.ordered.course = normalizeDeg(k.ex.scenario.own.heading + 50)) }],
+    every: (k) => {
+      if (cameBackAt(k.w) === null || k.s.obs.signals.length > 0) return;
+      k.s.signal(k.w, "doubt");
+      k.w.own.ordered.course = normalizeDeg(k.ex.scenario.own.heading + 100);
+      k.w.own.ordered.speed = 6;
+    },
+    finishAt: 3000,
+    done: (k) => k.w.time > 900 && k.w.targets.every((t) => length(sub(t.pos, k.w.own.pos)) > 3 || t.id !== 1),
+  },
   "radar-11": {
     // Home on the survival craft (the first dot), slowing down in good time.
     steps: [],
@@ -306,6 +318,7 @@ function runOne(ex: ArpaExercise, mode: Mode, manoeuvre?: { turn: number; speed:
       if (plan.done?.(kit)) break;
     }
     stepWorld(w, 1);
+    stepTraffic(w, 1);
     a.step(w, rng);
     s.step(w, a, kit.ui);
   }

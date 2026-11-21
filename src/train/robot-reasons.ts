@@ -562,6 +562,18 @@ const CHO: Record<string, ChoiceReason> = {
     rule: "CPA and TCPA come from relative motion; true vectors depend on the gyro and log inputs.",
   }),
   "arpa-9:who": SMALLEST_CPA([1, 2, 3, 4], " In restricted visibility every ship coming into close quarters must be avoided; this one comes closest."),
+  "arpa-32:who": () => ({
+    reason: "The ships are in sight of one another and crossing. Ship K is on our starboard side, so we are the give-way vessel: we keep out of her way, early and substantially, and avoid crossing ahead of her. A turn to starboard takes us under her stern.",
+    rule: "Rule 15 (crossing situation) and Rule 16 (action by the give-way vessel). Size does not decide it.",
+  }),
+  "arpa-32:rule": () => ({
+    reason: "Giving way does not end our duty. If the other ship keeps coming, the action is not working, so more action is taken, boldly: a large alteration, or slow down or stop. Waiting for her answer on VHF wastes the minutes that matter, and a turn to port across her bow can meet her own turn.",
+    rule: "Rule 8(d) and (e): check the action until she is past and clear, and slacken speed or stop if necessary. Rule 2: the special circumstances of the case.",
+  }),
+  "arpa-32:sig": () => ({
+    reason: "When a ship in sight fails to understand what the other is doing, or doubts that she is doing enough to avoid a collision, she says so at once with at least five short and rapid blasts (a light signal of five short flashes may go with them).",
+    rule: "Rule 34(d).",
+  }),
   "radar-10:why": () => ({
     reason: "The index line is where the light's echo should be when the ship is on her track (1.5 NM to starboard). If the echo moves in from the line towards the heading line, the light is closer than planned: the ship is being set towards it.",
     rule: "Parallel indexing: the echo of a fixed mark slides along the index line while the ship is on track; any movement off the line is movement off the track.",
@@ -708,6 +720,7 @@ const PLANS: Record<string, string[]> = {
   "radar-29": ["Keep a look-out.", "At the report: MOB key at once.", "Williamson turn: hard a-starboard; at 60° hard a-port; steady on 170°.", "Reduce speed; lay an expanding square from the MOB mark; close the mark slowly."],
   "radar-30": ["Answer the questions on safe speed.", "When the visibility closes: reduce to a safe speed at once.", "Keep watching the boats on the radar; Finish when they are past and clear."],
   "arpa-31": ["Acquire all six ships quickly, the nearest and closing ones first.", "Wait for steady data.", "Compare the CPAs; report; read Ship F's bearing and range.", "Finish within the time."],
+  "arpa-32": ["Acquire the three ships and appraise them.", "Ship K crosses from starboard: give way early, to starboard, with the trial.", "Keep watching her: CPA, TCPA, vector and bearing.", "When she comes back: five short blasts, then a bold second action (more to starboard, slow down).", "Watch until she is past and clear."],
 };
 
 /** How the robot means to work the exercise, before it starts. */

@@ -285,8 +285,9 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
       <div class="btns"><button id="rgSend">Random traffic on the display chosen above</button><button id="rgOwn">On the station's own radar</button><button id="rgNew">New seed</button></div>
       <h2 style="margin-top:12px">How the other ships behave</h2>
       <div class="row two"><label for="srMode">Other ships</label><select id="srMode">${(Object.keys(BEHAVIOUR_LABELS) as ShipBehaviour[]).map((k) => `<option value="${k}">${esc(BEHAVIOUR_LABELS[k])}</option>`).join("")}</select></div>
+      <div class="row two"><label for="srShip">Ship that keeps coming</label><select id="srShip"><option value="">The one that would come closest</option><option value="chosen">The target chosen above</option></select></div>
       <div class="btns"><button id="srSend">Set on the display chosen above</button><button id="srOwn">On the station's own radar</button></div>
-      <p class="hint">With "keep the collision regulations", a ship that must give way to own ship alters to starboard in good time, a stand-on ship holds on and acts only at the last moment, and in restricted visibility each alters to starboard for own ship forward of her beam. With "one gets it wrong", the first ship to act turns to port instead. Each manoeuvre is written in the display's record (instructor notes); the trainees are not told. The exercises are marked for ships that keep their course and speed: their answer keys follow the ships as they actually move, but the passing distances may differ from the written exercise.</p>
+      <p class="hint">With "keep the collision regulations", a ship that must give way to own ship alters to starboard in good time, a stand-on ship holds on and acts only at the last moment, and in restricted visibility each alters to starboard for own ship forward of her beam. With "one gets it wrong", the first ship to act turns to port instead. With "one ship keeps coming", one ship holds on while own ship comes close and, once own ship has acted, comes back towards her: "careless" (no look-out) edges back a little every two or three minutes, three times at most; "hunting" (a drill) re-aims every minute, up to six times. Either gives up when own ship has nearly stopped or is past and clear, so a bold action always gets clear. Choose the ship as the target chosen above, or let the simulator take the one that would come closest; the others keep their course and speed. Each manoeuvre is written in the display's record (instructor notes); the trainees are not told. The exercises are marked for ships that keep their course and speed: their answer keys follow the ships as they actually move, but the passing distances may differ from the written exercise.</p>
       <p class="hint">The targets of the display chosen are listed from its last report. An alteration, a new target or random traffic acts at once on that display and is written to its record; the trainees are not told. A ship of a catalogue type comes round and changes speed gradually. Ships on close-quarters courses pass within 0.5 NM of that own ship in 15 to 35 minutes if nobody acts.</p>
       <div class="btns"><button id="inLinked">Start a LINKED exercise on all displays with the scenario loaded here</button></div>
       <div class="btns"><input type="text" id="inMsgText" placeholder="Message to all displays" style="flex:1"><button id="inMsgSend">Send</button></div>
@@ -695,8 +696,10 @@ export function initInstructorUi(api: InstructorApi): InstructorUi {
   });
   $("srSend").addEventListener("click", () => {
     const mode = inputValue("srMode") as ShipBehaviour;
-    api.link.sendCommand({ to: rtTo(), cmd: "shipRules", mode });
-    msg(`Other ships on ${rtTo() === "all" ? "all displays" : `display ${rtTo()}`}: ${BEHAVIOUR_LABELS[mode].toLowerCase()}.`);
+    const chosen = inputValue("srShip") === "chosen" && inputValue("rtTg") !== "" ? Number(inputValue("rtTg")) : null;
+    const ship = mode === "careless" || mode === "hunting" ? chosen : null;
+    api.link.sendCommand({ to: rtTo(), cmd: "shipRules", mode, ship });
+    msg(`Other ships on ${rtTo() === "all" ? "all displays" : `display ${rtTo()}`}: ${BEHAVIOUR_LABELS[mode].toLowerCase()}${ship !== null ? ` (target ${ship})` : ""}.`);
   });
   $("srOwn").addEventListener("click", () => {
     const app = api.getApp();

@@ -379,6 +379,8 @@ export interface Scenario {
   origin?: { lat: number; lon: number };
   /** How the other ships behave towards own ship. Left out: "hold" (they keep their course and speed). */
   traffic?: ShipBehaviour;
+  /** For "careless" and "hunting": the id of the ship that keeps coming. Left out: the one that would come closest. */
+  trafficShip?: number;
   /**
    * With `terrain`: put the area's buoys, beacons and lights that stand in the water (engine/seamarks.ts) on the
    * radar, as targets numbered from 9001. Left out: only the scenario's own targets.

@@ -64,7 +64,7 @@ describe("the instructor's manual names every tab and section of the instructor 
       "Examinations", "Save the parts", "Start the ROC examination", "Start the ARPA examination", "Examination results", "Time limit for the exercise", "Set this time limit",
       "Send these faults to all displays", "Programme a track", "Set track", "Take off track", "Undo point", "Show target tracks on this display",
       "Take exercise back 2 min", "Alter target now", "Add target now", "Start a LINKED exercise on all displays",
-      "How the other ships behave", "Log in to the server", "Log out of the server", "Back up the server now", "Put the server back to this backup",
+      "How the other ships behave", "Ship that keeps coming", "Log in to the server", "Log out of the server", "Back up the server now", "Put the server back to this backup",
       "Export everything on the server (one file)", "Import a server file", "Add this account", "Switch the station key off", "Set password"];
     for (const q of quoted) {
       expect(instr.replace(/\s+/g, " "), `manual quotes "${q}"`).toContain(q);
